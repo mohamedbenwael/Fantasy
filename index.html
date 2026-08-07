@@ -6,6 +6,7 @@
 <title>المزاريطة فانتازي</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   html,body{height:100%;}
@@ -509,20 +510,39 @@ const SEED_GW = {
 const FALLBACK_CLUB_TAG = {liv:'LIV',ars:'ARS',mci:'MCI',mun:'MUN',che:'CHE',new:'NEW',tot:'TOT'};
 const FALLBACK_CLUB_NAME = {liv:'ليفربول',ars:'أرسنال',mci:'مانشستر سيتي',mun:'مانشستر يونايتد',che:'تشيلسي',new:'نيوكاسل',tot:'توتنهام'};
 
-// ===== storage helpers (never throw) =====
+// ===== Supabase (real database, works for every visitor) =====
+const SUPABASE_URL = 'https://mizlabuyvllveverurai.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_8QQ0WjCvIFP7C8wmc5vT9w_VYAIgedo';
+const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ===== storage helpers (never throw) — same key/value shape as before, backed by Supabase now =====
 async function sGet(key, shared){
-  try{ const r = await window.storage.get(key, !!shared); return r ? r.value : null; }
-  catch(e){ return null; }
+  try{
+    const { data, error } = await supa.from('mazareta_kv').select('value').eq('key', key).maybeSingle();
+    if(error || !data) return null;
+    return data.value;
+  } catch(e){ return null; }
 }
 async function sSet(key, value, shared){
-  try{ const r = await window.storage.set(key, value, !!shared); return !!r; }
-  catch(e){ return false; }
+  try{
+    const { error } = await supa.from('mazareta_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+    return !error;
+  } catch(e){ return false; }
 }
 async function sList(prefix, shared){
-  try{ const r = await window.storage.list(prefix, !!shared); return r ? r.keys : []; }
-  catch(e){ return []; }
+  try{
+    const { data, error } = await supa.from('mazareta_kv').select('key').like('key', prefix+'%');
+    if(error || !data) return [];
+    return data.map(r=>r.key);
+  } catch(e){ return []; }
 }
 function uid(){ return 'u' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+
+// the device id is now the user's own FPL Team ID (entered once during onboarding),
+// so their save/load calls hit rows keyed by their FPL ID instead of a random uid
+function getLocalDeviceId(){
+  try{ return localStorage.getItem('mazareta_fpl_id'); } catch(e){ return null; }
+}
 
 // ===== FPL live data (via /api/fpl proxy) =====
 const POS_MAP = {1:'GK',2:'DEF',3:'MID',4:'FWD'};
@@ -532,6 +552,72 @@ async function fplFetch(type, event){
   const res = await fetch(url);
   if(!res.ok) throw new Error('fpl fetch failed: ' + type);
   return res.json();
+}
+
+// ===== جلب بيانات المدير الحقيقية (اسم المدير / اسم الفريق) والتحقق من الـ ID =====
+async function fetchFplEntry(fplId){
+  const id = String(fplId || '').trim();
+  if(!id || !/^\d+$/.test(id)){
+    return { error: 'رقم الـ FPL Team ID غير صحيح' };
+  }
+  try{
+    const res = await fetch(FPL_ENDPOINT + '?type=entry&id=' + encodeURIComponent(id));
+    if(res.status === 404){
+      return { error: 'مفيش فريق بالـ ID ده. تأكد من الرقم وحاول تاني' };
+    }
+    if(!res.ok){
+      return { error: 'حصل خطأ في الاتصال بـ FPL. حاول تاني' };
+    }
+    const data = await res.json();
+    if(!data || (data.player_first_name == null && data.name == null)){
+      return { error: 'مفيش فريق بالـ ID ده. تأكد من الرقم وحاول تاني' };
+    }
+    return {
+      managerName: [data.player_first_name, data.player_last_name].filter(Boolean).join(' ') || ('مدير ' + id),
+      teamName: data.name || ('فريق ' + id),
+      currentEvent: data.current_event || null,
+    };
+  }catch(e){
+    return { error: 'حصل خطأ في الاتصال بـ FPL. تأكد من النت وحاول تاني' };
+  }
+}
+
+// ===== جلب التشكيلة الحقيقية لجولة معيّنة (أساسي/احتياطي/كابتن) =====
+async function fetchFplPicks(fplId, gw){
+  const id = String(fplId || '').trim();
+  if(!id || !gw) return null;
+  try{
+    const res = await fetch(FPL_ENDPOINT + '?type=picks&id=' + encodeURIComponent(id) + '&event=' + encodeURIComponent(gw));
+    if(!res.ok) return null;
+    const data = await res.json();
+    const picks = data.picks || [];
+    if(!picks.length) return null;
+
+    // multiplier: 0 = احتياطي، 1/2/3 = أساسي (2 و3 حالات الكابتن/التريبل كابتن)
+    const squadIds = picks.map(p => ({
+      id: p.element,
+      slot: p.multiplier > 0 ? 'start' : 'bench'
+    }));
+    const captainPick = picks.find(p => p.is_captain);
+    const captainId = captainPick ? captainPick.element : (picks[0] ? picks[0].element : null);
+    const bank = (data.entry_history && typeof data.entry_history.bank === 'number')
+      ? data.entry_history.bank / 10
+      : 0;
+
+    return { squadIds, captainId, bank };
+  }catch(e){
+    return null;
+  }
+}
+
+// فورم موزون: بيدي وزن أكبر للجولات الأقرب بدل ما يعامل آخر 5 جولات بنفس الأهمية
+// (لاعب سجل 2 جولات كويسة الأسبوع اللي فات أهم من لاعب سجلهم بدري وبايت دلوقتي)
+function weightedFormPts(history){
+  if(!history || !history.length) return 0;
+  const sorted = history.slice().sort((a,b)=>a.gw-b.gw);
+  let wSum = 0, sum = 0;
+  sorted.forEach((h,i)=>{ const w = i+1; wSum += w; sum += w*h.pts; });
+  return wSum ? Math.round((sum/wSum)*100)/100 : 0;
 }
 
 async function buildLiveDataset(){
@@ -552,8 +638,9 @@ async function buildLiveDataset(){
   const currentEvent = events.find(e=>e.is_current) || events.find(e=>e.is_next) || events[events.length-1];
   const gwId = currentEvent ? currentEvent.id : 1;
 
-  // نجيب نقط لحظية لآخر 3 جولات متخلصة + الجولة الحالية عشان نبني "الفورم"
-  const finishedIds = events.filter(e=>e.finished).map(e=>e.id).slice(-3);
+  // نجيب نقط لحظية لآخر 5 جولات متخلصة + الجولة الحالية عشان نبني "فورم موزون"
+  // (الجولات الأقرب ليها وزن أكبر في الحساب، مش كل الجولات بنفس الأهمية)
+  const finishedIds = events.filter(e=>e.finished).map(e=>e.id).slice(-5);
   const liveIds = Array.from(new Set([...finishedIds, gwId]));
   const historyByElement = {};
   for(const evId of liveIds){
@@ -574,10 +661,14 @@ async function buildLiveDataset(){
   teams.forEach(t=>{ teamsById[t.id] = t; });
 
   const fixturesMap = {};
-  const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away }
+  const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away, lookahead, avgFdrNext3 }
   try{
-    const fx = await fplFetch('fixtures', gwId);
-    (fx || []).forEach(f=>{
+    // بنجيب كل مباريات الموسم مرة واحدة (فيها cache في البروكسي)، ومنها بنستخرج
+    // مباريات الجولة الحالية + "نظرة قدام" على أقرب 3 مباريات جاية لكل نادي —
+    // ده بيخلي نصايح البيع والشراء أدق من الاعتماد على مباراة واحدة بس.
+    const allFx = await fplFetch('fixtures');
+    const gwFx = (allFx || []).filter(f=>f.event===gwId);
+    gwFx.forEach(f=>{
       const hKey = teamIdToKey[f.team_h], aKey = teamIdToKey[f.team_a];
       const hTeam = teamsById[f.team_h], aTeam = teamsById[f.team_a];
       if(hKey && aKey){
@@ -597,10 +688,30 @@ async function buildLiveDataset(){
         };
       }
     });
+
+    // نظرة قدام: أقرب 3 مباريات لسه ما اتلعبتش لكل نادي (بتاخد بعضها لو فيه جولة مزدوجة)
+    const upcoming = (allFx || [])
+      .filter(f=>!f.finished && f.event!=null && f.event>=gwId)
+      .sort((a,b)=>a.event-b.event);
+    const lookaheadByTeam = {};
+    upcoming.forEach(f=>{
+      const hKey = teamIdToKey[f.team_h], aKey = teamIdToKey[f.team_a];
+      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, isHome:true, oppKey:aKey }); }
+      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, isHome:false, oppKey:hKey }); }
+    });
+    Object.keys(lookaheadByTeam).forEach(key=>{
+      const list = lookaheadByTeam[key].slice(0,3);
+      const avgFdr = list.length ? list.reduce((s,x)=>s+x.fdr,0)/list.length : 3;
+      if(!teamFixtures[key]) teamFixtures[key] = {}; // نادي معندوش مباراة الجولة دي (bye) لسه ممكن يكون عنده نظرة قدام
+      teamFixtures[key].lookahead = list;
+      teamFixtures[key].avgFdrNext3 = avgFdr;
+    });
   }catch(e){}
 
   const players = elements.map(el=>{
     const club = teamIdToKey[el.team] || 'unk';
+    const hist = (historyByElement[el.id]||[]).sort((a,b)=>a.gw-b.gw);
+    const matchesPlayed = el.starts || Math.round((el.minutes||0)/90) || 0;
     return {
       id: el.id,
       name: el.web_name,
@@ -612,12 +723,29 @@ async function buildLiveDataset(){
       priceChange: (el.cost_change_event||0) / 10,
       totalPointsReal: el.total_points || 0,
       status: el.status, // a=متاح, i=مصاب, s=موقوف, d=مشكوك فيه
-      history: (historyByElement[el.id]||[]).sort((a,b)=>a.gw-b.gw),
+      history: hist,
       // ===== حقول إضافية لمحرك التوقعات (كلها من الـ API الرسمي) =====
       epNext: parseFloat(el.ep_next) || 0,               // توقع FPL الرسمي لنقط الجولة الجاية
-      form: parseFloat(el.form) || 0,                     // متوسط نقط آخر جولات
+      form: parseFloat(el.form) || 0,                     // متوسط نقط آخر جولات (رسمي)
+      formWeighted: weightedFormPts(hist),                // فورم موزون: الجولات الأقرب ليها وزن أكبر
       minutes: el.minutes || 0,
       chanceNext: (el.chance_of_playing_next_round==null) ? 100 : el.chance_of_playing_next_round,
+      // ===== إحصائيات متقدمة (xG/xA/ICT) عشان توقع النقط يبقى مبني على "استحقاق"
+      // اللاعب الفعلي مش بس النتايج اللي حصلت، ده بيقلل أثر الحظ (زي تسديدة اترد من القايم) =====
+      xG90: parseFloat(el.expected_goals_per_90) || 0,           // أهداف متوقعة لكل 90 دقيقة
+      xA90: parseFloat(el.expected_assists_per_90) || 0,         // أسيستات متوقعة لكل 90 دقيقة
+      xGC90: parseFloat(el.expected_goals_conceded_per_90) || 0, // أهداف متوقع استقبالها لكل 90 دقيقة (لمحرك الكلين شيت)
+      savesPer90: parseFloat(el.saves_per_90) || 0,
+      ictIndex: parseFloat(el.ict_index) || 0,
+      pointsPerGame: parseFloat(el.points_per_game) || 0,
+      bonusPerMatch: matchesPlayed ? (el.bonus||0) / matchesPlayed : 0,
+      // نسبة الجولات اللي اتأسس فيها من بداية الموسم لحد دلوقتي — مؤشر تقريبي لخطر الدوران
+      startsFactor: gwId>1 ? Math.min(1, matchesPlayed / (gwId-1)) : (matchesPlayed>0?1:0),
+      // لاعب ضربات ثابتة أساسي (بنالتي/فري كيك/كورنر) — بونص إضافي في نصايح الشراء
+      setPiece: el.penalties_order===1 ? 'بنالتي أساسي'
+               : el.direct_freekicks_order===1 ? 'ضربات حرة'
+               : el.corners_and_indirect_freekicks_order===1 ? 'كورنرات'
+               : null,
     };
   });
 
@@ -753,10 +881,15 @@ function pool(){ const owned=new Set(state.mySquadIds.map(e=>e.id)); return stat
 
 // ============================================================
 // ===== محرك التوقعات والنصايح =====
-// كل الأرقام هنا "تقديرية" مبنية على بيانات فانتازي البريميرليج الرسمية
-// (الفورم، توقع FPL نفسها لنقط الجولة الجاية "ep_next"، صعوبة المباراة FDR،
-// وقوة هجوم/دفاع كل نادي) — مفيش أي بيانات مدفوعة ولا نموذج ذكاء اصطناعي،
-// كله حسابات مباشرة وشفافة وممكن تتراجع في أي وقت.
+// كل الأرقام هنا "تقديرية" مبنية على بيانات فانتازي البريميرليج الرسمية بس:
+// - توقع FPL الرسمي لنقط الجولة الجاية "ep_next"
+// - فورم موزون (آخر 5 جولات، الأقرب أهم) بدل الفورم العادي
+// - نموذج إحصائي مبني على xG/xA لكل 90 دقيقة (استحقاق اللاعب الفعلي مش بس نتايجه)
+// - احتمال الكلين شيت من قوة هجوم/دفاع الأندية + xGC (أهداف متوقع استقبالها)
+// - صعوبة المباراة الجاية (FDR) + نظرة على متوسط صعوبة أقرب 3 مباريات
+// - نسبة الجولات اللي اتأسس فيها اللاعب (خطر الدوران) + لاعبي الضربات الثابتة
+// مفيش أي بيانات مدفوعة ولا نموذج ذكاء اصطناعي، كله حسابات مباشرة وشفافة
+// وممكن تتراجع أو تتحسّن في أي وقت.
 // ============================================================
 
 function teamFixtureInfo(clubKey){
@@ -776,16 +909,52 @@ function availabilityMultiplier(p){
   return 1;
 }
 
-// توقع نقاط اللاعب في الجولة الجاية
+// احتمال الكلين شيت الأساسي لنادي اللاعب في مباراته الجاية (قوة دفاعه مقابل هجوم الخصم)
+// + تعديل بسيط لو اللاعب نفسه بيستقبل أهداف أكتر من المتوقع لمركزه (xGC90 عالي شخصيًا)
+function cleanSheetProbability(p){
+  const fx = teamFixtureInfo(p.club);
+  let prob = 0.28;
+  if(fx && fx.ownDefHome!=null){
+    const defStrength = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
+    const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
+    if(defStrength!=null && oppAtk!=null){
+      prob = Math.max(0.03, Math.min(0.65, 0.32 + (defStrength-oppAtk)/220));
+    }
+  }
+  if((p.pos==='DEF'||p.pos==='GK') && p.xGC90>1.1){ prob = Math.max(0.02, prob - (p.xGC90-1.1)*0.12); }
+  return prob;
+}
+
+// نموذج إحصائي: نبني توقع نقط اللاعب من "استحقاقه" الفعلي (xG/xA/كلين شيت/بونص)
+// مش بس النتايج القديمة — ده بيقلل أثر الحظ (تسديدة اترد من القايم، أو أهداف من تسديدات ضعيفة)
+function statModelPoints(p){
+  const posGoalPts = {GK:6,DEF:6,MID:5,FWD:4}[p.pos] || 4;
+  const posCSPts   = {GK:4,DEF:4,MID:1,FWD:0}[p.pos] || 0;
+  const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : (p.minutes>0 ? 0.5 : 0);
+  if(minFactor<=0) return 0;
+  const appearancePts = minFactor * 2; // تقدير نقط الظهور (60+ دقيقة)
+  const goalPts   = (p.xG90||0) * minFactor * posGoalPts;
+  const assistPts = (p.xA90||0) * minFactor * 3;
+  const csPts     = cleanSheetProbability(p) * posCSPts * minFactor;
+  const bonusPts  = (p.bonusPerMatch||0) * minFactor;
+  const savePts   = p.pos==='GK' ? ((p.savesPer90||0)/3) * minFactor : 0;
+  return appearancePts + goalPts + assistPts + csPts + bonusPts + savePts;
+}
+
+// توقع نقاط اللاعب في الجولة الجاية:
+// بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
+// وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي،
+// وبعدين بنضرب في صعوبة المباراة (FDR) واحتمال المشاركة.
 function predictedPoints(p){
   const avail = availabilityMultiplier(p);
   if(avail===0) return 0;
   const fx = teamFixtureInfo(p.club);
   const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
-  // الأساس: توقع FPL الرسمي (ep_next) لو متاح، وإلا الفورم، وإلا متوسط الموسم
+  const stat = statModelPoints(p);
   let base;
-  if(p.epNext && p.epNext>0){ base = p.epNext; }
-  else if(p.form && p.form>0){ base = p.form; }
+  if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
+  else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
+  else if(stat>0){ base = stat; }
   else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
   const pts = base * fdrMul * avail;
   return Math.max(0, Math.round(pts*10)/10);
@@ -807,17 +976,16 @@ function squadOwnershipAvg(){
   return Math.round((s.reduce((sum,p)=>sum+p.ownership,0)/s.length)*10)/10;
 }
 
-// ترتيب الأندية حسب احتمال الكلين شيت الجولة الجاية (قوة دفاعهم مقابل هجوم الخصم + سهولة المباراة)
+// ترتيب الأندية حسب احتمال الكلين شيت الجولة الجاية (قوة دفاعهم مقابل هجوم الخصم +
+// سهولة المباراة + متوسط الأهداف المتوقع استقبالها لحارس/دفاع كل نادي xGC)
 function cleanSheetRanking(){
   return Object.keys(CLUB_TAG).map(key=>{
     const fx = teamFixtureInfo(key);
-    if(!fx) return null;
-    const defStrength = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
-    const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
-    if(defStrength==null || oppAtk==null) return null;
-    const raw = defStrength - oppAtk;
-    const prob = Math.max(5, Math.min(68, Math.round(32 + raw/6)));
-    return { club:key, prob, fx };
+    if(!fx || fx.ownDefHome==null) return null;
+    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key);
+    const refPlayer = { pos:'GK', club:key, xGC90: keepers.length ? keepers[0].xGC90 : 0 };
+    const prob = Math.round(cleanSheetProbability(refPlayer) * 100);
+    return { club:key, prob: Math.max(3, Math.min(72, prob)), fx };
   }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
 }
 
@@ -854,7 +1022,10 @@ function sellAdvice(){
     else if(p.status==='d'){ reasons.push('مشكوك في مشاركته'); score -= 1.5; }
     const fx = teamFixtureInfo(p.club);
     if(fx && fx.fdr>=4){ reasons.push('مباراة صعبة الجولة الجاية'); score -= 0.8; }
-    if((p.form||0) < 2){ reasons.push('فورم ضعيف'); score -= 0.6; }
+    if(fx && fx.avgFdrNext3 && fx.avgFdrNext3>=3.6){ reasons.push('سلسلة مباريات صعبة قدامه'); score -= 0.6; }
+    if((p.formWeighted||p.form||0) < 2){ reasons.push('فورم ضعيف'); score -= 0.6; }
+    if((p.startsFactor!=null) && p.startsFactor<0.5 && p.minutes>0){ reasons.push('خطر دوران (مش أساسي ثابت)'); score -= 0.7; }
+    if(p.pos!=='GK' && (p.form||0) > (p.xG90+p.xA90)*4 + 1.5){ reasons.push('نتايجه أحسن من مستواه الفعلي (ممكن ترجع لطبيعتها)'); score -= 0.4; }
     if(p.priceChange < 0){ reasons.push('سعره بينزل'); }
     return { p, score, reasons };
   }).filter(x=>x.reasons.length>0).sort((a,b)=>a.score-b.score).slice(0,5);
@@ -868,7 +1039,11 @@ function buyAdvice(){
       const pred = predictedPoints(p);
       const fx = teamFixtureInfo(p.club);
       if(fx && fx.fdr<=2) reasons.push('مباراة سهلة الجولة الجاية');
-      if((p.form||0) >= 4) reasons.push('فورم ممتاز');
+      if(fx && fx.avgFdrNext3 && fx.avgFdrNext3<=2.4) reasons.push('سلسلة مباريات سهلة قدامه');
+      if((p.formWeighted||p.form||0) >= 4) reasons.push('فورم ممتاز');
+      if(p.pos!=='GK' && (p.xG90+p.xA90) >= 0.5) reasons.push('معدل مشاركة عالي في الأهداف (xG/xA)');
+      if(p.setPiece) reasons.push(p.setPiece);
+      if((p.startsFactor||0) >= 0.85) reasons.push('أساسي ثابت');
       if(p.priceChange > 0) reasons.push('سعره بيطلع');
       if(p.ownership < 8 && pred>=4) reasons.push('لاعب مميز (differential)');
       return { p, pred, reasons };
@@ -895,7 +1070,7 @@ function setFlash(type, text){
 
 // ===== persistence =====
 async function savePersonal(){
-  await sSet('mazareta_squad', JSON.stringify({
+  await sSet('mazareta_squad:'+state.deviceId, JSON.stringify({
     mySquadIds:state.mySquadIds, captainId:state.captainId, bank:state.bank,
     freeTransfers:state.freeTransfers, seasonBaseline:state.seasonBaseline
   }), false);
@@ -908,7 +1083,12 @@ async function pushPublicEntry(){
   }), true);
 }
 async function saveManager(){
-  await sSet('mazareta_manager', JSON.stringify({ deviceId:state.deviceId, managerName:state.managerName, teamName:state.teamName }), false);
+  // state.deviceId now holds the user's FPL Team ID, so this row (and its key)
+  // is effectively keyed on fpl_team_id — matching the managers table's new primary key
+  await sSet('mazareta_manager:'+state.deviceId, JSON.stringify({
+    deviceId:state.deviceId, fplTeamId:state.deviceId,
+    managerName:state.managerName, teamName:state.teamName
+  }), false);
 }
 // ===== boot =====
 async function boot(){
@@ -917,16 +1097,32 @@ async function boot(){
   try{
     await loadLiveData();
 
-    // personal manager identity
-    let raw = await sGet('mazareta_manager', false);
-    if(raw){
-      const m = JSON.parse(raw);
-      state.deviceId = m.deviceId; state.managerName = m.managerName; state.teamName = m.teamName;
-    } else {
-      state.deviceId = uid();
+    // if this browser already has an FPL Team ID saved, skip onboarding and go
+    // straight into the app; otherwise show the onboarding screen to collect it
+    const savedFplId = getLocalDeviceId();
+    if(!savedFplId){
       state.phase = 'onboard';
       render();
       return;
+    }
+
+    state.deviceId = savedFplId;
+    let raw = await sGet('mazareta_manager:'+state.deviceId, false);
+    if(raw){
+      const m = JSON.parse(raw);
+      state.managerName = m.managerName; state.teamName = m.teamName;
+    } else {
+      // id متخزن محليًا بس مفيش صف مدير (اتمسح من السيرفر مثلاً) —
+      // نجيب الاسم الحقيقي تاني من FPL بدل الاسم الوهمي
+      const entry = await fetchFplEntry(savedFplId);
+      if(entry && !entry.error){
+        state.managerName = entry.managerName;
+        state.teamName = entry.teamName;
+      } else {
+        state.managerName = 'مدير ' + savedFplId;
+        state.teamName = 'فريق ' + savedFplId;
+      }
+      await saveManager();
     }
 
     await loadSquadOrDraft();
@@ -940,7 +1136,7 @@ async function boot(){
 }
 
 async function loadSquadOrDraft(){
-  const raw = await sGet('mazareta_squad', false);
+  const raw = await sGet('mazareta_squad:'+state.deviceId, false);
   if(raw){
     const s = JSON.parse(raw);
     // لو الفريق المحفوظ بيرجع لبيانات قديمة (لاعبين مش موجودين دلوقتي) نعيد بناءه
@@ -951,6 +1147,21 @@ async function loadSquadOrDraft(){
       return;
     }
   }
+
+  // مفيش تشكيلة متخزنة (أو بايتة) — نحاول نجيب التشكيلة الحقيقية من FPL الأول
+  const gw = state.gwInfo && state.gwInfo.current;
+  const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
+  if(picks && picks.squadIds && picks.squadIds.length){
+    state.mySquadIds = picks.squadIds;
+    state.captainId = picks.captainId;
+    state.bank = picks.bank;
+    state.freeTransfers = 2;
+    state.seasonBaseline = 0;
+    await savePersonal();
+    return;
+  }
+
+  // فشل جلب التشكيلة الحقيقية (مثلاً أول جولة في الموسم أو الـ API واقع) — نرجع لتشكيلة افتراضية
   const drafted = draftDefaultSquad(state.players);
   state.mySquadIds = drafted.squadIds;
   state.captainId = drafted.captainId;
@@ -983,12 +1194,37 @@ async function refreshLiveData(){
 
 // ===== onboarding submit =====
 async function submitOnboard(){
-  const mgr = document.getElementById('obManager').value.trim();
-  const team = document.getElementById('obTeam').value.trim();
-  if(!mgr || !team) return;
-  state.managerName = mgr; state.teamName = team;
+  const inputEl = document.getElementById('obFplId');
+  const errEl = document.getElementById('obError');
+  const btnEl = document.getElementById('obSubmit');
+  const fplId = inputEl.value.trim();
+
+  if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
+
+  if(!fplId){
+    if(errEl){ errEl.textContent = 'اكتب الـ FPL Team ID الأول'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = 'بنتأكد من الـ ID...'; }
+
+  const entry = await fetchFplEntry(fplId);
+
+  if(!entry || entry.error){
+    if(errEl){ errEl.textContent = (entry && entry.error) ? entry.error : 'تأكد من رقم الـ ID وحاول تاني'; errEl.style.display = 'block'; }
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = 'ابدأ اللعب'; }
+    return;
+  }
+
+  // نجحنا — نخزّن الـ ID محليًا عشان boot() يتخطى الأونبوردينج المرة الجاية
+  try{ localStorage.setItem('mazareta_fpl_id', fplId); } catch(e){}
+
+  state.deviceId = fplId;
+  state.managerName = entry.managerName;
+  state.teamName = entry.teamName;
+
   await saveManager();
-  await loadSquadOrDraft();
+  await loadSquadOrDraft(); // هتجيب التشكيلة الحقيقية من FPL (شوف التعديل فوق)
   await refreshOverall();
   state.phase = 'app';
   render();
@@ -1026,10 +1262,11 @@ function renderOnboard(){
   return '<div class="onboard">' +
     '<div class="crest"><span>M</span></div>' +
     '<h1>أهلاً بيك في المزاريطة فانتازي</h1>' +
-    '<p>اكتب اسمك واسم فريقك عشان نجهزلك تشكيلة ونضمك للدوري العام لايف</p>' +
-    '<div class="field"><label>اسم المدير</label><input id="obManager" type="text" placeholder="مثلاً: كابتن حماده"></div>' +
-    '<div class="field"><label>اسم الفريق</label><input id="obTeam" type="text" placeholder="مثلاً: نمور المزاريطة"></div>' +
+    '<p>دخّل الـ FPL Team ID بتاعك عشان نجيبلك تشكيلتك ونضمك للدوري العام لايف</p>' +
+    '<div class="field"><label>FPL Team ID</label><input id="obFplId" type="number" inputmode="numeric" placeholder="مثلاً: 1234567"></div>' +
+    '<div id="obError" class="err" style="display:none;"></div>' +
     '<button class="btn-primary" id="obSubmit">ابدأ اللعب</button>' +
+    '<div class="hint">ازاي تجيب الـ ID؟ افتح موقع الفانتازي من المتصفح، ادخل على صفحة Points، وخد الرقم اللي في الرابط (مثال: fantasy.premierleague.com/entry/1234567/event/1 — الرقم هو 1234567).</div>' +
   '</div>';
 }
 
@@ -1356,7 +1593,7 @@ function renderPredictions(){
   '<div class="pred-banner"><div class="lbl">توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current + '</div>' +
     '<div class="big">' + fmt(predSquad) + ' نقطة</div>' +
     '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
-  '<div class="pred-note">التوقعات دي تقديرية، مبنية على الفورم وتوقعات فانتازي البريميرليج الرسمية وصعوبة المباريات — مش أرقام مضمونة.</div>' +
+  '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
 
   '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
   '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
