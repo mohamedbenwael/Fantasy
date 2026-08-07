@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>المزاريطة فانتازي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:#020305;
+    min-height:100vh;
+    font-family:'Tajawal', sans-serif;
+  }
+  button{ font-family:inherit; border:none; background:none; cursor:pointer; }
+  input{ font-family:inherit; }
+
+  :root{
+    --pitch1:#0FBE5E; --pitch2:#0A9A4B;
+    --ink:#0A0512;
+    --card:#150A1F;
+    --card-line:rgba(255,255,255,0.07);
+    --green:#00E676; --green-soft:#7CFFC2; --green-deep:#00A85B;
+    --gold:#E8C468;
+    --coral:#FF4D6D;
+    --muted:rgba(235,238,244,0.52);
+    --muted2:rgba(235,238,244,0.34);
+    --text:#F3F5F8;
+  }
+
+  /* ===== app screen (no phone frame — fills the real viewport) ===== */
+  .screen{
+    width:100%; max-width:480px; margin:0 auto;
+    min-height:100vh;
+    background:
+      radial-gradient(140% 30% at 8% -4%, rgba(0,230,118,0.09) 0%, transparent 55%),
+      radial-gradient(130% 34% at 100% -6%, rgba(92,18,104,0.38) 0%, transparent 55%),
+      var(--ink);
+    position:relative;
+    display:flex; flex-direction:column;
+  }
+
+  #app-body{ flex:1; padding-bottom:100px; position:relative; }
+
+  .i{ width:18px; height:18px; stroke:currentColor; stroke-width:1.7; fill:none; stroke-linecap:round; stroke-linejoin:round; display:block; }
+
+  /* ===== generic top title bar (non-home tabs) ===== */
+  .topbar{ padding:22px 20px 4px; display:flex; align-items:center; justify-content:space-between; }
+  .topbar h1{ font-family:'Cairo'; font-weight:800; font-size:16px; color:var(--text); }
+  .topbar .back{
+    width:34px; height:34px; border-radius:10px; background:var(--card); border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center; color:var(--text);
+  }
+  .topbar .spacer{ width:34px; }
+
+  /* ===== header (home) ===== */
+  .header{ padding:22px 20px 4px; display:flex; align-items:center; justify-content:space-between; position:relative; }
+  .brand{ display:flex; align-items:center; gap:11px; }
+  .crest{
+    width:40px; height:40px; border-radius:50%; flex-shrink:0;
+    background:radial-gradient(circle at 32% 26%, #4A1257, #17081F 72%);
+    border:1px solid rgba(0,230,118,0.38);
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+  }
+  .crest::before{
+    content:''; position:absolute; inset:3px; border-radius:50%;
+    border:1px solid rgba(0,230,118,0.16);
+  }
+  .crest span{ font-family:'Cairo'; font-weight:900; font-size:14px; color:var(--green-soft); letter-spacing:-0.5px; }
+  .greet .hi{ font-size:11px; color:var(--muted); }
+  .greet .name{ font-family:'Cairo'; font-weight:800; font-size:15.5px; color:var(--text); margin-top:2px; letter-spacing:0.1px; }
+  .header-actions{ display:flex; align-items:center; gap:8px; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:12px; background:var(--card);
+    border:1px solid var(--card-line);
+    display:flex; align-items:center; justify-content:center; position:relative;
+    color:var(--muted);
+  }
+  .icon-btn .dot{
+    position:absolute; top:8px; right:8px; width:5px; height:5px; border-radius:50%;
+    background:var(--coral); box-shadow:0 0 0 2px var(--card);
+  }
+  .icon-btn.spin svg{ animation:spin .8s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .notif-panel{
+    position:absolute; top:64px; left:20px; width:250px; background:var(--card);
+    border:1px solid var(--card-line); border-radius:14px; padding:6px; z-index:50;
+    box-shadow:0 20px 40px rgba(0,0,0,0.5);
+  }
+  .notif-panel .n-item{ padding:10px 10px; border-radius:10px; }
+  .notif-panel .n-item:not(:last-child){ border-bottom:1px solid var(--card-line); }
+  .notif-panel .n-item .t1{ font-size:11.5px; color:var(--text); font-weight:700; font-family:'Cairo'; }
+  .notif-panel .n-item .t2{ font-size:10px; color:var(--muted); margin-top:2px; }
+
+  /* ===== live pill ===== */
+  .live-pill{
+    margin:12px 20px 0; display:flex; align-items:center; gap:6px; width:fit-content;
+    font-size:10px; font-weight:800; font-family:'Cairo'; color:var(--green-soft);
+    background:rgba(0,230,118,0.1); border:1px solid rgba(0,230,118,0.25);
+    padding:5px 10px; border-radius:20px;
+  }
+  .live-pill .dotpulse{ width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 0 0 rgba(0,230,118,0.6); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(0,230,118,0.5);} 70%{box-shadow:0 0 0 6px rgba(0,230,118,0);} 100%{box-shadow:0 0 0 0 rgba(0,230,118,0);} }
+  .live-pill.warn{ color:var(--coral); background:rgba(255,77,109,0.1); border-color:rgba(255,77,109,0.28); }
+  .live-pill.warn .dotpulse{ background:var(--coral); }
+
+  /* ===== deadline strip ===== */
+  .deadline{
+    margin:14px 20px 0; padding:13px 16px; border-radius:14px;
+    background:linear-gradient(90deg, rgba(92,18,104,0.32), rgba(92,18,104,0.06));
+    border:1px solid rgba(160,60,190,0.32);
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .deadline .left{ display:flex; align-items:center; gap:10px; }
+  .deadline .ic{ color:var(--green-soft); flex-shrink:0; }
+  .deadline .lbl{ font-size:10px; color:var(--muted); }
+  .deadline .val{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--text); margin-top:2px; }
+  .deadline .cta{
+    font-family:'Cairo'; font-weight:800; font-size:11px; color:#04321B;
+    background:linear-gradient(160deg,var(--green-soft),var(--green-deep));
+    padding:9px 15px; border-radius:11px; white-space:nowrap; letter-spacing:0.2px;
+  }
+
+  /* ===== points summary ===== */
+  .summary{
+    margin:14px 20px 0; padding:20px; border-radius:18px;
+    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%);
+    border:1px solid rgba(255,255,255,0.06);
+    position:relative; overflow:hidden;
+  }
+  .summary::after{
+    content:''; position:absolute; width:200px; height:200px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,230,118,0.10), transparent 70%);
+    top:-90px; left:-60px; pointer-events:none;
+  }
+  .summary-top{ display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
+  .summary-top .lbl{ font-size:10.5px; color:var(--muted); letter-spacing:0.2px; }
+  .summary-top .big{ font-family:'Cairo'; font-weight:900; font-size:32px; color:var(--text); margin-top:4px; }
+  .summary-top .big span{ font-size:13px; color:var(--muted); font-weight:500; }
+  .badge-rank{
+    display:flex; align-items:center; gap:4px;
+    font-family:'Cairo'; font-weight:700; font-size:10px; color:var(--green-soft);
+    background:rgba(0,230,118,0.12); border:1px solid rgba(0,230,118,0.28);
+    padding:6px 10px 6px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .badge-rank svg{ width:11px; height:11px; }
+  .summary-grid{
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:18px; position:relative;
+  }
+  .summary-grid .cell{ text-align:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.07); }
+  .summary-grid .cell .v{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); }
+  .summary-grid .cell .k{ font-size:9.5px; color:var(--muted); margin-top:3px; }
+
+  /* ===== section title ===== */
+  .section-title{ display:flex; align-items:center; justify-content:space-between; margin:22px 20px 10px; }
+  .section-title h2{ font-family:'Cairo'; font-weight:800; font-size:14px; color:var(--text); }
+  .section-title a{ font-size:11px; color:var(--green-soft); font-weight:700; display:flex; align-items:center; gap:2px; }
+  .section-title a svg{ width:13px; height:13px; }
+
+  /* ===== segmented control ===== */
+  .segment{ margin:2px 20px 14px; display:flex; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:4px; gap:4px; }
+  .segment button{ flex:1; padding:8px 0; border-radius:9px; font-family:'Cairo'; font-weight:800; font-size:11.5px; color:var(--muted); }
+  .segment button.on{ background:rgba(0,230,118,0.14); color:var(--green-soft); }
+  .hint{ margin:0 20px 10px; font-size:10.5px; color:var(--muted); text-align:center; }
+
+  /* ===== pitch ===== */
+  .pitch-card{ margin:0 20px; border-radius:20px; overflow:hidden; border:1px solid rgba(255,255,255,0.06); box-shadow:0 18px 40px rgba(0,0,0,0.35); }
+  .pitch{
+    position:relative; padding:20px 10px 16px;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 44px, transparent 44px 88px),
+      radial-gradient(120% 90% at 50% 0%, var(--pitch1) 0%, var(--pitch2) 100%);
+  }
+  .pitch::before{ content:''; position:absolute; inset:10px; border:1.5px solid rgba(255,255,255,0.55); border-radius:4px; }
+  .pitch::after{ content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:74px; height:74px; border:1.5px solid rgba(255,255,255,0.55); border-radius:50%; }
+  .row{ display:flex; justify-content:center; gap:15px; position:relative; z-index:2; margin-bottom:15px; }
+  .row:last-child{ margin-bottom:0; }
+  .player{ display:flex; flex-direction:column; align-items:center; width:52px; }
+  .jersey{
+    width:36px; height:34px;
+    clip-path:polygon(22% 0%, 38% 0%, 50% 13%, 62% 0%, 78% 0%, 100% 22%, 84% 36%, 84% 100%, 16% 100%, 16% 36%, 0% 22%);
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Cairo'; font-weight:900; font-size:11px;
+    position:relative; cursor:pointer;
+    box-shadow:0 0 0 1.5px rgba(255,255,255,0.5), 0 4px 8px rgba(0,0,0,0.3);
+  }
+  .jersey.selected{ box-shadow:0 0 0 2.5px var(--green-soft), 0 4px 10px rgba(0,0,0,0.4); }
+  .jersey.gk{ background:linear-gradient(165deg,#3FA65C,#1B5C34); color:rgba(255,255,255,0.9); }
+  .jersey.liv{ background:linear-gradient(165deg,#D3182C,#7A0C1E); color:rgba(255,255,255,0.9); }
+  .jersey.ars{ background:linear-gradient(to bottom, #fff 0 16%, transparent 16%), linear-gradient(165deg,#EF0107,#9C0007); color:#fff; }
+  .jersey.mci{ background:linear-gradient(165deg,#8FCBF2,#1C4E80); color:#0A2540; }
+  .jersey.mun{ background:linear-gradient(to bottom, #111 0 14%, transparent 14%), linear-gradient(165deg,#DC2B20,#7A0F09); color:rgba(255,255,255,0.9); }
+  .jersey.che{ background:linear-gradient(165deg,#2E6FD1,#0A2B5E); color:rgba(255,255,255,0.9); }
+  .jersey.new{ background:repeating-linear-gradient(90deg,#0B0B0B 0 5px,#F5F5F5 5px 10px); color:#111; }
+  .jersey.tot{ background:linear-gradient(to bottom, #14213D 0 14%, transparent 14%), linear-gradient(165deg,#fdfdfd,#cfcfcf); color:#0B1F3A; }
+  .cap{
+    position:absolute; top:-6px; left:-6px; width:15px; height:15px; border-radius:50%;
+    background:var(--gold); color:#241A08; font-family:'Cairo'; font-weight:900; font-size:8.5px;
+    display:flex; align-items:center; justify-content:center; border:2px solid var(--pitch2);
+  }
+  .pname{ margin-top:6px; font-size:9px; color:var(--text); font-weight:700; background:rgba(0,0,0,0.55); padding:2px 7px; border-radius:6px; white-space:nowrap; cursor:pointer; }
+  .ppts{ margin-top:3px; font-size:8px; color:#04321B; font-weight:800; background:var(--green-soft); padding:1px 6px; border-radius:5px; white-space:nowrap; }
+
+  .bench{ background:#0B0F14; padding:13px 16px; display:flex; gap:8px; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.05); }
+  .bench .player{ width:auto; opacity:0.85; }
+  .bench .jersey{ width:29px; height:27px; font-size:9.5px; }
+  .bench .pname{ font-size:8px; margin-top:5px; }
+
+  /* ===== leagues ===== */
+  .league-list{ margin:0 20px; display:flex; flex-direction:column; gap:9px; }
+  .league-item{
+    display:flex; align-items:center; justify-content:space-between; width:100%; text-align:right;
+    background:var(--card); border:1px solid var(--card-line); padding:13px 16px; border-radius:14px;
+  }
+  .league-item .li-name{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); }
+  .league-item .li-sub{ font-size:10px; color:var(--muted); margin-top:3px; }
+  .li-rank{ text-align:left; }
+  .li-rank .num{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); }
+  .li-rank .chg{ font-size:9.5px; font-weight:700; margin-top:3px; display:flex; align-items:center; justify-content:flex-end; gap:2px; }
+  .li-rank .chg svg{ width:9px; height:9px; }
+  .up{ color:var(--green-soft); } .down{ color:var(--coral); }
+
+  .standing-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:11px 14px; border-radius:12px; }
+  .standing-row .s-left{ display:flex; align-items:center; gap:10px; }
+  .standing-row .s-rank{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--muted); width:22px; }
+  .standing-row .s-name{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); }
+  .standing-row .s-pts{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--green-soft); }
+  .standing-row.me{ border-color:rgba(0,230,118,0.35); background:rgba(0,230,118,0.06); }
+
+  /* ===== transfer nudge ===== */
+  .nudge{ margin:20px 20px 4px; padding:15px; border-radius:16px; background:linear-gradient(120deg, rgba(92,18,104,0.28), rgba(92,18,104,0.03)); border:1px solid rgba(160,60,190,0.26); display:flex; align-items:center; gap:12px; }
+  .nudge .ic{ width:36px; height:36px; border-radius:11px; background:rgba(0,230,118,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--green-soft); }
+  .nudge .txt .t1{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text); }
+  .nudge .txt .t2{ font-size:10px; color:var(--muted); margin-top:3px; line-height:1.5; }
+
+  /* ===== transfers screen ===== */
+  .stat-strip{ margin:10px 20px 0; display:flex; gap:8px; }
+  .stat-pill{ flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:10px 8px; text-align:center; }
+  .stat-pill .v{ font-family:'Cairo'; font-weight:800; font-size:14px; color:var(--text); }
+  .stat-pill .k{ font-size:9px; color:var(--muted); margin-top:2px; }
+  .msg-banner{ margin:10px 20px 0; padding:9px 12px; border-radius:10px; font-size:11px; font-weight:700; text-align:center; }
+  .msg-banner.err{ background:rgba(255,77,109,0.14); color:var(--coral); border:1px solid rgba(255,77,109,0.3); }
+  .msg-banner.ok{ background:rgba(0,230,118,0.12); color:var(--green-soft); border:1px solid rgba(0,230,118,0.28); }
+
+  .p-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:10px 14px; border-radius:13px; }
+  .p-row.out-selected{ border-color:rgba(255,77,109,0.4); background:rgba(255,77,109,0.06); }
+  .p-left{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .p-mini{ width:24px; height:23px; border-radius:5px; flex-shrink:0; box-shadow:0 0 0 1px rgba(255,255,255,0.4); }
+  .p-info .p-name{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); }
+  .p-info .p-meta{ font-size:9.5px; color:var(--muted); margin-top:2px; }
+  .p-btn{ font-family:'Cairo'; font-weight:800; font-size:10.5px; padding:7px 13px; border-radius:9px; white-space:nowrap; }
+  .p-btn.out{ background:rgba(255,77,109,0.14); color:var(--coral); border:1px solid rgba(255,77,109,0.3); }
+  .p-btn.out.active{ background:var(--coral); color:#2B0007; }
+  .p-btn.in{ background:rgba(0,230,118,0.14); color:var(--green-soft); border:1px solid rgba(0,230,118,0.3); }
+  .p-btn.in:disabled{ opacity:0.35; }
+  .pos-head{ margin:16px 20px 8px; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--muted); letter-spacing:0.5px; }
+
+  /* ===== more tab ===== */
+  .more-list{ margin:0 20px; display:flex; flex-direction:column; gap:8px; }
+  .more-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:13px 16px; border-radius:14px; }
+  .more-row .m-left{ display:flex; align-items:center; gap:11px; color:var(--muted); }
+  .more-row .m-left span{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); }
+  .more-row.danger .m-left span{ color:var(--coral); }
+  .switch{ width:40px; height:23px; border-radius:20px; background:rgba(255,255,255,0.12); position:relative; transition:background .15s; flex-shrink:0; }
+  .switch.on{ background:var(--green-deep); }
+  .switch .knob{ position:absolute; top:2.5px; right:2.5px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
+  .switch.on .knob{ transform:translateX(-17px); }
+
+  /* ===== bottom nav ===== */
+  .navbar{
+    position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+    width:calc(100% - 28px); max-width:452px;
+    background:rgba(26,10,34,0.92); backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,0.07);
+    border-radius:20px; padding:9px 4px;
+    display:flex; justify-content:space-around; align-items:center;
+    z-index:30;
+  }
+  .nav-item{ display:flex; flex-direction:column; align-items:center; gap:5px; font-size:9px; color:var(--muted2); font-weight:700; width:58px; }
+  .nav-item svg{ width:19px; height:19px; stroke:currentColor; stroke-width:1.6; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .nav-item.active{ color:var(--green-soft); }
+  .nav-item.active svg{ stroke-width:1.9; }
+  .nav-item .dash{ width:14px; height:2px; border-radius:2px; background:transparent; margin-top:1px; }
+  .nav-item.active .dash{ background:var(--green); }
+
+  /* ===== boot / onboarding ===== */
+  .boot{ min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; text-align:center; }
+  .boot .spinner{ width:38px; height:38px; border-radius:50%; border:3px solid rgba(255,255,255,0.12); border-top-color:var(--green-soft); animation:spin .8s linear infinite; }
+  .boot .t{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--muted); }
+  .boot .err{ color:var(--coral); font-size:11.5px; max-width:280px; }
+
+  .onboard{ min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:28px 24px; gap:18px; }
+  .onboard .crest{ width:64px; height:64px; margin:0 auto 6px; }
+  .onboard .crest span{ font-size:22px; }
+  .onboard h1{ font-family:'Cairo'; font-weight:900; font-size:19px; color:var(--text); text-align:center; }
+  .onboard p{ font-size:12px; color:var(--muted); text-align:center; line-height:1.6; margin-top:2px; }
+  .field{ margin-top:6px; }
+  .field label{ font-size:11px; color:var(--muted); font-weight:700; display:block; margin-bottom:6px; }
+  .field input{
+    width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:12px;
+    padding:13px 14px; font-size:13px; color:var(--text); outline:none;
+  }
+  .field input:focus{ border-color:rgba(0,230,118,0.4); }
+  .btn-primary{
+    margin-top:8px; font-family:'Cairo'; font-weight:800; font-size:13px; color:#04321B;
+    background:linear-gradient(160deg,var(--green-soft),var(--green-deep));
+    padding:14px; border-radius:13px; text-align:center;
+  }
+  .btn-primary:disabled{ opacity:0.4; }
+  .btn-ghost{
+    font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text);
+    background:var(--card); border:1px solid var(--card-line); padding:12px; border-radius:12px; text-align:center;
+  }
+
+  /* ===== player profile ===== */
+  .profile-hero{ margin:6px 20px 0; padding:22px 18px; border-radius:20px; text-align:center; position:relative; overflow:hidden;
+    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%); border:1px solid rgba(255,255,255,0.06); }
+  .profile-hero .pj{ width:64px; height:60px; margin:0 auto; font-size:20px; }
+  .profile-hero .pn{ font-family:'Cairo'; font-weight:900; font-size:17px; color:var(--text); margin-top:12px; }
+  .profile-hero .pm{ font-size:11px; color:var(--muted); margin-top:4px; }
+  .price-tag{ display:inline-flex; align-items:center; gap:5px; margin-top:10px; background:rgba(0,0,0,0.25); padding:6px 12px; border-radius:20px; }
+  .price-tag .amt{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
+  .price-tag .chg{ font-size:10.5px; font-weight:800; display:flex; align-items:center; gap:2px; }
+  .price-tag .chg svg{ width:9px; height:9px; }
+  .profile-stats{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:14px 20px 0; }
+  .profile-stats .cell{ background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:12px 6px; text-align:center; }
+  .profile-stats .cell .v{ font-family:'Cairo'; font-weight:800; font-size:15px; color:var(--text); }
+  .profile-stats .cell .k{ font-size:9px; color:var(--muted); margin-top:3px; }
+  .own-bar{ margin:14px 20px 0; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:12px 14px; }
+  .own-bar .row1{ display:flex; justify-content:space-between; font-size:10.5px; color:var(--muted); margin-bottom:7px; }
+  .own-bar .track{ height:6px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; }
+  .own-bar .fill{ height:100%; background:linear-gradient(90deg,var(--green-deep),var(--green-soft)); }
+  .fix-row{ margin:12px 20px 0; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; }
+  .fix-row .k{ font-size:10.5px; color:var(--muted); }
+  .fix-row .v{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
+  .form-bars{ display:flex; align-items:flex-end; gap:8px; height:54px; margin-top:10px; }
+  .form-bars .fb{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px; }
+  .form-bars .bar{ width:100%; border-radius:5px 5px 2px 2px; background:linear-gradient(180deg,var(--green-soft),var(--green-deep)); }
+  .form-bars .lbl{ font-size:8.5px; color:var(--muted2); }
+  .hist-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:10px 14px; border-radius:12px; }
+  .hist-row .g{ font-size:11px; color:var(--muted); font-weight:700; }
+  .hist-row .p{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--green-soft); }
+
+  /* ===== admin ===== */
+  .admin-card{ margin:0 20px 14px; background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:16px; }
+  .admin-card h3{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); margin-bottom:12px; }
+  .a-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .a-field{ display:flex; flex-direction:column; gap:5px; }
+  .a-field label{ font-size:9.5px; color:var(--muted); }
+  .a-field input{ background:#0A0512; border:1px solid var(--card-line); border-radius:9px; padding:8px 10px; font-size:11.5px; color:var(--text); outline:none; }
+  .a-field input:focus{ border-color:rgba(0,230,118,0.4); }
+  .a-player{ background:#0A0512; border:1px solid var(--card-line); border-radius:13px; padding:12px; margin-bottom:8px; }
+  .a-player .head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:9px; }
+  .a-player .head .nm{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); }
+  .a-player .head .cl{ font-size:9.5px; color:var(--muted); }
+  .a-row4{ display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; }
+  .a-row4 .a-field label{ font-size:8.5px; }
+  .a-row4 .a-field input{ padding:7px 6px; font-size:10.5px; text-align:center; }
+  .admin-save{ position:sticky; bottom:14px; margin:16px 20px 0; }
+  .pin-wrap{ min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; }
+  .pin-wrap input{ width:160px; text-align:center; letter-spacing:6px; font-family:'Cairo'; font-weight:800; font-size:18px; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px; color:var(--text); outline:none; }
+  .banner-ok{ margin:0 20px 14px; padding:10px 12px; border-radius:10px; background:rgba(0,230,118,0.12); border:1px solid rgba(0,230,118,0.28); color:var(--green-soft); font-size:11px; font-weight:700; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+  <div id="app-body"></div>
+
+  <div class="navbar" id="navbar">
+    <button class="nav-item" data-tab="home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>
+      الرئيسية<div class="dash"></div>
+    </button>
+    <button class="nav-item" data-tab="team">
+      <svg viewBox="0 0 24 24"><path d="M8 4L4 7l2 3 2-1v11h8V9l2 1 2-3-4-3-2 2h-4z"/></svg>
+      تشكيلتي<div class="dash"></div>
+    </button>
+    <button class="nav-item" data-tab="transfers">
+      <svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>
+      الانتقالات<div class="dash"></div>
+    </button>
+    <button class="nav-item" data-tab="leagues">
+      <svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a3 3 0 0 0 3 5"/><path d="M16 5h3a3 3 0 0 1-3 5"/><path d="M10 16h4v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2z"/><path d="M12 13v3"/><path d="M9 20h6"/></svg>
+      الدوريات<div class="dash"></div>
+    </button>
+    <button class="nav-item" data-tab="more">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+      المزيد<div class="dash"></div>
+    </button>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   المزاريطة فانتازي — نسخة متصلة لايف بالـ API الرسمي لفانتازي البريميرليج
+   - بيانات اللاعبين/الأسعار/النقط/المباريات = بتيجي مباشرة من fantasy.premierleague.com
+     عن طريق بروكسي بسيط في /api/fpl (لازم يكون منشور — شوف api/fpl.js).
+   - بتتخزن نسخة مؤقتة (cache) في shared storage لمدة دقايق قليلة عشان الأداء.
+   - تشكيلة كل مستخدم (فريقه، الكابتن، الرصيد) = personal storage خاصة بيه، ومبنية
+     أول مرة من لاعبين حقيقيين تلقائيًا (تقدر تعدلها من تبويب الانتقالات بعدين).
+   - الدوري العام = مبني لايف من كل المستخدمين اللي دخلوا وعملوا فريق.
+   - غيّر ADMIN_PIN تحت قبل ما تنشر التطبيق!
+   ========================================================================= */
+
+const ADMIN_PIN = '2580';
+const FPL_ENDPOINT = '/api/fpl'; // البروكسي — شوف api/fpl.js
+const LIVE_CACHE_KEY = 'fpl_cache_v1';
+const LIVE_CACHE_TTL = 5 * 60 * 1000; // 5 دقايق
+
+// بتتملى فعليًا من بيانات FPL الحقيقية وقت الإقلاع — دي بس نقطة بداية فاضية
+let CLUB_TAG = {};
+let CLUB_NAME = {};
+
+// ألوان أساسية لأشهر أندية البريميرليج (تاريخيًا) — أي نادي مش موجود هنا
+// (ترقية جديدة مثلاً) هياخد لون تلقائي متولّد من اسمه بدل ما يبوّظ الشكل
+const CLUB_COLORS = {
+  liv:{bg:'linear-gradient(165deg,#D3182C,#7A0C1E)', color:'rgba(255,255,255,0.9)'},
+  ars:{bg:'linear-gradient(165deg,#EF0107,#9C0007)', color:'#fff'},
+  mci:{bg:'linear-gradient(165deg,#8FCBF2,#1C4E80)', color:'#0A2540'},
+  mun:{bg:'linear-gradient(165deg,#DC2B20,#7A0F09)', color:'rgba(255,255,255,0.9)'},
+  che:{bg:'linear-gradient(165deg,#2E6FD1,#0A2B5E)', color:'rgba(255,255,255,0.9)'},
+  new:{bg:'repeating-linear-gradient(90deg,#0B0B0B 0 5px,#F5F5F5 5px 10px)', color:'#111'},
+  tot:{bg:'linear-gradient(165deg,#fdfdfd,#cfcfcf)', color:'#0B1F3A'},
+  avl:{bg:'linear-gradient(165deg,#7A003C,#3D0020)', color:'#95BFE5'},
+  bou:{bg:'linear-gradient(165deg,#DA291C,#7A140D)', color:'#000'},
+  bre:{bg:'linear-gradient(165deg,#E30613,#8C0009)', color:'#fff'},
+  bha:{bg:'linear-gradient(165deg,#0057B8,#00295E)', color:'#fff'},
+  bur:{bg:'linear-gradient(165deg,#6C1D45,#360E22)', color:'#99D6EA'},
+  crv:{bg:'linear-gradient(165deg,#4A5D2A,#1B2E7A)', color:'#fff'},
+  cry:{bg:'linear-gradient(165deg,#1B458F,#C4122E)', color:'#fff'},
+  eve:{bg:'linear-gradient(165deg,#274488,#0F1D3B)', color:'#fff'},
+  ful:{bg:'linear-gradient(165deg,#ffffff,#c9c9c9)', color:'#000'},
+  ips:{bg:'linear-gradient(165deg,#1B58A6,#0B2C56)', color:'#fff'},
+  lee:{bg:'linear-gradient(165deg,#ffffff,#1D428A)', color:'#1D428A'},
+  lei:{bg:'linear-gradient(165deg,#003090,#001A4D)', color:'#fff'},
+  nfo:{bg:'linear-gradient(165deg,#DD0000,#7A0000)', color:'#fff'},
+  sun:{bg:'linear-gradient(to bottom, #E8171F 0 50%, #fff 50%)', color:'#000'},
+  whu:{bg:'linear-gradient(165deg,#7A263A,#3D131D)', color:'#1BB1E7'},
+  wol:{bg:'linear-gradient(165deg,#FDB913,#8A6A0B)', color:'#231F20'},
+  sou:{bg:'linear-gradient(to bottom, #D71920 0 50%, #fff 50%)', color:'#000'},
+};
+// أندية تاريخية مقفول لونها فوق بكلاس CSS جاهز (.jersey.liv إلخ) — الباقي هياخد inline style
+const PRESTYLED_CLUBS = new Set(['liv','ars','mci','mun','che','new','tot']);
+
+function hashColor(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){ h = (h*31 + str.charCodeAt(i)) >>> 0; }
+  const hue = h % 360;
+  return { bg:'linear-gradient(165deg, hsl('+hue+',65%,45%), hsl('+hue+',65%,22%))', color:'#fff' };
+}
+function clubStyleAttr(clubKey){
+  if(!clubKey || clubKey==='gk' || PRESTYLED_CLUBS.has(clubKey)) return '';
+  const c = CLUB_COLORS[clubKey] || hashColor(clubKey);
+  return ' style="background:'+c.bg+';color:'+c.color+';"';
+}
+
+// ===== fallback seed — بيتستخدم بس لو تعذّر الاتصال بـ FPL API خالص (أوفلاين) =====
+const SEED_PLAYERS = [
+  {id:1,  name:'Alisson',       club:'liv', pos:'GK',  price:5.0,  num:1,  ownership:41.2, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:6},{gw:14,pts:6}]},
+  {id:2,  name:'Van Dijk',      club:'liv', pos:'DEF', price:5.5,  num:4,  ownership:38.6, priceChange:0.1, history:[{gw:12,pts:2},{gw:13,pts:6},{gw:14,pts:8}]},
+  {id:3,  name:'Saliba',        club:'ars', pos:'DEF', price:5.5,  num:2,  ownership:29.4, priceChange:0,   history:[{gw:12,pts:6},{gw:13,pts:2},{gw:14,pts:2}]},
+  {id:4,  name:'Gvardiol',      club:'mci', pos:'DEF', price:5.5,  num:24, ownership:22.1, priceChange:0,   history:[{gw:12,pts:1},{gw:13,pts:9},{gw:14,pts:7}]},
+  {id:5,  name:'Trippier',      club:'new', pos:'DEF', price:5.0,  num:12, ownership:14.8, priceChange:-0.1,history:[{gw:12,pts:5},{gw:13,pts:1},{gw:14,pts:2}]},
+  {id:6,  name:'B. Fernandes',  club:'mun', pos:'MID', price:8.0,  num:8,  ownership:19.3, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:3},{gw:14,pts:5}]},
+  {id:7,  name:'Palmer',        club:'che', pos:'MID', price:6.0,  num:10, ownership:44.7, priceChange:0.2, history:[{gw:12,pts:8},{gw:13,pts:2},{gw:14,pts:9}]},
+  {id:8,  name:'Rice',          club:'ars', pos:'MID', price:5.0,  num:6,  ownership:26.5, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:6},{gw:14,pts:6}]},
+  {id:9,  name:'Haaland',       club:'mci', pos:'FWD', price:14.0, num:9,  ownership:68.9, priceChange:0.3, history:[{gw:12,pts:6},{gw:13,pts:13},{gw:14,pts:12}]},
+  {id:10, name:'Saka',          club:'ars', pos:'FWD', price:8.5,  num:7,  ownership:35.2, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:9},{gw:14,pts:11}]},
+  {id:11, name:'Salah',         club:'liv', pos:'FWD', price:12.5, num:11, ownership:58.4, priceChange:0.4, history:[{gw:12,pts:6},{gw:13,pts:2},{gw:14,pts:18}]},
+  {id:12, name:'Ederson',       club:'mci', pos:'GK',  price:4.5,  num:31, ownership:9.1,  priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:2},{gw:14,pts:0}]},
+  {id:13, name:'R. James',      club:'che', pos:'DEF', price:5.0,  num:24, ownership:7.4,  priceChange:0,   history:[{gw:12,pts:0},{gw:13,pts:1},{gw:14,pts:0}]},
+  {id:14, name:'Foden',         club:'mci', pos:'MID', price:7.0,  num:47, ownership:16.2, priceChange:0,   history:[{gw:12,pts:1},{gw:13,pts:0},{gw:14,pts:0}]},
+  {id:15, name:'Isak',          club:'new', pos:'FWD', price:8.0,  num:14, ownership:20.9, priceChange:0,   history:[{gw:12,pts:3},{gw:13,pts:0},{gw:14,pts:0}]},
+  {id:101,name:'D. Raya',       club:'ars', pos:'GK',  price:5.5,  num:22, ownership:18.3, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:2},{gw:14,pts:4}]},
+  {id:102,name:'Robertson',     club:'liv', pos:'DEF', price:5.5,  num:26, ownership:11.6, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:1},{gw:14,pts:3}]},
+  {id:103,name:'Romero',        club:'tot', pos:'DEF', price:5.2,  num:17, ownership:8.9,  priceChange:0,   history:[{gw:12,pts:1},{gw:13,pts:2},{gw:14,pts:5}]},
+  {id:104,name:'Son',           club:'tot', pos:'MID', price:9.0,  num:7,  ownership:24.7, priceChange:-0.1,history:[{gw:12,pts:2},{gw:13,pts:8},{gw:14,pts:7}]},
+  {id:105,name:'Odegaard',      club:'ars', pos:'MID', price:8.5,  num:8,  ownership:21.4, priceChange:0,   history:[{gw:12,pts:6},{gw:13,pts:2},{gw:14,pts:6}]},
+  {id:106,name:'Nunez',         club:'liv', pos:'FWD', price:7.5,  num:9,  ownership:13.5, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:0},{gw:14,pts:5}]},
+  {id:107,name:'N. Jackson',    club:'che', pos:'FWD', price:7.0,  num:15, ownership:15.8, priceChange:0,   history:[{gw:12,pts:2},{gw:13,pts:4},{gw:14,pts:4}]},
+];
+const SEED_GW = {
+  current:14,
+  deadline: new Date(Date.now()+2*86400000+14*3600000).toISOString(),
+  fixtures:{ liv:'ضد MCI (خارج)', ars:'ضد CHE (أرض)', mci:'ضد LIV (أرض)', mun:'ضد TOT (خارج)', che:'ضد ARS (خارج)', new:'ضد MUN (أرض)', tot:'ضد NEW (خارج)' }
+};
+const FALLBACK_CLUB_TAG = {liv:'LIV',ars:'ARS',mci:'MCI',mun:'MUN',che:'CHE',new:'NEW',tot:'TOT'};
+const FALLBACK_CLUB_NAME = {liv:'ليفربول',ars:'أرسنال',mci:'مانشستر سيتي',mun:'مانشستر يونايتد',che:'تشيلسي',new:'نيوكاسل',tot:'توتنهام'};
+
+// ===== storage helpers (never throw) =====
+async function sGet(key, shared){
+  try{ const r = await window.storage.get(key, !!shared); return r ? r.value : null; }
+  catch(e){ return null; }
+}
+async function sSet(key, value, shared){
+  try{ const r = await window.storage.set(key, value, !!shared); return !!r; }
+  catch(e){ return false; }
+}
+async function sList(prefix, shared){
+  try{ const r = await window.storage.list(prefix, !!shared); return r ? r.keys : []; }
+  catch(e){ return []; }
+}
+function uid(){ return 'u' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
+
+// ===== FPL live data (via /api/fpl proxy) =====
+const POS_MAP = {1:'GK',2:'DEF',3:'MID',4:'FWD'};
+
+async function fplFetch(type, event){
+  const url = FPL_ENDPOINT + '?type=' + type + (event ? '&event=' + event : '');
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('fpl fetch failed: ' + type);
+  return res.json();
+}
+
+async function buildLiveDataset(){
+  const boot = await fplFetch('bootstrap');
+  const teams = boot.teams || [];
+  const elements = boot.elements || [];
+  const events = boot.events || [];
+
+  const clubTag = {}, clubName = {}, teamIdToKey = {};
+  teams.forEach(t=>{
+    const key = (t.short_name || t.name.slice(0,3)).toLowerCase();
+    teamIdToKey[t.id] = key;
+    clubTag[key] = t.short_name;
+    clubName[key] = t.name;
+  });
+
+  // الجولة الحالية: لو الموسم شغال ناخد الجولة الجارية، لو لسه مبدأش ناخد أول جولة قادمة
+  const currentEvent = events.find(e=>e.is_current) || events.find(e=>e.is_next) || events[events.length-1];
+  const gwId = currentEvent ? currentEvent.id : 1;
+
+  // نجيب نقط لحظية لآخر 3 جولات متخلصة + الجولة الحالية عشان نبني "الفورم"
+  const finishedIds = events.filter(e=>e.finished).map(e=>e.id).slice(-3);
+  const liveIds = Array.from(new Set([...finishedIds, gwId]));
+  const historyByElement = {};
+  for(const evId of liveIds){
+    try{
+      const live = await fplFetch('live', evId);
+      (live.elements || []).forEach(row=>{
+        const pts = row.stats ? row.stats.total_points : 0;
+        if(!historyByElement[row.id]) historyByElement[row.id] = [];
+        historyByElement[row.id].push({ gw: evId, pts: pts||0 });
+      });
+    }catch(e){ /* لو جولة معينة فشلت نكمل من غيرها */ }
+  }
+
+  // مباريات الجولة الحالية — نبني نص "ضد X (أرض/خارج)" لكل نادي
+  const fixturesMap = {};
+  try{
+    const fx = await fplFetch('fixtures', gwId);
+    (fx || []).forEach(f=>{
+      const hKey = teamIdToKey[f.team_h], aKey = teamIdToKey[f.team_a];
+      if(hKey && aKey){
+        fixturesMap[hKey] = 'ضد ' + (clubTag[aKey]||'') + ' (أرض)';
+        fixturesMap[aKey] = 'ضد ' + (clubTag[hKey]||'') + ' (خارج)';
+      }
+    });
+  }catch(e){}
+
+  const players = elements.map(el=>{
+    const club = teamIdToKey[el.team] || 'unk';
+    return {
+      id: el.id,
+      name: el.web_name,
+      club: club,
+      pos: POS_MAP[el.element_type] || 'MID',
+      price: (el.now_cost||0) / 10,
+      num: el.squad_number || '',
+      ownership: parseFloat(el.selected_by_percent) || 0,
+      priceChange: (el.cost_change_event||0) / 10,
+      totalPointsReal: el.total_points || 0,
+      status: el.status, // a=متاح, i=مصاب, s=موقوف, d=مشكوك فيه
+      history: (historyByElement[el.id]||[]).sort((a,b)=>a.gw-b.gw),
+    };
+  });
+
+  const gwInfo = {
+    current: gwId,
+    deadline: currentEvent ? currentEvent.deadline_time : new Date(Date.now()+86400000).toISOString(),
+    fixtures: fixturesMap,
+  };
+
+  return { players, gwInfo, clubTag, clubName };
+}
+
+async function loadLiveData(force){
+  try{
+    if(!force){
+      const cachedRaw = await sGet(LIVE_CACHE_KEY, true);
+      if(cachedRaw){
+        const cached = JSON.parse(cachedRaw);
+        if(cached.cachedAt && (Date.now() - cached.cachedAt) < LIVE_CACHE_TTL){
+          applyLiveDataset(cached);
+          state.liveSyncedAt = cached.cachedAt;
+          state.liveDataError = false; state.liveDataStale = false;
+          return;
+        }
+      }
+    }
+    const fresh = await buildLiveDataset();
+    fresh.cachedAt = Date.now();
+    applyLiveDataset(fresh);
+    state.liveSyncedAt = fresh.cachedAt;
+    state.liveDataError = false; state.liveDataStale = false;
+    await sSet(LIVE_CACHE_KEY, JSON.stringify(fresh), true);
+  }catch(e){
+    // فشل الاتصال — نستخدم آخر نسخة متخزنة لو موجودة، وإلا بيانات احتياطية بسيطة
+    const cachedRaw = await sGet(LIVE_CACHE_KEY, true);
+    if(cachedRaw){
+      const cached = JSON.parse(cachedRaw);
+      applyLiveDataset(cached);
+      state.liveSyncedAt = cached.cachedAt;
+      state.liveDataStale = true;
+    } else {
+      state.players = SEED_PLAYERS;
+      state.gwInfo = SEED_GW;
+      CLUB_TAG = FALLBACK_CLUB_TAG;
+      CLUB_NAME = FALLBACK_CLUB_NAME;
+      state.liveDataError = true;
+    }
+  }
+}
+function applyLiveDataset(d){
+  state.players = d.players;
+  state.gwInfo = d.gwInfo;
+  CLUB_TAG = d.clubTag;
+  CLUB_NAME = d.clubName;
+}
+
+// يبني تشكيلة افتراضية أول مرة من لاعبين حقيقيين ضمن ميزانية £100 مليون
+function draftDefaultSquad(players){
+  const byPos = pos => players.filter(p=>p.pos===pos).slice().sort((a,b)=>a.price-b.price);
+  const BUDGET = 100.0;
+  const need = { GK:2, DEF:5, MID:4, FWD:4 };
+  let picks = [], spent = 0, clubCount = {};
+  for(const pos of ['GK','DEF','MID','FWD']){
+    const pool = byPos(pos);
+    let taken = 0, i = 0;
+    while(taken < need[pos] && i < pool.length){
+      const p = pool[i];
+      const clubOk = (clubCount[p.club]||0) < 3; // نفس قاعدة FPL: أقصى 3 لاعبين من نفس النادي
+      if(clubOk && spent + p.price <= BUDGET){
+        picks.push(p); spent += p.price; clubCount[p.club] = (clubCount[p.club]||0)+1; taken++;
+      }
+      i++;
+    }
+  }
+  const starters = [];
+  const takeStart = (pos, n) => { picks.filter(p=>p.pos===pos).slice(0,n).forEach(p=>starters.push(p.id)); };
+  takeStart('GK',1); takeStart('DEF',4); takeStart('MID',3); takeStart('FWD',3);
+  const squadIds = picks.map(p=>({ id:p.id, slot: starters.includes(p.id) ? 'start' : 'bench' }));
+  const startForwards = picks.filter(p=>p.pos==='FWD' && starters.includes(p.id)).sort((a,b)=>b.price-a.price);
+  const captainId = startForwards[0] ? startForwards[0].id : (picks[0] ? picks[0].id : null);
+  const bank = Math.max(0, BUDGET - spent);
+  return { squadIds, captainId, bank };
+}
+
+// ===== app state =====
+let state = {
+  phase:'boot', // boot | onboard | app
+  bootError:null,
+  tab:'home',
+  players:[],          // live shared player DB
+  gwInfo:null,         // live shared gameweek info
+  deviceId:null, managerName:'', teamName:'',
+  mySquadIds:[],        // [{id, slot}]
+  captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
+  overall:{ rank:null, total:0, standings:[] },
+  transferOutId:null, teamMode:'captain', selectedBenchId:null,
+  notifOpen:false, activeLeagueId:null,
+  toggles:{ notifications:true, deadlineReminder:true },
+  flash:null,
+  viewPlayerId:null, profileBack:'home',
+  adminUnlocked:false, adminPinInput:'', adminSavedBanner:false,
+  refreshing:false,
+  liveSyncedAt:null, liveDataError:false, liveDataStale:false,
+};
+
+const leagues = [
+  {id:'work', name:'دوري زملاء العمل', size:'18 لاعباً', rank:2, chg:1, dir:'up',
+   standings:[
+     {name:'Ahmed K.', pts:1912, me:false},{name:'أنت', pts:1842, me:true},
+     {name:'Mostafa R.', pts:1790, me:false},{name:'Youssef T.', pts:1755, me:false},
+     {name:'Karim S.', pts:1701, me:false},{name:'Omar F.', pts:1668, me:false}]},
+  {id:'ahly', name:'دوري جمهور المزاريطة', size:'64 لاعباً', rank:9, chg:3, dir:'down',
+   standings:[
+     {name:'Hazem M.', pts:2050, me:false},{name:'Sherif A.', pts:2011, me:false},
+     {name:'Tarek N.', pts:1980, me:false},{name:'أنت', pts:1842, me:true},
+     {name:'Bassem Y.', pts:1820, me:false},{name:'Ziad H.', pts:1790, me:false}]},
+];
+
+function jerseyClass(p){ return p.pos==='GK' ? 'gk' : p.club; }
+function fmt(n){ return Number(n).toFixed(1); }
+function findPlayer(id){ return state.players.find(p=>p.id===id); }
+function totalPoints(p){ return (p.totalPointsReal!=null) ? p.totalPointsReal : (p.history||[]).reduce((s,h)=>s+h.pts,0); }
+function currentGwPoints(p){ const h=(p.history||[]).find(h=>h.gw===state.gwInfo.current); return h?h.pts:0; }
+function lastForm(p, n){ return (p.history||[]).slice(-n); }
+
+function squad(){ return state.mySquadIds.map(e=>{ const p=findPlayer(e.id); return p?Object.assign({},p,{slot:e.slot}):null; }).filter(Boolean); }
+function starters(){ return squad().filter(p=>p.slot==='start'); }
+function benched(){ return squad().filter(p=>p.slot==='bench'); }
+function captain(){ return findPlayer(state.captainId); }
+function pool(){ const owned=new Set(state.mySquadIds.map(e=>e.id)); return state.players.filter(p=>!owned.has(p.id)); }
+
+function roundPoints(){
+  const base = starters().reduce((s,p)=>s+currentGwPoints(p),0);
+  const c = captain();
+  const isCapStarting = c && state.mySquadIds.find(e=>e.id===c.id && e.slot==='start');
+  const extra = isCapStarting ? currentGwPoints(c) : 0;
+  return base + extra;
+}
+function squadValue(){ return squad().reduce((s,p)=>s+p.price,0); }
+function seasonTotal(){ return state.seasonBaseline + roundPoints(); }
+
+function setFlash(type, text){
+  state.flash = {type, text};
+  render();
+  setTimeout(()=>{ state.flash = null; if(state.tab==='transfers') renderBody(); }, 2200);
+}
+
+// ===== persistence =====
+async function savePersonal(){
+  await sSet('mazareta_squad', JSON.stringify({
+    mySquadIds:state.mySquadIds, captainId:state.captainId, bank:state.bank,
+    freeTransfers:state.freeTransfers, seasonBaseline:state.seasonBaseline
+  }), false);
+  pushPublicEntry();
+}
+async function pushPublicEntry(){
+  await sSet('public_entry:'+state.deviceId, JSON.stringify({
+    managerName:state.managerName, teamName:state.teamName,
+    total:seasonTotal(), gw:roundPoints(), updatedAt:Date.now()
+  }), true);
+}
+async function saveManager(){
+  await sSet('mazareta_manager', JSON.stringify({ deviceId:state.deviceId, managerName:state.managerName, teamName:state.teamName }), false);
+}
+// ===== boot =====
+async function boot(){
+  state.phase = 'boot';
+  render();
+  try{
+    await loadLiveData();
+
+    // personal manager identity
+    let raw = await sGet('mazareta_manager', false);
+    if(raw){
+      const m = JSON.parse(raw);
+      state.deviceId = m.deviceId; state.managerName = m.managerName; state.teamName = m.teamName;
+    } else {
+      state.deviceId = uid();
+      state.phase = 'onboard';
+      render();
+      return;
+    }
+
+    await loadSquadOrDraft();
+    await refreshOverall();
+    state.phase = 'app';
+    render();
+  } catch(e){
+    state.bootError = 'حصل خطأ في تحميل البيانات. حاول تاني.';
+    render();
+  }
+}
+
+async function loadSquadOrDraft(){
+  const raw = await sGet('mazareta_squad', false);
+  if(raw){
+    const s = JSON.parse(raw);
+    // لو الفريق المحفوظ بيرجع لبيانات قديمة (لاعبين مش موجودين دلوقتي) نعيد بناءه
+    const stillValid = s.mySquadIds && s.mySquadIds.every(e => findPlayer(e.id));
+    if(stillValid){
+      state.mySquadIds = s.mySquadIds; state.captainId = s.captainId; state.bank = s.bank;
+      state.freeTransfers = s.freeTransfers; state.seasonBaseline = s.seasonBaseline;
+      return;
+    }
+  }
+  const drafted = draftDefaultSquad(state.players);
+  state.mySquadIds = drafted.squadIds;
+  state.captainId = drafted.captainId;
+  state.bank = drafted.bank;
+  state.freeTransfers = 2;
+  state.seasonBaseline = 0;
+  await savePersonal();
+}
+
+async function refreshOverall(){
+  const keys = await sList('public_entry:', true);
+  const entries = [];
+  for(const k of keys.slice(0,150)){
+    const raw = await sGet(k, true);
+    if(raw){ try{ entries.push(Object.assign(JSON.parse(raw), {key:k})); }catch(e){} }
+  }
+  entries.sort((a,b)=>b.total-a.total);
+  const myKey = 'public_entry:'+state.deviceId;
+  const myIdx = entries.findIndex(e=>e.key===myKey);
+  state.overall = { rank: myIdx>=0 ? myIdx+1 : entries.length+1, total: entries.length, standings: entries.slice(0,50) };
+}
+
+async function refreshLiveData(){
+  state.refreshing = true; render();
+  await loadLiveData(true);
+  await refreshOverall();
+  state.refreshing = false;
+  render();
+}
+
+// ===== onboarding submit =====
+async function submitOnboard(){
+  const mgr = document.getElementById('obManager').value.trim();
+  const team = document.getElementById('obTeam').value.trim();
+  if(!mgr || !team) return;
+  state.managerName = mgr; state.teamName = team;
+  await saveManager();
+  await loadSquadOrDraft();
+  await refreshOverall();
+  state.phase = 'app';
+  render();
+}
+
+// ===== countdown =====
+function countdown(iso){
+  const diff = new Date(iso).getTime() - Date.now();
+  if(diff<=0) return 'التشكيلة مقفولة';
+  const d = Math.floor(diff/86400000);
+  const h = Math.floor((diff%86400000)/3600000);
+  if(d>0) return 'يوم'.length && (d===1?'يوم واحد':(d===2?'يومان':d+' أيام')) + ' و' + h + ' ساعة';
+  const m = Math.floor((diff%3600000)/60000);
+  return h+' ساعة و'+m+' دقيقة';
+}
+
+// ===== icons =====
+const ICON_CLOCK = '<svg class="i ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const ICON_UP = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>';
+const ICON_DOWN = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_CHEV = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>';
+const ICON_BACK = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/></svg>';
+const ICON_BELL = '<svg class="i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
+const ICON_BULB = '<svg class="i" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>';
+const ICON_REFRESH = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>';
+
+// ===== BOOT / ONBOARD screens =====
+function renderBoot(){
+  if(state.bootError){
+    return '<div class="boot"><div class="err">'+state.bootError+'</div><button class="btn-ghost" id="retryBoot">حاول تاني</button></div>';
+  }
+  return '<div class="boot"><div class="spinner"></div><div class="t">بنجيب أحدث الأسعار والنقط...</div></div>';
+}
+function renderOnboard(){
+  return '<div class="onboard">' +
+    '<div class="crest"><span>M</span></div>' +
+    '<h1>أهلاً بيك في المزاريطة فانتازي</h1>' +
+    '<p>اكتب اسمك واسم فريقك عشان نجهزلك تشكيلة ونضمك للدوري العام لايف</p>' +
+    '<div class="field"><label>اسم المدير</label><input id="obManager" type="text" placeholder="مثلاً: كابتن حماده"></div>' +
+    '<div class="field"><label>اسم الفريق</label><input id="obTeam" type="text" placeholder="مثلاً: نمور المزاريطة"></div>' +
+    '<button class="btn-primary" id="obSubmit">ابدأ اللعب</button>' +
+  '</div>';
+}
+
+// ===== HOME =====
+function renderLivePill(){
+  if(state.liveDataError){
+    return '<div class="live-pill warn"><div class="dotpulse"></div>تعذّر الاتصال بـ FPL — شغال ببيانات احتياطية (مش لايف)</div>';
+  }
+  if(state.liveDataStale){
+    return '<div class="live-pill warn"><div class="dotpulse"></div>آخر تحديث فشل — البيانات المعروضة قديمة شوية</div>';
+  }
+  return '<div class="live-pill"><div class="dotpulse"></div>متصل لايف بالأسعار والنقط الرسمية</div>';
+}
+function renderHome(){
+  const rp = roundPoints();
+  const st = starters(), stTop = state.overall;
+  return '' +
+  '<div class="header">' +
+    '<div class="brand">' +
+      '<div class="crest"><span>M</span></div>' +
+      '<div class="greet"><div class="hi">أهلاً بعودتك،</div><div class="name">'+state.teamName+'</div></div>' +
+    '</div>' +
+    '<div class="header-actions">' +
+      '<button class="icon-btn'+(state.refreshing?' spin':'')+'" id="refreshBtn">'+ICON_REFRESH+'</button>' +
+      '<button class="icon-btn" id="bellBtn">' + ICON_BELL + '<span class="dot"></span></button>' +
+    '</div>' +
+    (state.notifOpen ? renderNotifPanel() : '') +
+  '</div>' +
+
+  renderLivePill() +
+
+  '<div class="deadline">' +
+    '<div class="left">' + ICON_CLOCK +
+      '<div><div class="lbl">الوقت المتبقي لإغلاق التشكيلة</div><div class="val">' + countdown(state.gwInfo.deadline) + '</div></div>' +
+    '</div>' +
+    '<button class="cta" data-goto="team">تعديل التشكيلة</button>' +
+  '</div>' +
+
+  '<div class="summary">' +
+    '<div class="summary-top">' +
+      '<div><div class="lbl">إجمالي النقاط</div><div class="big">' + seasonTotal().toLocaleString() + ' <span>نقطة</span></div></div>' +
+      '<div class="badge-rank">' + ICON_UP + 'الدوري العام' + '</div>' +
+    '</div>' +
+    '<div class="summary-grid">' +
+      '<div class="cell"><div class="v">' + rp + '</div><div class="k">نقاط الجولة</div></div>' +
+      '<div class="cell"><div class="v">#' + (stTop.rank||'-').toLocaleString() + '</div><div class="k">الترتيب العام</div></div>' +
+      '<div class="cell"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
+    '</div>' +
+  '</div>' +
+
+  '<div class="section-title"><h2>التشكيلة الأساسية — الجولة ' + state.gwInfo.current + '</h2><a data-goto="team">عرض التفاصيل ' + ICON_CHEV + '</a></div>' +
+
+  renderPitchCard(false) +
+
+  '<div class="nudge"><div class="ic">' + ICON_BULB + '</div>' +
+    '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
+    '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
+  '</div>' +
+
+  '<div class="section-title"><h2>الدوريات الخاصة بك</h2><a data-goto="leagues">عرض الكل ' + ICON_CHEV + '</a></div>' +
+
+  '<div class="league-list">' + renderLeaguePreviewItems() + '</div>';
+}
+
+function renderLeaguePreviewItems(){
+  const overallItem = '<button class="league-item" data-league="overall">' +
+      '<div><div class="li-name">الدوري العام</div><div class="li-sub">' + state.overall.total + ' مدير لايف</div></div>' +
+      '<div class="li-rank"><div class="num">#' + (state.overall.rank||'-') + '</div></div>' +
+    '</button>';
+  return overallItem + leagues.map(lg =>
+    '<button class="league-item" data-league="' + lg.id + '">' +
+      '<div><div class="li-name">' + lg.name + '</div><div class="li-sub">' + lg.size + '</div></div>' +
+      '<div class="li-rank"><div class="num">#' + lg.rank.toLocaleString() + '</div>' +
+      '<div class="chg ' + lg.dir + '">' + (lg.dir==='up'?ICON_UP:ICON_DOWN) + lg.chg + '</div></div>' +
+    '</button>'
+  ).join('');
+}
+
+function renderNotifPanel(){
+  return '<div class="notif-panel">' +
+    '<div class="n-item"><div class="t1">قفل التشكيلة قريب</div><div class="t2">راجع تشكيلتك قبل الموعد النهائي</div></div>' +
+    '<div class="n-item"><div class="t1">تحديثات لايف من FPL</div><div class="t2">الأسعار والنقط بتتحدث تلقائيًا من الموقع الرسمي</div></div>' +
+  '</div>';
+}
+
+// ===== PITCH =====
+function renderJersey(p, opts){
+  opts = opts || {};
+  let cls = 'jersey ' + jerseyClass(p);
+  if(opts.selected) cls += ' selected';
+  const isCap = p.id === state.captainId;
+  const showPts = p.slot === 'start';
+  const mode = opts.mode || 'view';
+  const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
+  return '<div class="player">' +
+    '<div class="' + cls + '"' + dataAttr + clubStyleAttr(jerseyClass(p)) + '>' + p.num + (isCap ? '<div class="cap">C</div>' : '') + '</div>' +
+    '<div class="pname" data-viewprofile="' + p.id + '">' + p.name + '</div>' +
+    (showPts ? '<div class="ppts">' + (isCap ? currentGwPoints(p)*2 : currentGwPoints(p)) + ' pts</div>' : '') +
+  '</div>';
+}
+function renderPitchCard(interactive){
+  const gk = starters().filter(p=>p.pos==='GK');
+  const def = starters().filter(p=>p.pos==='DEF');
+  const mid = starters().filter(p=>p.pos==='MID');
+  const fwd = starters().filter(p=>p.pos==='FWD');
+  const opts = { mode: interactive ? state.teamMode : 'view' };
+  const rowHtml = (arr) => '<div class="row">' + arr.map(p=>renderJersey(p, opts)).join('') + '</div>';
+  const benchHtml = benched().map(p => {
+    const o = Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id });
+    return renderJersey(p, o);
+  }).join('');
+  return '<div class="pitch-card"><div class="pitch">' +
+    rowHtml(gk) + rowHtml(def) + rowHtml(mid) + rowHtml(fwd) +
+  '</div><div class="bench">' + benchHtml + '</div></div>';
+}
+
+// ===== TEAM TAB =====
+function renderTeam(){
+  const modeHint = state.teamMode==='captain'
+    ? 'اضغط على أي لاعب أساسي لتعيينه كابتنًا'
+    : (state.selectedBenchId
+        ? 'اختر لاعبًا أساسيًا في نفس المركز لإتمام التبديل'
+        : 'اختر لاعبًا من الاحتياطي أولًا');
+  return '' +
+  '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>' +
+  '<div class="segment">' +
+    '<button data-mode="captain" class="' + (state.teamMode==='captain'?'on':'') + '">تعيين الكابتن</button>' +
+    '<button data-mode="bench" class="' + (state.teamMode==='bench'?'on':'') + '">تبديل الاحتياطي</button>' +
+  '</div>' +
+  '<div class="hint">' + modeHint + '</div>' +
+  renderPitchCard(true);
+}
+
+// ===== TRANSFERS TAB =====
+function renderTransfers(){
+  const flash = state.flash ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>' : '';
+  const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
+
+  const squadRows = squad().map(p => {
+    const isOut = state.transferOutId === p.id;
+    return '<div class="p-row' + (isOut?' out-selected':'') + '">' +
+      '<div class="p-left" data-viewprofile="' + p.id + '"><div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+      '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+      '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm' + (p.slot==='bench'?' · احتياطي':'') + '</div></div></div>' +
+      '<button class="p-btn out' + (isOut?' active':'') + '" data-out="' + p.id + '">' + (isOut?'إلغاء':'استبعاد') + '</button>' +
+    '</div>';
+  }).join('');
+
+  const positions = ['GK','DEF','MID','FWD'];
+  const posLabel = {GK:'حراس المرمى', DEF:'المدافعون', MID:'خط الوسط', FWD:'المهاجمون'};
+  const marketHtml = positions.map(pos => {
+    // القائمة الحقيقية فيها مئات اللاعبين — بنعرض أفضل 40 بالنسبة للملكية/النقط عشان القائمة تفضل عملية
+    const rows = pool().filter(p=>p.pos===pos)
+      .sort((a,b)=> (totalPoints(b)-totalPoints(a)) || (b.ownership-a.ownership))
+      .slice(0,40)
+      .map(p => {
+      const disabled = !outPlayer || outPlayer.pos !== pos || (state.bank + (outPlayer?outPlayer.price:0) - p.price) < 0;
+      return '<div class="p-row">' +
+        '<div class="p-left" data-viewprofile="' + p.id + '"><div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+        '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+        '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm · ' + totalPoints(p) + ' نقطة</div></div></div>' +
+        '<button class="p-btn in" data-in="' + p.id + '"' + (disabled?' disabled':'') + '>إضافة</button>' +
+      '</div>';
+    }).join('');
+    return '<div class="pos-head">' + posLabel[pos] + '</div><div class="league-list" style="gap:8px;">' + rows + '</div>';
+  }).join('');
+
+  return '' +
+  '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
+  '<div class="stat-strip">' +
+    '<div class="stat-pill"><div class="v">£' + fmt(state.bank) + 'm</div><div class="k">الرصيد المتاح</div></div>' +
+    '<div class="stat-pill"><div class="v">' + state.freeTransfers + '</div><div class="k">تبديلات مجانية</div></div>' +
+    '<div class="stat-pill"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
+  '</div>' +
+  flash +
+  '<div class="section-title"><h2>فريقك</h2></div>' +
+  '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
+  '<div class="section-title" style="margin-bottom:0;"><h2>سوق الانتقالات</h2></div>' +
+  marketHtml;
+}
+
+// ===== LEAGUES TAB =====
+function renderLeagues(){
+  if(state.activeLeagueId){
+    if(state.activeLeagueId==='overall'){
+      const rows = state.overall.standings.map((s,i)=>{
+        const mine = 'public_entry:'+state.deviceId === s.key;
+        return '<div class="standing-row'+(mine?' me':'')+'"><div class="s-left"><div class="s-rank">'+(i+1)+'</div>' +
+          '<div class="s-name">'+s.teamName+' <span style="color:var(--muted); font-weight:500;">('+s.managerName+')</span></div></div>' +
+          '<div class="s-pts">'+s.total.toLocaleString()+' نقطة</div></div>';
+      }).join('') || '<div class="hint">لسه محدش انضم للدوري العام غيرك 👋</div>';
+      return '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>الدوري العام (لايف)</h1><div class="spacer"></div></div>' +
+        '<div class="live-pill" style="margin:0 20px 12px;"><div class="dotpulse"></div>مبني لحظيًا من كل اللاعبين</div>' +
+        '<div class="league-list">' + rows + '</div>';
+    }
+    const lg = leagues.find(l=>l.id===state.activeLeagueId);
+    return '' +
+    '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>' + lg.name + '</h1><div class="spacer"></div></div>' +
+    '<div class="league-list">' + lg.standings.map((s,i) =>
+      '<div class="standing-row' + (s.me?' me':'') + '"><div class="s-left"><div class="s-rank">' + (i+1) + '</div>' +
+      '<div class="s-name">' + s.name + '</div></div>' +
+      '<div class="s-pts">' + (s.pts!==null ? s.pts.toLocaleString()+' نقطة' : '') + '</div></div>'
+    ).join('') + '</div>';
+  }
+  return '' +
+  '<div class="topbar"><div class="spacer"></div><h1>الدوريات الخاصة بك</h1><div class="spacer"></div></div>' +
+  '<div class="league-list">' + renderLeaguePreviewItems() + '</div>';
+}
+
+// ===== MORE TAB =====
+function renderMore(){
+  return '' +
+  '<div class="topbar"><div class="spacer"></div><h1>المزيد</h1><div class="spacer"></div></div>' +
+  '<div class="more-list">' +
+    '<div class="more-row"><div class="m-left"><span>الإشعارات</span></div>' +
+      '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
+    '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
+      '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
+    '<button class="more-row" data-goto="admin"><div class="m-left"><span>لوحة تحكم الأدمن</span></div>' + ICON_CHEV + '</button>' +
+    '<button class="more-row"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
+    '<button class="more-row"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
+  '</div>';
+}
+
+// ===== PLAYER PROFILE =====
+function renderPlayerProfile(){
+  const p = findPlayer(state.viewPlayerId);
+  if(!p) return '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>اللاعب</h1><div class="spacer"></div></div>';
+  const hist = (p.history||[]).slice().sort((a,b)=>a.gw-b.gw);
+  const last4 = hist.slice(-4);
+  const maxPts = Math.max(1, ...last4.map(h=>h.pts));
+  const chg = p.priceChange||0;
+  const chgIcon = chg>0?ICON_UP:(chg<0?ICON_DOWN:'');
+  const chgColor = chg>0?'up':(chg<0?'down':'');
+
+  const statusNote = {i:'مصاب', s:'موقوف', d:'مشكوك في مشاركته'}[p.status] || '';
+  const adminBlock = state.adminUnlocked ? (
+    '<div class="admin-card"><h3>مصدر البيانات</h3>' +
+    '<div style="font-size:11.5px;color:var(--muted);line-height:1.7;">بيانات هذا اللاعب (السعر/النقط/الملكية) بتيجي مباشرة من الـ API الرسمي لفانتازي البريميرليج، وبتتحدث تلقائيًا — مفيش تعديل يدوي.' +
+    (statusNote ? ('<br><span style="color:var(--coral);font-weight:700;">الحالة: '+statusNote+'</span>') : '') +
+    '</div></div>'
+  ) : '';
+
+  return '' +
+  '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1><div class="spacer"></div></div>' +
+  '<div class="profile-hero"><div class="jersey pj ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '>' + p.num + '</div>' +
+    '<div class="pn">' + p.name + '</div>' +
+    '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
+    '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
+    (chg!==0 ? '<span class="chg '+chgColor+'">'+chgIcon+(chg>0?'+':'')+fmt(chg)+'</span>' : '') +
+    '</div></div>' +
+  '<div class="profile-stats">' +
+    '<div class="cell"><div class="v">' + totalPoints(p) + '</div><div class="k">إجمالي النقط</div></div>' +
+    '<div class="cell"><div class="v">' + currentGwPoints(p) + '</div><div class="k">نقاط الجولة</div></div>' +
+    '<div class="cell"><div class="v">' + p.ownership + '%</div><div class="k">نسبة الملكية</div></div>' +
+  '</div>' +
+  '<div class="own-bar"><div class="row1"><span>نسبة الملكية بين المديرين</span><span>' + p.ownership + '%</span></div>' +
+    '<div class="track"><div class="fill" style="width:' + Math.min(100,p.ownership) + '%;"></div></div></div>' +
+  '<div class="fix-row"><div class="k">المباراة القادمة</div><div class="v">' + (state.gwInfo.fixtures[p.club]||'-') + '</div></div>' +
+  '<div class="section-title"><h2>الفورم (آخر جولات)</h2></div>' +
+  '<div style="margin:0 20px;"><div class="form-bars">' + last4.map(h=>{
+    const hpct = Math.max(8,(h.pts/maxPts)*100);
+    return '<div class="fb"><div style="font-size:9.5px;color:var(--text);font-weight:800;">'+h.pts+'</div><div class="bar" style="height:'+hpct+'%;"></div><div class="lbl">ج'+h.gw+'</div></div>';
+  }).join('') + '</div></div>' +
+  '<div class="section-title"><h2>نقاط كل جولة</h2></div>' +
+  '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + hist.slice().reverse().map(h=>
+    '<div class="hist-row"><div class="g">الجولة '+h.gw+'</div><div class="p">'+h.pts+' نقطة</div></div>'
+  ).join('') + '</div>' +
+  adminBlock;
+}
+
+// ===== ADMIN =====
+function renderAdmin(){
+  if(!state.adminUnlocked){
+    return '<div class="topbar"><button class="back" id="adminBack">'+ICON_BACK+'</button><h1>دخول الأدمن</h1><div class="spacer"></div></div>' +
+      '<div class="pin-wrap"><div style="font-size:12px;color:var(--muted);">ادخل الرقم السري</div>' +
+      '<input id="pinInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••">' +
+      (state.adminPinInput==='wrong' ? '<div style="color:var(--coral); font-size:11px;">الرقم غلط، جرب تاني</div>' : '') +
+      '<button class="btn-primary" id="pinSubmit" style="width:160px;">دخول</button></div>';
+  }
+  const syncedText = state.liveSyncedAt ? new Date(state.liveSyncedAt).toLocaleString('ar-EG') : 'لسه ماحصلش';
+  const sourceLine = state.liveDataError
+    ? '<span style="color:var(--coral);">تعذّر الاتصال بـ FPL API — شغال ببيانات احتياطية محلية</span>'
+    : (state.liveDataStale
+        ? '<span style="color:var(--gold);">آخر اتصال ناجح فشل التحديث الأخير — البيانات المعروضة قديمة شوية</span>'
+        : '<span style="color:var(--green-soft);">متصل لايف بالـ API الرسمي</span>');
+
+  return '' +
+  '<div class="topbar"><button class="back" id="adminBack">'+ICON_BACK+'</button><h1>لوحة تحكم الأدمن</h1><div class="spacer"></div></div>' +
+  (state.adminSavedBanner ? '<div class="banner-ok">تم التحديث من الـ API الرسمي</div>' : '') +
+  '<div class="admin-card"><h3>حالة الاتصال بـ FPL</h3>' +
+    '<div style="font-size:12px;color:var(--muted);line-height:1.9;">' +
+      'الحالة: ' + sourceLine + '<br>' +
+      'آخر مزامنة: <span style="color:var(--text);font-weight:700;">' + syncedText + '</span><br>' +
+      'الجولة الحالية: <span style="color:var(--text);font-weight:700;">' + state.gwInfo.current + '</span><br>' +
+      'عدد اللاعبين المحمّلين: <span style="color:var(--text);font-weight:700;">' + state.players.length + '</span>' +
+    '</div>' +
+    '<button class="btn-primary" id="adminForceSync" style="margin-top:14px;">مزامنة الآن من FPL</button>' +
+  '</div>' +
+  '<div class="admin-card"><h3>ملاحظة</h3>' +
+    '<div style="font-size:11.5px;color:var(--muted);line-height:1.8;">الأسعار والنقط والملكية والمباريات كلها بتيجي أوتوماتيك من الـ API الرسمي لفانتازي البريميرليج، فمفيش تعديل يدوي هنا دلوقتي. لو الاتصال فشل هيظهر ليك تنبيه فوق وهيشتغل الموقع ببيانات مخزنة سابقًا.</div>' +
+  '</div>';
+}
+function toLocalInput(iso){
+  const d = new Date(iso);
+  const p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+// ===== render dispatch =====
+function renderBody(){
+  const el = document.getElementById('app-body');
+  let html = '';
+  if(state.phase==='boot') html = renderBoot();
+  else if(state.phase==='onboard') html = renderOnboard();
+  else if(state.tab==='home') html = renderHome();
+  else if(state.tab==='team') html = renderTeam();
+  else if(state.tab==='transfers') html = renderTransfers();
+  else if(state.tab==='leagues') html = renderLeagues();
+  else if(state.tab==='more') html = renderMore();
+  else if(state.tab==='player') html = renderPlayerProfile();
+  else if(state.tab==='admin') html = renderAdmin();
+  el.innerHTML = html;
+  document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
+  bindBody();
+}
+function updateNav(){
+  document.querySelectorAll('.nav-item').forEach(btn=>{
+    const activeTabs = { home:'home', team:'team', transfers:'transfers', leagues:'leagues', more:'more', player:'more', admin:'more' };
+    btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
+  });
+}
+function render(){ renderBody(); updateNav(); }
+
+function goToPlayer(id){
+  state.profileBack = state.tab;
+  state.viewPlayerId = id;
+  state.tab = 'player';
+  render();
+}
+
+function bindBody(){
+  const el = document.getElementById('app-body');
+
+  // boot retry
+  const retry = el.querySelector('#retryBoot');
+  if(retry) retry.addEventListener('click', ()=>{ state.bootError=null; boot(); });
+
+  // onboarding
+  const obSubmit = el.querySelector('#obSubmit');
+  if(obSubmit) obSubmit.addEventListener('click', submitOnboard);
+
+  // bell / refresh
+  const bell = el.querySelector('#bellBtn');
+  if(bell) bell.addEventListener('click', (e)=>{ e.stopPropagation(); state.notifOpen = !state.notifOpen; renderBody(); });
+  const refreshBtn = el.querySelector('#refreshBtn');
+  if(refreshBtn) refreshBtn.addEventListener('click', refreshLiveData);
+
+  // go-to buttons
+  el.querySelectorAll('[data-goto]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.tab = b.getAttribute('data-goto'); state.notifOpen=false; render(); });
+  });
+
+  // league items
+  el.querySelectorAll('[data-league]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.tab = 'leagues'; state.activeLeagueId = b.getAttribute('data-league'); render(); });
+  });
+  const leagueBack = el.querySelector('#leagueBack');
+  if(leagueBack) leagueBack.addEventListener('click', ()=>{ state.activeLeagueId = null; renderBody(); });
+
+  // profile back
+  const profBack = el.querySelector('#profBack');
+  if(profBack) profBack.addEventListener('click', ()=>{ state.tab = state.profileBack; render(); });
+
+  // admin back
+  const adminBack = el.querySelector('#adminBack');
+  if(adminBack) adminBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+
+  // view profile triggers (jersey name tags, transfer rows)
+  el.querySelectorAll('[data-viewprofile]').forEach(b=>{
+    b.addEventListener('click', (e)=>{ e.stopPropagation(); goToPlayer(parseInt(b.getAttribute('data-viewprofile'))); });
+  });
+
+  // team tab: segment mode switch
+  el.querySelectorAll('[data-mode]').forEach(b=>{
+    if(!b.hasAttribute('data-mode') || b.tagName!=='BUTTON') return;
+  });
+  el.querySelectorAll('.segment [data-mode]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.teamMode = b.getAttribute('data-mode'); state.selectedBenchId = null; renderBody(); });
+  });
+
+  // team tab: player taps (captain or bench-swap) — jersey elements carry data-mode = view/captain/bench
+  el.querySelectorAll('.jersey[data-player]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = parseInt(b.getAttribute('data-player'));
+      const mode = b.getAttribute('data-mode');
+      if(mode==='view'){ return; } // handled by pname / no-op on view pitch
+      const entry = state.mySquadIds.find(e=>e.id===id);
+      if(!entry) return;
+      if(mode==='captain'){
+        if(entry.slot==='start'){ state.captainId = id; savePersonal(); renderBody(); }
+      } else if(mode==='bench'){
+        if(entry.slot==='bench'){
+          state.selectedBenchId = (state.selectedBenchId===id) ? null : id;
+          renderBody();
+        } else if(entry.slot==='start' && state.selectedBenchId){
+          const benchEntry = state.mySquadIds.find(e=>e.id===state.selectedBenchId);
+          const benchP = findPlayer(benchEntry.id);
+          const startP = findPlayer(id);
+          if(benchP.pos === startP.pos){
+            benchEntry.slot = 'start'; entry.slot = 'bench';
+            state.selectedBenchId = null;
+            savePersonal();
+            renderBody();
+          } else {
+            state.selectedBenchId = null;
+            renderBody();
+          }
+        }
+      }
+    });
+  });
+
+  // transfers: select "out"
+  el.querySelectorAll('[data-out]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = parseInt(b.getAttribute('data-out'));
+      state.transferOutId = (state.transferOutId===id) ? null : id;
+      renderBody();
+    });
+  });
+
+  // transfers: "in" -> execute swap
+  el.querySelectorAll('[data-in]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(b.disabled) return;
+      const inId = parseInt(b.getAttribute('data-in'));
+      const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
+      const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
+      const inPlayer = findPlayer(inId);
+      if(!outPlayer || !inPlayer) return;
+      if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
+      const newBank = state.bank + outPlayer.price - inPlayer.price;
+      if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
+
+      outEntry.id = inPlayer.id; // keep the slot, swap identity
+      state.bank = newBank;
+      if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
+      if(state.freeTransfers > 0) state.freeTransfers -= 1;
+      state.transferOutId = null;
+      savePersonal();
+
+      setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+    });
+  });
+
+  // more tab: toggles
+  el.querySelectorAll('[data-toggle]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.toggles[b.getAttribute('data-toggle')] = !state.toggles[b.getAttribute('data-toggle')]; renderBody(); });
+  });
+
+  // admin pin
+  const pinInput = el.querySelector('#pinInput');
+  const pinSubmit = el.querySelector('#pinSubmit');
+  if(pinSubmit) pinSubmit.addEventListener('click', ()=>{
+    const val = pinInput.value;
+    if(val === ADMIN_PIN){ state.adminUnlocked = true; state.adminPinInput=''; }
+    else { state.adminPinInput = 'wrong'; }
+    renderBody();
+  });
+
+  // admin: force a fresh sync from the official FPL API
+  const forceSync = el.querySelector('#adminForceSync');
+  if(forceSync) forceSync.addEventListener('click', async ()=>{
+    await loadLiveData(true);
+    state.adminSavedBanner = true;
+    renderBody();
+    setTimeout(()=>{ state.adminSavedBanner = false; if(state.tab==='admin') renderBody(); }, 3000);
+  });
+}
+
+// close notif panel when tapping elsewhere
+document.addEventListener('click', (e)=>{
+  if(state.notifOpen && !e.target.closest('#bellBtn') && !e.target.closest('.notif-panel')){
+    state.notifOpen = false;
+    if(state.tab==='home') renderBody();
+  }
+});
+
+// bottom nav bindings
+document.querySelectorAll('.nav-item').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    state.tab = btn.getAttribute('data-tab');
+    state.notifOpen = false;
+    if(state.tab !== 'leagues') state.activeLeagueId = null;
+    render();
+  });
+});
+
+// refresh deadline text + overall standings periodically
+setInterval(()=>{ if(state.phase==='app' && state.tab==='home') renderBody(); }, 60000);
+
+boot();
+</script>
+</body>
+</html>
