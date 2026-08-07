@@ -363,6 +363,24 @@
   .pin-wrap{ min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; }
   .pin-wrap input{ width:160px; text-align:center; letter-spacing:6px; font-family:'Cairo'; font-weight:800; font-size:18px; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px; color:var(--text); outline:none; }
   .banner-ok{ margin:0 20px 14px; padding:10px 12px; border-radius:10px; background:rgba(0,230,118,0.12); border:1px solid rgba(0,230,118,0.28); color:var(--green-soft); font-size:11px; font-weight:700; text-align:center; }
+
+  /* ===== predictions & advice ===== */
+  .pred-banner{ margin:6px 20px 0; padding:20px; border-radius:18px; text-align:center; position:relative; overflow:hidden;
+    background:linear-gradient(165deg, #0F3324 0%, #0F0A1A 100%); border:1px solid rgba(0,230,118,0.2); }
+  .pred-banner .lbl{ font-size:10.5px; color:var(--muted); }
+  .pred-banner .big{ font-family:'Cairo'; font-weight:900; font-size:30px; color:var(--green-soft); margin-top:4px; }
+  .pred-banner .sub{ font-size:10.5px; color:var(--muted); margin-top:8px; }
+  .pred-note{ margin:10px 20px 0; font-size:9.5px; color:var(--muted2); line-height:1.8; text-align:center; }
+  .pred-chip{ font-family:'Cairo'; font-weight:800; font-size:11.5px; color:#04321B; background:linear-gradient(160deg,var(--green-soft),var(--green-deep)); padding:6px 11px; border-radius:10px; white-space:nowrap; flex-shrink:0; }
+  .pred-chip.warn{ color:#3A0A12; background:linear-gradient(160deg,#FF8DA0,var(--coral)); }
+  .adv-card{ background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:12px 14px; margin-bottom:8px; }
+  .adv-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .adv-reasons{ display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; }
+  .reason-tag{ font-size:9.5px; color:var(--muted); background:rgba(255,255,255,0.05); border:1px solid var(--card-line); padding:3px 8px; border-radius:20px; }
+  .reason-tag.buy{ color:var(--green-soft); background:rgba(0,230,118,0.08); border-color:rgba(0,230,118,0.2); }
+  .reason-tag.sell{ color:var(--coral); background:rgba(255,77,109,0.08); border-color:rgba(255,77,109,0.22); }
+  .cs-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:11px 14px; margin-bottom:8px; }
+  .cs-row .cs-prob{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--green-soft); flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -550,14 +568,33 @@ async function buildLiveDataset(){
   }
 
   // مباريات الجولة الحالية — نبني نص "ضد X (أرض/خارج)" لكل نادي
+  // + بيانات صعوبة المباراة (FDR) وقوة هجوم/دفاع كل نادي، عشان محرك التوقعات
+  // (توقع النقط / كلين شيت / نصايح البيع والشراء) يعتمد عليها بدل ما يخمّن.
+  const teamsById = {};
+  teams.forEach(t=>{ teamsById[t.id] = t; });
+
   const fixturesMap = {};
+  const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away }
   try{
     const fx = await fplFetch('fixtures', gwId);
     (fx || []).forEach(f=>{
       const hKey = teamIdToKey[f.team_h], aKey = teamIdToKey[f.team_a];
+      const hTeam = teamsById[f.team_h], aTeam = teamsById[f.team_a];
       if(hKey && aKey){
         fixturesMap[hKey] = 'ضد ' + (clubTag[aKey]||'') + ' (أرض)';
         fixturesMap[aKey] = 'ضد ' + (clubTag[hKey]||'') + ' (خارج)';
+      }
+      if(hKey && aKey && hTeam && aTeam){
+        teamFixtures[hKey] = {
+          oppKey: aKey, isHome: true, fdr: f.team_h_difficulty || 3,
+          ownDefHome: hTeam.strength_defence_home, ownDefAway: hTeam.strength_defence_away,
+          oppAtkHome: aTeam.strength_attack_home, oppAtkAway: aTeam.strength_attack_away,
+        };
+        teamFixtures[aKey] = {
+          oppKey: hKey, isHome: false, fdr: f.team_a_difficulty || 3,
+          ownDefHome: aTeam.strength_defence_home, ownDefAway: aTeam.strength_defence_away,
+          oppAtkHome: hTeam.strength_attack_home, oppAtkAway: hTeam.strength_attack_away,
+        };
       }
     });
   }catch(e){}
@@ -576,6 +613,11 @@ async function buildLiveDataset(){
       totalPointsReal: el.total_points || 0,
       status: el.status, // a=متاح, i=مصاب, s=موقوف, d=مشكوك فيه
       history: (historyByElement[el.id]||[]).sort((a,b)=>a.gw-b.gw),
+      // ===== حقول إضافية لمحرك التوقعات (كلها من الـ API الرسمي) =====
+      epNext: parseFloat(el.ep_next) || 0,               // توقع FPL الرسمي لنقط الجولة الجاية
+      form: parseFloat(el.form) || 0,                     // متوسط نقط آخر جولات
+      minutes: el.minutes || 0,
+      chanceNext: (el.chance_of_playing_next_round==null) ? 100 : el.chance_of_playing_next_round,
     };
   });
 
@@ -585,7 +627,7 @@ async function buildLiveDataset(){
     fixtures: fixturesMap,
   };
 
-  return { players, gwInfo, clubTag, clubName };
+  return { players, gwInfo, clubTag, clubName, teamFixtures };
 }
 
 async function loadLiveData(force){
@@ -630,6 +672,7 @@ function applyLiveDataset(d){
   state.gwInfo = d.gwInfo;
   CLUB_TAG = d.clubTag;
   CLUB_NAME = d.clubName;
+  state.teamFixtures = d.teamFixtures || {};
 }
 
 // يبني تشكيلة افتراضية أول مرة من لاعبين حقيقيين ضمن ميزانية £100 مليون
@@ -667,6 +710,7 @@ let state = {
   tab:'home',
   players:[],          // live shared player DB
   gwInfo:null,         // live shared gameweek info
+  teamFixtures:{},     // live shared team strength/FDR data (لمحرك التوقعات)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
@@ -706,6 +750,132 @@ function starters(){ return squad().filter(p=>p.slot==='start'); }
 function benched(){ return squad().filter(p=>p.slot==='bench'); }
 function captain(){ return findPlayer(state.captainId); }
 function pool(){ const owned=new Set(state.mySquadIds.map(e=>e.id)); return state.players.filter(p=>!owned.has(p.id)); }
+
+// ============================================================
+// ===== محرك التوقعات والنصايح =====
+// كل الأرقام هنا "تقديرية" مبنية على بيانات فانتازي البريميرليج الرسمية
+// (الفورم، توقع FPL نفسها لنقط الجولة الجاية "ep_next"، صعوبة المباراة FDR،
+// وقوة هجوم/دفاع كل نادي) — مفيش أي بيانات مدفوعة ولا نموذج ذكاء اصطناعي،
+// كله حسابات مباشرة وشفافة وممكن تتراجع في أي وقت.
+// ============================================================
+
+function teamFixtureInfo(clubKey){
+  return (state.teamFixtures && state.teamFixtures[clubKey]) || null;
+}
+
+// صعوبة المباراة (FDR من فانتازي الرسمي: 1 سهلة جدًا -> 5 صعبة جدًا) بتتحول لمضاعف نقط
+function fdrMultiplier(fdr){
+  const map = {1:1.28, 2:1.14, 3:1.0, 4:0.86, 5:0.72};
+  return map[fdr] || 1;
+}
+
+// احتمالية مشاركة اللاعب أصلاً (مصاب/موقوف/مشكوك فيه)
+function availabilityMultiplier(p){
+  if(p.status==='i' || p.status==='s') return 0;
+  if(p.status==='d') return Math.max(0.35, (p.chanceNext!=null ? p.chanceNext : 75) / 100);
+  return 1;
+}
+
+// توقع نقاط اللاعب في الجولة الجاية
+function predictedPoints(p){
+  const avail = availabilityMultiplier(p);
+  if(avail===0) return 0;
+  const fx = teamFixtureInfo(p.club);
+  const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
+  // الأساس: توقع FPL الرسمي (ep_next) لو متاح، وإلا الفورم، وإلا متوسط الموسم
+  let base;
+  if(p.epNext && p.epNext>0){ base = p.epNext; }
+  else if(p.form && p.form>0){ base = p.form; }
+  else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
+  const pts = base * fdrMul * avail;
+  return Math.max(0, Math.round(pts*10)/10);
+}
+
+// توقع مجموع نقاط التشكيلة الأساسية (بمضاعفة الكابتن)
+function predictedSquadPoints(){
+  const c = captain();
+  const isCapStarting = c && state.mySquadIds.find(e=>e.id===c.id && e.slot==='start');
+  const base = starters().reduce((s,p)=>s+predictedPoints(p),0);
+  const extra = isCapStarting ? predictedPoints(c) : 0;
+  return Math.round((base+extra)*10)/10;
+}
+
+// متوسط نسبة ملكية لاعبين تشكيلتك الـ15 (مؤشر تقريبي — مش effective ownership)
+function squadOwnershipAvg(){
+  const s = squad();
+  if(!s.length) return 0;
+  return Math.round((s.reduce((sum,p)=>sum+p.ownership,0)/s.length)*10)/10;
+}
+
+// ترتيب الأندية حسب احتمال الكلين شيت الجولة الجاية (قوة دفاعهم مقابل هجوم الخصم + سهولة المباراة)
+function cleanSheetRanking(){
+  return Object.keys(CLUB_TAG).map(key=>{
+    const fx = teamFixtureInfo(key);
+    if(!fx) return null;
+    const defStrength = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
+    const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
+    if(defStrength==null || oppAtk==null) return null;
+    const raw = defStrength - oppAtk;
+    const prob = Math.max(5, Math.min(68, Math.round(32 + raw/6)));
+    return { club:key, prob, fx };
+  }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+}
+
+// أفضل حراس مرمى مرشحين لكلين شيت (أول حارس أساسي في كل نادي من أعلى الترتيب)
+function topCleanSheetKeepers(limit){
+  return cleanSheetRanking().map(r=>{
+    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===r.club && p.status!=='i' && p.status!=='s');
+    if(!keepers.length) return null;
+    keepers.sort((a,b)=> b.minutes-a.minutes || b.ownership-a.ownership);
+    return { p:keepers[0], prob:r.prob, fx:r.fx };
+  }).filter(Boolean).slice(0, limit||8);
+}
+
+// الأكثر تألقًا متوقع الجولة دي (فورم + مباراة سهلة، من كل اللاعبين اللي بيلعبوا فعليًا)
+function inFormRanking(limit){
+  return state.players.filter(p=>availabilityMultiplier(p)>0 && p.minutes>0)
+    .map(p=>({ p, score: predictedPoints(p) }))
+    .sort((a,b)=>b.score-a.score)
+    .slice(0, limit||10);
+}
+
+// الأعلى نسبة ملكية بين كل المديرين
+function ownershipRanking(limit){
+  return state.players.slice().sort((a,b)=>b.ownership-a.ownership).slice(0, limit||10);
+}
+
+// نصايح: مين تبيع من فريقك الحالي
+function sellAdvice(){
+  return squad().map(p=>{
+    const reasons = [];
+    let score = predictedPoints(p);
+    if(p.status==='i'){ reasons.push('مصاب'); score -= 5; }
+    else if(p.status==='s'){ reasons.push('موقوف'); score -= 5; }
+    else if(p.status==='d'){ reasons.push('مشكوك في مشاركته'); score -= 1.5; }
+    const fx = teamFixtureInfo(p.club);
+    if(fx && fx.fdr>=4){ reasons.push('مباراة صعبة الجولة الجاية'); score -= 0.8; }
+    if((p.form||0) < 2){ reasons.push('فورم ضعيف'); score -= 0.6; }
+    if(p.priceChange < 0){ reasons.push('سعره بينزل'); }
+    return { p, score, reasons };
+  }).filter(x=>x.reasons.length>0).sort((a,b)=>a.score-b.score).slice(0,5);
+}
+
+// نصايح: مين تشتري (من برا فريقك)
+function buyAdvice(){
+  return pool().filter(p=>availabilityMultiplier(p)>0)
+    .map(p=>{
+      const reasons = [];
+      const pred = predictedPoints(p);
+      const fx = teamFixtureInfo(p.club);
+      if(fx && fx.fdr<=2) reasons.push('مباراة سهلة الجولة الجاية');
+      if((p.form||0) >= 4) reasons.push('فورم ممتاز');
+      if(p.priceChange > 0) reasons.push('سعره بيطلع');
+      if(p.ownership < 8 && pred>=4) reasons.push('لاعب مميز (differential)');
+      return { p, pred, reasons };
+    })
+    .sort((a,b)=>b.pred-a.pred)
+    .slice(0,8);
+}
 
 function roundPoints(){
   const base = starters().reduce((s,p)=>s+currentGwPoints(p),0);
@@ -919,6 +1089,11 @@ function renderHome(){
     '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
   '</div>' +
 
+  '<div class="nudge" data-goto="predictions" style="cursor:pointer;"><div class="ic">🔮</div>' +
+    '<div class="txt"><div class="t1">توقع نقاط تشكيلتك: ' + fmt(predictedSquadPoints()) + ' نقطة</div>' +
+    '<div class="t2">اضغط لنصايح البيع والشراء وأفضل ترشيحات الجولة</div></div>' +
+  '</div>' +
+
   '<div class="section-title"><h2>الدوريات الخاصة بك</h2><a data-goto="leagues">عرض الكل ' + ICON_CHEV + '</a></div>' +
 
   '<div class="league-list">' + renderLeaguePreviewItems() + '</div>';
@@ -1078,6 +1253,7 @@ function renderMore(){
       '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
     '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
       '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
+    '<button class="more-row" data-goto="predictions"><div class="m-left"><span>🔮 التوقعات والنصايح</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row" data-goto="admin"><div class="m-left"><span>لوحة تحكم الأدمن</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
@@ -1131,6 +1307,76 @@ function renderPlayerProfile(){
   adminBlock;
 }
 
+// ===== PREDICTIONS & ADVICE =====
+function predRow(p, chipText, chipClass, metaExtra){
+  return '<div class="p-row"><div class="p-left" data-viewprofile="' + p.id + '">' +
+    '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+    '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+    '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+metaExtra):'') + '</div></div></div>' +
+    '<div class="pred-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div></div>';
+}
+
+function renderPredictions(){
+  const predSquad = predictedSquadPoints();
+  const ownAvg = squadOwnershipAvg();
+  const c = captain();
+
+  const squadRows = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
+    const isCap = p.id===state.captainId;
+    const pts = predictedPoints(p) * (isCap?2:1);
+    return predRow(p, fmt(pts) + ' نقطة' + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
+  }).join('');
+
+  const sell = sellAdvice();
+  const sellHtml = sell.length ? sell.map(x=>
+    '<div class="adv-card">' + predRow(x.p, 'توقع ' + fmt(predictedPoints(x.p)), 'warn', '£'+fmt(x.p.price)+'m') +
+    '<div class="adv-reasons">' + x.reasons.map(r=>'<span class="reason-tag sell">'+r+'</span>').join('') + '</div></div>'
+  ).join('') : '<div class="hint">فريقك مفيهوش حالات مقلقة دلوقتي 👍</div>';
+
+  const buy = buyAdvice();
+  const buyHtml = buy.map(x=>
+    '<div class="adv-card">' + predRow(x.p, 'توقع ' + fmt(x.pred), null, '£'+fmt(x.p.price)+'m') +
+    (x.reasons.length ? '<div class="adv-reasons">' + x.reasons.map(r=>'<span class="reason-tag buy">'+r+'</span>').join('') + '</div>' : '') +
+    '</div>'
+  ).join('');
+
+  const csHtml = topCleanSheetKeepers(8).map(x=>
+    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
+      '<div class="p-mini jersey ' + jerseyClass(x.p) + '"' + clubStyleAttr(jerseyClass(x.p)) + '></div>' +
+      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
+      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
+      '<div class="cs-prob">' + x.prob + '%</div></div>'
+  ).join('');
+
+  const informHtml = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') ).join('');
+  const ownHtml = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') ).join('');
+
+  return '' +
+  '<div class="topbar"><button class="back" id="predBack">' + ICON_BACK + '</button><h1>التوقعات والنصايح</h1><div class="spacer"></div></div>' +
+  '<div class="pred-banner"><div class="lbl">توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current + '</div>' +
+    '<div class="big">' + fmt(predSquad) + ' نقطة</div>' +
+    '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
+  '<div class="pred-note">التوقعات دي تقديرية، مبنية على الفورم وتوقعات فانتازي البريميرليج الرسمية وصعوبة المباريات — مش أرقام مضمونة.</div>' +
+
+  '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
+  '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
+
+  '<div class="section-title"><h2>نصيحة: مين تفكر تبيعه</h2></div>' +
+  '<div style="margin:0 20px;">' + sellHtml + '</div>' +
+
+  '<div class="section-title"><h2>نصيحة: مين تفكر تشتريه</h2></div>' +
+  '<div style="margin:0 20px;">' + buyHtml + '</div>' +
+
+  '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
+  '<div style="margin:0 20px;">' + csHtml + '</div>' +
+
+  '<div class="section-title"><h2>الأكثر تألقًا متوقع الجولة دي</h2></div>' +
+  '<div class="league-list" style="gap:8px;">' + informHtml + '</div>' +
+
+  '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
+  '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
+}
+
 // ===== ADMIN =====
 function renderAdmin(){
   if(!state.adminUnlocked){
@@ -1182,13 +1428,14 @@ function renderBody(){
   else if(state.tab==='more') html = renderMore();
   else if(state.tab==='player') html = renderPlayerProfile();
   else if(state.tab==='admin') html = renderAdmin();
+  else if(state.tab==='predictions') html = renderPredictions();
   el.innerHTML = html;
   document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
   bindBody();
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', team:'team', transfers:'transfers', leagues:'leagues', more:'more', player:'more', admin:'more' };
+    const activeTabs = { home:'home', team:'team', transfers:'transfers', leagues:'leagues', more:'more', player:'more', admin:'more', predictions:'more' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -1237,6 +1484,10 @@ function bindBody(){
   // admin back
   const adminBack = el.querySelector('#adminBack');
   if(adminBack) adminBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+
+  // predictions back
+  const predBack = el.querySelector('#predBack');
+  if(predBack) predBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
 
   // view profile triggers (jersey name tags, transfer rows)
   el.querySelectorAll('[data-viewprofile]').forEach(b=>{
