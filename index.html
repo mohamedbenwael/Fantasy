@@ -179,7 +179,7 @@
   .pitch::after{ content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:74px; height:74px; border:1.5px solid rgba(255,255,255,0.55); border-radius:50%; }
   .row{ display:flex; justify-content:center; gap:15px; position:relative; z-index:2; margin-bottom:15px; }
   .row:last-child{ margin-bottom:0; }
-  .player{ display:flex; flex-direction:column; align-items:center; width:52px; }
+  .player{ display:flex; flex-direction:column; align-items:center; width:52px; cursor:pointer; }
   .jersey{
     width:36px; height:34px;
     clip-path:polygon(22% 0%, 38% 0%, 50% 13%, 62% 0%, 78% 0%, 100% 22%, 84% 36%, 84% 100%, 16% 100%, 16% 36%, 0% 22%);
@@ -1363,16 +1363,20 @@ function renderHome(){
     '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
     '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
 
-  const adminLinksHtml = (state.adminLinks.news || state.adminLinks.advice) ?
+  const adminLinksHtml =
     '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
-      (state.adminLinks.news ? '<a href="' + state.adminLinks.news + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>' : '') +
-      (state.adminLinks.advice ? '<a href="' + state.adminLinks.advice + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>' : '') +
-    '</div>' : '';
+      (state.adminLinks.news ?
+        '<a href="' + state.adminLinks.news + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>' :
+        '<a onclick="alert(\'لا توجد أخبار حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>') +
+      (state.adminLinks.advice ?
+        '<a href="' + state.adminLinks.advice + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>' :
+        '<a onclick="alert(\'لا توجد نصائح حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>') +
+    '</div>';
 
   return '' +
   '<div class="header">' +
     '<div class="brand">' +
-      '<div class="crest"><span>M</span></div>' +
+      '<div class="crest" data-goto="admin"><span>M</span></div>' +
       '<div class="greet"><div class="hi">أهلاً بعودتك،</div><div class="name">'+state.teamName+'</div></div>' +
     '</div>' +
     '<div class="header-actions">' +
@@ -1452,12 +1456,12 @@ function renderJersey(p, opts){
   const mode = opts.mode || 'view';
   const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
-  return '<div class="player">' +
+  return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="' + cls + '"' + dataAttr + '>' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
     '</div>' +
-    '<div class="pname" data-viewprofile="' + p.id + '">' + p.name + '</div>' +
+    '<div class="pname">' + p.name + '</div>' +
     (showPts ? '<div class="ppts">' + (isCap ? currentGwPoints(p)*2 : currentGwPoints(p)) + ' pts</div>' : '') +
   '</div>';
 }
@@ -1674,9 +1678,8 @@ function renderMore(){
       '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
     '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
       '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
-    '<button class="more-row" data-goto="admin"><div class="m-left"><span>لوحة تحكم الأدمن</span></div>' + ICON_CHEV + '</button>' +
-    '<button class="more-row"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
-    '<button class="more-row"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
+    '<button class="more-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
+    '<button class="more-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
   '</div>';
 }
 
