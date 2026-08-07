@@ -279,6 +279,7 @@
   .p-row.out-selected{ border-color:rgba(255,77,109,0.4); background:rgba(255,77,109,0.06); }
   .p-left{ display:flex; align-items:center; gap:10px; cursor:pointer; }
   .p-mini{ width:24px; height:23px; border-radius:5px; flex-shrink:0; box-shadow:0 0 0 1px rgba(255,255,255,0.4); }
+  .p-mini.jersey-photo{ width:26px; height:auto; border-radius:0; box-shadow:none; background:transparent; flex-shrink:0; display:block; }
   .p-info .p-name{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); }
   .p-info .p-meta{ font-size:9.5px; color:var(--muted); margin-top:2px; }
   .p-btn{ font-family:'Cairo'; font-weight:800; font-size:10.5px; padding:7px 13px; border-radius:9px; white-space:nowrap; }
@@ -465,7 +466,7 @@
 
 const ADMIN_PIN = '2580';
 const FPL_ENDPOINT = '/api/fpl'; // البروكسي — شوف api/fpl.js
-const LIVE_CACHE_KEY = 'fpl_cache_v1';
+const LIVE_CACHE_KEY = 'fpl_cache_v2';
 const LIVE_CACHE_TTL = 5 * 60 * 1000; // 5 دقايق
 
 // بتتملى فعليًا من بيانات FPL الحقيقية وقت الإقلاع — دي بس نقطة بداية فاضية
@@ -863,6 +864,8 @@ let state = {
   adminUnlocked:false, adminPinInput:'', adminSavedBanner:false,
   refreshing:false,
   liveSyncedAt:null, liveDataError:false, liveDataStale:false,
+  adminLinks: { news:'', advice:'' },
+  transferFilterClub: 'all', transferFilterPrice: 'all',
 };
 
 const leagues = [
@@ -1108,6 +1111,10 @@ async function boot(){
   render();
   try{
     await loadLiveData();
+    try{
+      const linksRaw = await sGet('mazareta_admin_links', true);
+      if(linksRaw) state.adminLinks = JSON.parse(linksRaw);
+    }catch(e){}
 
     // if this browser already has an FPL Team ID saved, skip onboarding and go
     // straight into the app; otherwise show the onboarding screen to collect it
@@ -1329,7 +1336,7 @@ function renderHome(){
 
   const csHtml = topCleanSheetKeepers(8).map(x=>
     '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
-      '<div class="p-mini jersey ' + jerseyClass(x.p) + '"' + clubStyleAttr(jerseyClass(x.p)) + '></div>' +
+      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" loading="lazy">' +
       '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
       '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
       '<div class="cs-prob">' + x.prob + '%</div></div>'
@@ -1355,6 +1362,12 @@ function renderHome(){
     '<div class="league-list" style="gap:8px;">' + informHtml + '</div>' +
     '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
     '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
+
+  const adminLinksHtml = (state.adminLinks.news || state.adminLinks.advice) ?
+    '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
+      (state.adminLinks.news ? '<a href="' + state.adminLinks.news + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>' : '') +
+      (state.adminLinks.advice ? '<a href="' + state.adminLinks.advice + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>' : '') +
+    '</div>' : '';
 
   return '' +
   '<div class="header">' +
@@ -1395,6 +1408,8 @@ function renderHome(){
   renderPitchCard(false) +
 
   predictionsHtml +
+
+  adminLinksHtml +
 
   '<div class="nudge"><div class="ic">' + ICON_BULB + '</div>' +
     '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
@@ -1531,6 +1546,8 @@ function renderTransferMarket(){
     let candidates = pool()
       .filter(p => p.pos === pos)
       .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm))
+      .filter(p => state.transferFilterClub === 'all' || p.club === state.transferFilterClub)
+      .filter(p => state.transferFilterPrice === 'all' || p.price <= parseFloat(state.transferFilterPrice))
       .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
       .slice(0, 40);
 
@@ -1541,7 +1558,7 @@ function renderTransferMarket(){
       const disabled = !outPlayer || outPlayer.pos !== pos || (budget - p.price) < 0;
       return '<div class="p-row">' +
         '<div class="p-left" data-viewprofile="' + p.id + '">' +
-          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+          '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK'?'_1':'') + '-66.webp" alt="' + p.name + '" loading="lazy">' +
           '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
           '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · £' + fmt(p.price) + 'm' +
             ' · ' + totalPoints(p) + ' نقطة · متوقع ' + fmt(predictedPoints(p)) + '</div></div></div>' +
@@ -1567,7 +1584,7 @@ function renderTransfers(){
       const isOut = state.transferOutId === p.id;
       return '<div class="p-row' + (isOut ? ' out-selected' : '') + '">' +
         '<div class="p-left" data-viewprofile="' + p.id + '">' +
-          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+          '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK'?'_1':'') + '-66.webp" alt="' + p.name + '" loading="lazy">' +
           '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
           '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · ' + p.pos +
             ' · £' + fmt(p.price) + 'm · ' + fmt(predictedPoints(p)) + ' متوقعة' +
@@ -1576,6 +1593,16 @@ function renderTransfers(){
           (isOut ? 'إلغاء' : 'استبعاد') + '</button>' +
       '</div>';
     }).join('');
+
+  const clubOptions = Object.keys(CLUB_NAME)
+    .sort((a,b)=>CLUB_NAME[a].localeCompare(CLUB_NAME[b],'ar'))
+    .map(k=>'<option value="'+k+'"'+(state.transferFilterClub===k?' selected':'')+'>'+CLUB_NAME[k]+'</option>')
+    .join('');
+  const priceOptions = ['12.0','10.0','8.0','6.0','5.0','4.5']
+    .map(v=>'<option value="'+v+'"'+(state.transferFilterPrice===v?' selected':'')+'>حتى £'+v+'م</option>')
+    .join('');
+  const selectStyle = 'flex:1;background:var(--card);border:1px solid var(--card-line);border-radius:11px;' +
+    'padding:10px 12px;font-size:11.5px;color:var(--text);outline:none;font-family:inherit;';
 
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
@@ -1593,6 +1620,16 @@ function renderTransfers(){
       'value="' + (state.transferSearch || '') + '" ' +
       'style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:11px;' +
              'padding:10px 14px;font-size:12px;color:var(--text);outline:none;font-family:inherit;">' +
+  '</div>' +
+  '<div style="margin:0 20px 10px;display:flex;gap:8px;">' +
+    '<select id="transferFilterClub" style="' + selectStyle + '">' +
+      '<option value="all"' + (state.transferFilterClub==='all'?' selected':'') + '>كل الأندية</option>' +
+      clubOptions +
+    '</select>' +
+    '<select id="transferFilterPrice" style="' + selectStyle + '">' +
+      '<option value="all"' + (state.transferFilterPrice==='all'?' selected':'') + '>أي سعر</option>' +
+      priceOptions +
+    '</select>' +
   '</div>' +
   (outPlayer
     ? '<div class="hint" style="margin-bottom:10px;">تعرض فقط لاعبي مركز ' + outPlayer.pos + ' لاستبدال <strong style="color:var(--coral);">' + outPlayer.name + '</strong></div>'
@@ -1702,8 +1739,9 @@ function renderPlayerProfile(){
 
 // ===== PREDICTIONS & ADVICE =====
 function predRow(p, chipText, chipClass, metaExtra){
+  const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
   return '<div class="p-row"><div class="p-left" data-viewprofile="' + p.id + '">' +
-    '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+    '<img class="p-mini jersey-photo" src="' + shirtSrc + '" alt="' + p.name + '" loading="lazy">' +
     '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
     '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+metaExtra):'') + '</div></div></div>' +
     '<div class="pred-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div></div>';
@@ -1735,7 +1773,7 @@ function renderPredictions(){
 
   const csHtml = topCleanSheetKeepers(8).map(x=>
     '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
-      '<div class="p-mini jersey ' + jerseyClass(x.p) + '"' + clubStyleAttr(jerseyClass(x.p)) + '></div>' +
+      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" loading="lazy">' +
       '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
       '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
       '<div class="cs-prob">' + x.prob + '%</div></div>'
@@ -1797,6 +1835,16 @@ function renderAdmin(){
       'عدد اللاعبين المحمّلين: <span style="color:var(--text);font-weight:700;">' + state.players.length + '</span>' +
     '</div>' +
     '<button class="btn-primary" id="adminForceSync" style="margin-top:14px;">مزامنة الآن من FPL</button>' +
+  '</div>' +
+  '<div class="admin-card"><h3>روابط أخبار ونصايح الجولة</h3>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">هتظهر كزرارين في الصفحة الرئيسية لو الرابط موجود.</div>' +
+    '<input id="adminNewsLink" type="url" placeholder="رابط بوست أخبار الجولة" value="' + (state.adminLinks.news||'') + '" ' +
+      'style="width:100%;background:var(--ink);border:1px solid var(--card-line);border-radius:9px;padding:9px 12px;' +
+             'font-size:11.5px;color:var(--text);outline:none;font-family:inherit;margin-bottom:8px;" dir="ltr">' +
+    '<input id="adminAdviceLink" type="url" placeholder="رابط بوست نصايح الجولة" value="' + (state.adminLinks.advice||'') + '" ' +
+      'style="width:100%;background:var(--ink);border:1px solid var(--card-line);border-radius:9px;padding:9px 12px;' +
+             'font-size:11.5px;color:var(--text);outline:none;font-family:inherit;margin-bottom:10px;" dir="ltr">' +
+    '<button class="btn-primary" id="adminSaveLinks">حفظ الروابط</button>' +
   '</div>' +
   '<div class="admin-card"><h3>ملاحظة</h3>' +
     '<div style="font-size:11.5px;color:var(--muted);line-height:1.8;">الأسعار والنقط والملكية والمباريات كلها بتيجي أوتوماتيك من الـ API الرسمي لفانتازي البريميرليج، فمفيش تعديل يدوي هنا دلوقتي. لو الاتصال فشل هيظهر ليك تنبيه فوق وهيشتغل الموقع ببيانات مخزنة سابقًا.</div>' +
@@ -2024,6 +2072,34 @@ function bindBody(){
       }
     });
   }
+  const filterClub = el.querySelector('#transferFilterClub');
+  if(filterClub){
+    filterClub.addEventListener('change', ()=>{
+      state.transferFilterClub = filterClub.value;
+      const marketList = el.querySelector('#marketList');
+      if(marketList){ marketList.innerHTML = renderTransferMarket(); bindMarketListItems(marketList); }
+    });
+  }
+  const filterPrice = el.querySelector('#transferFilterPrice');
+  if(filterPrice){
+    filterPrice.addEventListener('change', ()=>{
+      state.transferFilterPrice = filterPrice.value;
+      const marketList = el.querySelector('#marketList');
+      if(marketList){ marketList.innerHTML = renderTransferMarket(); bindMarketListItems(marketList); }
+    });
+  }
+
+  // admin: save news/advice links
+  const saveLinks = el.querySelector('#adminSaveLinks');
+  if(saveLinks) saveLinks.addEventListener('click', async ()=>{
+    state.adminLinks = {
+      news: el.querySelector('#adminNewsLink').value.trim(),
+      advice: el.querySelector('#adminAdviceLink').value.trim(),
+    };
+    const ok = await sSet('mazareta_admin_links', JSON.stringify(state.adminLinks), true);
+    saveLinks.textContent = ok ? 'تم الحفظ ✓' : 'فشل الحفظ';
+    setTimeout(()=>{ saveLinks.textContent = 'حفظ الروابط'; }, 2000);
+  });
 }
 
 // close notif panel when tapping elsewhere
