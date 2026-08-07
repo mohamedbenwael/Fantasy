@@ -205,6 +205,22 @@
   .pname{ margin-top:6px; font-size:9px; color:var(--text); font-weight:700; background:rgba(0,0,0,0.55); padding:2px 7px; border-radius:6px; white-space:nowrap; cursor:pointer; }
   .ppts{ margin-top:3px; font-size:8px; color:#04321B; font-weight:800; background:var(--green-soft); padding:1px 6px; border-radius:5px; white-space:nowrap; }
 
+  /* ===== placeholder jersey (empty slot) ===== */
+  .jersey.placeholder{
+    background:rgba(255,255,255,0.07);
+    border:2px dashed rgba(255,255,255,0.22);
+    display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,0.35);
+    font-size:16px; font-weight:900;
+    box-shadow:none;
+    cursor:default;
+  }
+  .pname.placeholder-name{
+    color:rgba(255,255,255,0.25);
+    background:rgba(255,255,255,0.04);
+    font-size:8px;
+  }
+
   .bench{ background:#0B0F14; padding:13px 16px; display:flex; gap:8px; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.05); }
   .bench .player{ width:auto; opacity:0.85; }
   .bench .jersey{ width:29px; height:27px; font-size:9.5px; }
@@ -803,34 +819,6 @@ function applyLiveDataset(d){
   state.teamFixtures = d.teamFixtures || {};
 }
 
-// يبني تشكيلة افتراضية أول مرة من لاعبين حقيقيين ضمن ميزانية £100 مليون
-function draftDefaultSquad(players){
-  const byPos = pos => players.filter(p=>p.pos===pos).slice().sort((a,b)=>a.price-b.price);
-  const BUDGET = 100.0;
-  const need = { GK:2, DEF:5, MID:4, FWD:4 };
-  let picks = [], spent = 0, clubCount = {};
-  for(const pos of ['GK','DEF','MID','FWD']){
-    const pool = byPos(pos);
-    let taken = 0, i = 0;
-    while(taken < need[pos] && i < pool.length){
-      const p = pool[i];
-      const clubOk = (clubCount[p.club]||0) < 3; // نفس قاعدة FPL: أقصى 3 لاعبين من نفس النادي
-      if(clubOk && spent + p.price <= BUDGET){
-        picks.push(p); spent += p.price; clubCount[p.club] = (clubCount[p.club]||0)+1; taken++;
-      }
-      i++;
-    }
-  }
-  const starters = [];
-  const takeStart = (pos, n) => { picks.filter(p=>p.pos===pos).slice(0,n).forEach(p=>starters.push(p.id)); };
-  takeStart('GK',1); takeStart('DEF',4); takeStart('MID',3); takeStart('FWD',3);
-  const squadIds = picks.map(p=>({ id:p.id, slot: starters.includes(p.id) ? 'start' : 'bench' }));
-  const startForwards = picks.filter(p=>p.pos==='FWD' && starters.includes(p.id)).sort((a,b)=>b.price-a.price);
-  const captainId = startForwards[0] ? startForwards[0].id : (picks[0] ? picks[0].id : null);
-  const bank = Math.max(0, BUDGET - spent);
-  return { squadIds, captainId, bank };
-}
-
 // ===== app state =====
 let state = {
   phase:'boot', // boot | onboard | app
@@ -843,7 +831,7 @@ let state = {
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
   overall:{ rank:null, total:0, standings:[] },
-  transferOutId:null, teamMode:'captain', selectedBenchId:null,
+  transferOutId:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true },
   flash:null,
@@ -1136,37 +1124,44 @@ async function boot(){
 }
 
 async function loadSquadOrDraft(){
+  // ① الأولوية للتشكيلة المحفوظة في Supabase — لا نفقد تعديلات المستخدم أبداً
   const raw = await sGet('mazareta_squad:'+state.deviceId, false);
   if(raw){
-    const s = JSON.parse(raw);
-    // لو الفريق المحفوظ بيرجع لبيانات قديمة (لاعبين مش موجودين دلوقتي) نعيد بناءه
-    const stillValid = s.mySquadIds && s.mySquadIds.every(e => findPlayer(e.id));
-    if(stillValid){
-      state.mySquadIds = s.mySquadIds; state.captainId = s.captainId; state.bank = s.bank;
-      state.freeTransfers = s.freeTransfers; state.seasonBaseline = s.seasonBaseline;
+    try{
+      const s = JSON.parse(raw);
+      // لو الفريق المحفوظ بيرجع لبيانات قديمة (لاعبين مش موجودين دلوقتي) نعيد بناءه
+      const stillValid = s.mySquadIds && s.mySquadIds.length > 0 &&
+                          s.mySquadIds.every(e => findPlayer(e.id));
+      if(stillValid){
+        state.mySquadIds = s.mySquadIds; state.captainId = s.captainId; state.bank = s.bank;
+        state.freeTransfers = s.freeTransfers; state.seasonBaseline = s.seasonBaseline;
+        return;
+      }
+    }catch(e){}
+  }
+
+  // ② مفيش تشكيلة متخزنة (أو بايتة) — نحاول نجيب التشكيلة الحقيقية من FPL
+  try{
+    const gw = state.gwInfo && state.gwInfo.current;
+    const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
+    if(picks && picks.squadIds && picks.squadIds.length){
+      state.mySquadIds = picks.squadIds;
+      state.captainId = picks.captainId;
+      state.bank = picks.bank;
+      state.freeTransfers = 2;
+      state.seasonBaseline = 0;
+      await savePersonal();
       return;
     }
+  }catch(e){
+    // الجولة الأولى لم تبدأ بعد أو API غير متاح — نبدأ بتشكيلة فارغة
   }
 
-  // مفيش تشكيلة متخزنة (أو بايتة) — نحاول نجيب التشكيلة الحقيقية من FPL الأول
-  const gw = state.gwInfo && state.gwInfo.current;
-  const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
-  if(picks && picks.squadIds && picks.squadIds.length){
-    state.mySquadIds = picks.squadIds;
-    state.captainId = picks.captainId;
-    state.bank = picks.bank;
-    state.freeTransfers = 2;
-    state.seasonBaseline = 0;
-    await savePersonal();
-    return;
-  }
-
-  // فشل جلب التشكيلة الحقيقية (مثلاً أول جولة في الموسم أو الـ API واقع) — نرجع لتشكيلة افتراضية
-  const drafted = draftDefaultSquad(state.players);
-  state.mySquadIds = drafted.squadIds;
-  state.captainId = drafted.captainId;
-  state.bank = drafted.bank;
-  state.freeTransfers = 2;
+  // ③ تشكيلة فارغة تماماً — المستخدم يبني فريقه من الصفر
+  state.mySquadIds = [];
+  state.captainId = null;
+  state.bank = 100;
+  state.freeTransfers = 100;
   state.seasonBaseline = 0;
   await savePersonal();
 }
@@ -1372,19 +1367,54 @@ function renderJersey(p, opts){
     (showPts ? '<div class="ppts">' + (isCap ? currentGwPoints(p)*2 : currentGwPoints(p)) + ' pts</div>' : '') +
   '</div>';
 }
+function renderPlaceholder(pos){
+  const label = {GK:'حارس', DEF:'مدافع', MID:'وسط', FWD:'مهاجم'}[pos] || pos;
+  return '<div class="player">' +
+    '<div class="jersey placeholder">＋</div>' +
+    '<div class="pname placeholder-name">' + label + '</div>' +
+  '</div>';
+}
 function renderPitchCard(interactive){
-  const gk = starters().filter(p=>p.pos==='GK');
-  const def = starters().filter(p=>p.pos==='DEF');
-  const mid = starters().filter(p=>p.pos==='MID');
-  const fwd = starters().filter(p=>p.pos==='FWD');
+  const gkAll  = starters().filter(p=>p.pos==='GK');
+  const defAll = starters().filter(p=>p.pos==='DEF');
+  const midAll = starters().filter(p=>p.pos==='MID');
+  const fwdAll = starters().filter(p=>p.pos==='FWD');
+  const benchAll = benched();
+
   const opts = { mode: interactive ? state.teamMode : 'view' };
-  const rowHtml = (arr) => '<div class="row">' + arr.map(p=>renderJersey(p, opts)).join('') + '</div>';
-  const benchHtml = benched().map(p => {
+
+  // دالة مساعدة: تملأ صف بلاعبين حقيقيين + placeholders لو الصف ناقص
+  function rowHtml(players, needed, pos){
+    let html = '';
+    players.forEach(p => { html += renderJersey(p, opts); });
+    for(let i = players.length; i < needed; i++){
+      html += renderPlaceholder(pos);
+    }
+    return '<div class="row">' + html + '</div>';
+  }
+
+  // نستخدم أكبر عدد بين اللاعبين الفعليين والحد الأدنى المعتاد لكل مركز (1-3-2-1)
+  const gkNeed  = Math.max(1, gkAll.length);
+  const defNeed = Math.max(3, defAll.length);
+  const midNeed = Math.max(2, midAll.length);
+  const fwdNeed = Math.max(1, fwdAll.length);
+
+  // الاحتياطي: نعرض ما هو موجود + placeholders لإكمال 4
+  const benchPositions = ['GK','DEF','MID','FWD'];
+  let benchHtml = '';
+  benchAll.forEach(p => {
     const o = Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id });
-    return renderJersey(p, o);
-  }).join('');
+    benchHtml += renderJersey(p, o);
+  });
+  for(let i = benchAll.length; i < 4; i++){
+    benchHtml += renderPlaceholder(benchPositions[i] || 'GK');
+  }
+
   return '<div class="pitch-card"><div class="pitch">' +
-    rowHtml(gk) + rowHtml(def) + rowHtml(mid) + rowHtml(fwd) +
+    rowHtml(gkAll,  gkNeed,  'GK') +
+    rowHtml(defAll, defNeed, 'DEF') +
+    rowHtml(midAll, midNeed, 'MID') +
+    rowHtml(fwdAll, fwdNeed, 'FWD') +
   '</div><div class="bench">' + benchHtml + '</div></div>';
 }
 
@@ -1407,36 +1437,60 @@ function renderTeam(){
 
 // ===== TRANSFERS TAB =====
 function renderTransfers(){
-  const flash = state.flash ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>' : '';
+  const flash = state.flash
+    ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
+    : '';
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
 
-  const squadRows = squad().map(p => {
-    const isOut = state.transferOutId === p.id;
-    return '<div class="p-row' + (isOut?' out-selected':'') + '">' +
-      '<div class="p-left" data-viewprofile="' + p.id + '"><div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
-      '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm' + (p.slot==='bench'?' · احتياطي':'') + '</div></div></div>' +
-      '<button class="p-btn out' + (isOut?' active':'') + '" data-out="' + p.id + '">' + (isOut?'إلغاء':'استبعاد') + '</button>' +
-    '</div>';
-  }).join('');
-
-  const positions = ['GK','DEF','MID','FWD'];
-  const posLabel = {GK:'حراس المرمى', DEF:'المدافعون', MID:'خط الوسط', FWD:'المهاجمون'};
-  const marketHtml = positions.map(pos => {
-    // القائمة الحقيقية فيها مئات اللاعبين — بنعرض أفضل 40 بالنسبة للملكية/النقط عشان القائمة تفضل عملية
-    const rows = pool().filter(p=>p.pos===pos)
-      .sort((a,b)=> (totalPoints(b)-totalPoints(a)) || (b.ownership-a.ownership))
-      .slice(0,40)
-      .map(p => {
-      const disabled = !outPlayer || outPlayer.pos !== pos || (state.bank + (outPlayer?outPlayer.price:0) - p.price) < 0;
-      return '<div class="p-row">' +
-        '<div class="p-left" data-viewprofile="' + p.id + '"><div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
-        '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
-        '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm · ' + totalPoints(p) + ' نقطة</div></div></div>' +
-        '<button class="p-btn in" data-in="' + p.id + '"' + (disabled?' disabled':'') + '>إضافة</button>' +
+  // --- فريقك: مرتبة بالنقاط المتوقعة أولاً ---
+  const squadRows = squad().slice()
+    .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
+    .map(p => {
+      const isOut = state.transferOutId === p.id;
+      return '<div class="p-row' + (isOut ? ' out-selected' : '') + '">' +
+        '<div class="p-left" data-viewprofile="' + p.id + '">' +
+          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+          '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · ' + p.pos +
+            ' · £' + fmt(p.price) + 'm · ' + fmt(predictedPoints(p)) + ' متوقعة' +
+            (p.slot === 'bench' ? ' · احتياطي' : '') + '</div></div></div>' +
+        '<button class="p-btn out' + (isOut ? ' active' : '') + '" data-out="' + p.id + '">' +
+          (isOut ? 'إلغاء' : 'استبعاد') + '</button>' +
       '</div>';
     }).join('');
-    return '<div class="pos-head">' + posLabel[pos] + '</div><div class="league-list" style="gap:8px;">' + rows + '</div>';
+
+  // --- سوق الانتقالات ---
+  // لو فيه لاعب مختار للبيع نعرض نفس مركزه فقط، غير كده نعرض الكل
+  const positions = outPlayer ? [outPlayer.pos] : ['GK', 'DEF', 'MID', 'FWD'];
+  const posLabel  = {GK:'حراس المرمى', DEF:'المدافعون', MID:'خط الوسط', FWD:'المهاجمون'};
+
+  const searchTerm = (state.transferSearch || '').trim().toLowerCase();
+
+  const marketHtml = positions.map(pos => {
+    // القائمة الحقيقية فيها مئات اللاعبين — بنعرض أفضل 40 بالنسبة للنقاط المتوقعة عشان القائمة تفضل عملية
+    let candidates = pool()
+      .filter(p => p.pos === pos)
+      .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm))
+      .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
+      .slice(0, 40);
+
+    if(!candidates.length) return '';
+
+    const rows = candidates.map(p => {
+      const budget = state.bank + (outPlayer ? outPlayer.price : 0);
+      const disabled = !outPlayer || outPlayer.pos !== pos || (budget - p.price) < 0;
+      return '<div class="p-row">' +
+        '<div class="p-left" data-viewprofile="' + p.id + '">' +
+          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+          '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · £' + fmt(p.price) + 'm' +
+            ' · ' + totalPoints(p) + ' نقطة · متوقع ' + fmt(predictedPoints(p)) + '</div></div></div>' +
+        '<button class="p-btn in" data-in="' + p.id + '"' + (disabled ? ' disabled' : '') + '>إضافة</button>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="pos-head">' + posLabel[pos] + '</div>' +
+           '<div class="league-list" style="gap:8px;">' + rows + '</div>';
   }).join('');
 
   return '' +
@@ -1449,7 +1503,16 @@ function renderTransfers(){
   flash +
   '<div class="section-title"><h2>فريقك</h2></div>' +
   '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
-  '<div class="section-title" style="margin-bottom:0;"><h2>سوق الانتقالات</h2></div>' +
+  '<div class="section-title" style="margin-bottom:8px;"><h2>سوق الانتقالات</h2></div>' +
+  '<div style="margin:0 20px 10px;">' +
+    '<input id="transferSearch" type="search" inputmode="search" placeholder="ابحث باسم اللاعب..." ' +
+      'value="' + (state.transferSearch || '') + '" ' +
+      'style="width:100%;background:var(--card);border:1px solid var(--card-line);border-radius:11px;' +
+             'padding:10px 14px;font-size:12px;color:var(--text);outline:none;font-family:inherit;">' +
+  '</div>' +
+  (outPlayer
+    ? '<div class="hint" style="margin-bottom:10px;">تعرض فقط لاعبي مركز ' + outPlayer.pos + ' لاستبدال <strong style="color:var(--coral);">' + outPlayer.name + '</strong></div>'
+    : '') +
   marketHtml;
 }
 
@@ -1827,6 +1890,15 @@ function bindBody(){
     renderBody();
     setTimeout(()=>{ state.adminSavedBanner = false; if(state.tab==='admin') renderBody(); }, 3000);
   });
+
+  // transfers: search box
+  const searchBox = el.querySelector('#transferSearch');
+  if(searchBox){
+    searchBox.addEventListener('input', ()=>{
+      state.transferSearch = searchBox.value;
+      renderBody();
+    });
+  }
 }
 
 // close notif panel when tapping elsewhere
