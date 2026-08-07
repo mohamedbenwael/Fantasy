@@ -1193,23 +1193,11 @@ async function boot(){
 }
 
 async function loadSquadOrDraft(){
-  // ① الأولوية للتشكيلة المحفوظة في Supabase — لا نفقد تعديلات المستخدم أبداً
-  const raw = await sGet('mazareta_squad:'+state.deviceId, false);
-  if(raw){
-    try{
-      const s = JSON.parse(raw);
-      // لو الفريق المحفوظ بيرجع لبيانات قديمة (لاعبين مش موجودين دلوقتي) نعيد بناءه
-      const stillValid = s.mySquadIds && s.mySquadIds.length > 0 &&
-                          s.mySquadIds.every(e => findPlayer(e.id));
-      if(stillValid){
-        state.mySquadIds = s.mySquadIds; state.captainId = s.captainId; state.bank = s.bank;
-        state.freeTransfers = s.freeTransfers; state.seasonBaseline = s.seasonBaseline;
-        return;
-      }
-    }catch(e){}
-  }
+  // ⓪ امسح فورًا أي تشكيلة قديمة مخزنة (Supabase + أي أثر محلي) عشان منعتمدش على بيانات قديمة أبداً
+  try{ localStorage.removeItem('mazareta_squad:'+state.deviceId); }catch(e){}
+  await sSet('mazareta_squad:'+state.deviceId, '', false);
 
-  // ② مفيش تشكيلة متخزنة (أو بايتة) — نحاول نجيب التشكيلة الحقيقية من FPL
+  // ① نجبر النظام يجيب التشكيلة الحقيقية من FPL للجولة الحالية فورًا (من غير ما نعتمد على أي كاش قديم)
   try{
     const gw = state.gwInfo && state.gwInfo.current;
     const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
@@ -1226,7 +1214,7 @@ async function loadSquadOrDraft(){
     // الجولة الأولى لم تبدأ بعد أو API غير متاح — نبدأ بتشكيلة فارغة
   }
 
-  // ③ تشكيلة فارغة تماماً — المستخدم يبني فريقه من الصفر
+  // ② تشكيلة فارغة تماماً — المستخدم يبني فريقه من الصفر
   state.mySquadIds = [];
   state.captainId = null;
   state.bank = 100;
