@@ -9,6 +9,8 @@
 //   /api/fpl?type=fixtures                 -> كل مباريات الموسم
 //   /api/fpl?type=fixtures&event=5         -> مباريات الجولة رقم 5 بس
 //   /api/fpl?type=live&event=5             -> نقاط كل اللاعبين لحظيًا في الجولة رقم 5
+//   /api/fpl?type=entry&id=123456          -> بيانات فريق معين (اسم المدير، الرتبة العامة...)
+//   /api/fpl?type=picks&id=123456&event=5  -> اختيارات فريق معين في جولة معينة
 
 const BASE = 'https://fantasy.premierleague.com/api';
 
@@ -18,10 +20,12 @@ const CACHE_SECONDS = {
   bootstrap: 120,   // الأسعار والنقط بتتغير خلال المباريات، فتحديث كل دقيقتين كافي
   fixtures: 300,
   live: 60,         // وقت المباريات الفعلي محتاج تحديث أسرع شوية
+  entry: 60,        // بيانات الفريق (زي الرتبة العامة) بتتغير باستمرار وقت الجولة
+  picks: 300,        // الاختيارات في جولة معينة (خصوصًا لو الجولة خلصت) مش بتتغير كتير
 };
 
 module.exports = async function handler(req, res) {
-  const { type, event } = req.query;
+  const { type, event, id } = req.query;
 
   let url;
   let cacheBucket = 'bootstrap';
@@ -39,8 +43,22 @@ module.exports = async function handler(req, res) {
     }
     url = `${BASE}/event/${encodeURIComponent(event)}/live/`;
     cacheBucket = 'live';
+  } else if (type === 'entry') {
+    if (!id) {
+      res.status(400).json({ error: 'محتاج تحدد رقم الفريق: ?type=entry&id=123456' });
+      return;
+    }
+    url = `${BASE}/entry/${encodeURIComponent(id)}/`;
+    cacheBucket = 'entry';
+  } else if (type === 'picks') {
+    if (!id || !event) {
+      res.status(400).json({ error: 'محتاج تحدد رقم الفريق ورقم الجولة: ?type=picks&id=123456&event=5' });
+      return;
+    }
+    url = `${BASE}/entry/${encodeURIComponent(id)}/event/${encodeURIComponent(event)}/picks/`;
+    cacheBucket = 'picks';
   } else {
-    res.status(400).json({ error: "نوع غير معروف. استخدم type=bootstrap أو type=fixtures أو type=live" });
+    res.status(400).json({ error: "نوع غير معروف. استخدم type=bootstrap أو type=fixtures أو type=live أو type=entry أو type=picks" });
     return;
   }
 
