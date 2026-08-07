@@ -197,6 +197,19 @@
   .jersey.che{ background:linear-gradient(165deg,#2E6FD1,#0A2B5E); color:rgba(255,255,255,0.9); }
   .jersey.new{ background:repeating-linear-gradient(90deg,#0B0B0B 0 5px,#F5F5F5 5px 10px); color:#111; }
   .jersey.tot{ background:linear-gradient(to bottom, #14213D 0 14%, transparent 14%), linear-gradient(165deg,#fdfdfd,#cfcfcf); color:#0B1F3A; }
+
+  /* ===== real shirt image (pitch + bench) ===== */
+  .jersey.jersey-photo{
+    clip-path:none;
+    background:transparent;
+    box-shadow:none;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .jersey.jersey-photo.selected{ box-shadow:none; }
+  .jersey-shirt{ width:38px; height:auto; display:block; }
+  .jersey.jersey-photo.selected .jersey-shirt{ outline:2.5px solid var(--green-soft); outline-offset:1px; border-radius:6px; }
+  .bench .jersey-shirt{ width:28px; }
+
   .cap{
     position:absolute; top:-6px; left:-6px; width:15px; height:15px; border-radius:50%;
     background:var(--gold); color:#241A08; font-family:'Cairo'; font-weight:900; font-size:8.5px;
@@ -335,9 +348,18 @@
   /* ===== player profile ===== */
   .profile-hero{ margin:6px 20px 0; padding:22px 18px; border-radius:20px; text-align:center; position:relative; overflow:hidden;
     background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%); border:1px solid rgba(255,255,255,0.06); }
-  .profile-hero .pj{ width:64px; height:60px; margin:0 auto; font-size:20px; }
+  .profile-hero .pj-photo{ width:74px; height:auto; display:block; margin:0 auto; border-radius:10px; }
   .profile-hero .pn{ font-family:'Cairo'; font-weight:900; font-size:17px; color:var(--text); margin-top:12px; }
   .profile-hero .pm{ font-size:11px; color:var(--muted); margin-top:4px; }
+  /* ===== upcoming fixtures (player profile) ===== */
+  .pp-fixtures{ display:flex; gap:8px; margin:0 20px; }
+  .pp-fixcard{ flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:10px 6px; text-align:center; }
+  .pp-fixcard .opp{ font-family:'Cairo'; font-weight:800; font-size:11.5px; color:var(--text); }
+  .pp-fixcard .venue{ font-size:9px; color:var(--muted); margin-top:2px; }
+  .pp-fixcard .fdr{ margin-top:6px; display:inline-block; min-width:20px; padding:2px 6px; border-radius:6px; font-size:10.5px; font-weight:800; }
+  .pp-fixcard .fdr.easy{ background:rgba(0,230,118,0.16); color:var(--green-soft); }
+  .pp-fixcard .fdr.mid{ background:rgba(232,196,104,0.18); color:var(--gold); }
+  .pp-fixcard .fdr.hard{ background:rgba(255,77,109,0.16); color:var(--coral); }
   .price-tag{ display:inline-flex; align-items:center; gap:5px; margin-top:10px; background:rgba(0,0,0,0.25); padding:6px 12px; border-radius:20px; }
   .price-tag .amt{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
   .price-tag .chg{ font-size:10.5px; font-weight:800; display:flex; align-items:center; gap:2px; }
@@ -730,6 +752,8 @@ async function buildLiveDataset(){
     const matchesPlayed = el.starts || Math.round((el.minutes||0)/90) || 0;
     return {
       id: el.id,
+      code: el.code,
+      teamCode: el.team_code,
       name: el.web_name,
       club: club,
       pos: POS_MAP[el.element_type] || 'MID',
@@ -1278,6 +1302,60 @@ function renderLivePill(){
 function renderHome(){
   const rp = roundPoints();
   const st = starters(), stTop = state.overall;
+
+  // ===== محتوى التوقعات والنصايح (منقول من renderPredictions) =====
+  const predSquad = predictedSquadPoints();
+  const ownAvg = squadOwnershipAvg();
+  const c = captain();
+
+  const squadRows = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
+    const isCap = p.id===state.captainId;
+    const pts = predictedPoints(p) * (isCap?2:1);
+    return predRow(p, fmt(pts) + ' نقطة' + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
+  }).join('');
+
+  const sell = sellAdvice();
+  const sellHtml = sell.length ? sell.map(x=>
+    '<div class="adv-card">' + predRow(x.p, 'توقع ' + fmt(predictedPoints(x.p)), 'warn', '£'+fmt(x.p.price)+'m') +
+    '<div class="adv-reasons">' + x.reasons.map(r=>'<span class="reason-tag sell">'+r+'</span>').join('') + '</div></div>'
+  ).join('') : '<div class="hint">فريقك مفيهوش حالات مقلقة دلوقتي 👍</div>';
+
+  const buy = buyAdvice();
+  const buyHtml = buy.map(x=>
+    '<div class="adv-card">' + predRow(x.p, 'توقع ' + fmt(x.pred), null, '£'+fmt(x.p.price)+'m') +
+    (x.reasons.length ? '<div class="adv-reasons">' + x.reasons.map(r=>'<span class="reason-tag buy">'+r+'</span>').join('') + '</div>' : '') +
+    '</div>'
+  ).join('');
+
+  const csHtml = topCleanSheetKeepers(8).map(x=>
+    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
+      '<div class="p-mini jersey ' + jerseyClass(x.p) + '"' + clubStyleAttr(jerseyClass(x.p)) + '></div>' +
+      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
+      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
+      '<div class="cs-prob">' + x.prob + '%</div></div>'
+  ).join('');
+
+  const informHtml = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') ).join('');
+  const ownHtml = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') ).join('');
+
+  const predictionsHtml = '' +
+    '<div class="pred-banner"><div class="lbl">توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current + '</div>' +
+      '<div class="big">' + fmt(predSquad) + ' نقطة</div>' +
+      '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
+    '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
+    '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
+    '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
+    '<div class="section-title"><h2>نصيحة: مين تفكر تبيعه</h2></div>' +
+    '<div style="margin:0 20px;">' + sellHtml + '</div>' +
+    '<div class="section-title"><h2>نصيحة: مين تفكر تشتريه</h2></div>' +
+    '<div style="margin:0 20px;">' + buyHtml + '</div>' +
+    '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
+    '<div style="margin:0 20px;">' + csHtml + '</div>' +
+    '<div class="section-title"><h2>الأكثر تألقًا متوقع الجولة دي</h2></div>' +
+    '<div class="league-list" style="gap:8px;">' + informHtml + '</div>' +
+    '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
+    '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
+
   return '' +
   '<div class="header">' +
     '<div class="brand">' +
@@ -1316,14 +1394,11 @@ function renderHome(){
 
   renderPitchCard(false) +
 
+  predictionsHtml +
+
   '<div class="nudge"><div class="ic">' + ICON_BULB + '</div>' +
     '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
     '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
-  '</div>' +
-
-  '<div class="nudge" data-goto="predictions" style="cursor:pointer;"><div class="ic">🔮</div>' +
-    '<div class="txt"><div class="t1">توقع نقاط تشكيلتك: ' + fmt(predictedSquadPoints()) + ' نقطة</div>' +
-    '<div class="t2">اضغط لنصايح البيع والشراء وأفضل ترشيحات الجولة</div></div>' +
   '</div>' +
 
   '<div class="section-title"><h2>الدوريات الخاصة بك</h2><a data-goto="leagues">عرض الكل ' + ICON_CHEV + '</a></div>' +
@@ -1355,14 +1430,18 @@ function renderNotifPanel(){
 // ===== PITCH =====
 function renderJersey(p, opts){
   opts = opts || {};
-  let cls = 'jersey ' + jerseyClass(p);
+  let cls = 'jersey jersey-photo';
   if(opts.selected) cls += ' selected';
   const isCap = p.id === state.captainId;
   const showPts = p.slot === 'start';
   const mode = opts.mode || 'view';
   const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
+  const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
   return '<div class="player">' +
-    '<div class="' + cls + '"' + dataAttr + clubStyleAttr(jerseyClass(p)) + '>' + p.num + (isCap ? '<div class="cap">C</div>' : '') + '</div>' +
+    '<div class="' + cls + '"' + dataAttr + '>' +
+      '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" loading="lazy">' +
+      (isCap ? '<div class="cap">C</div>' : '') +
+    '</div>' +
     '<div class="pname" data-viewprofile="' + p.id + '">' + p.name + '</div>' +
     (showPts ? '<div class="ppts">' + (isCap ? currentGwPoints(p)*2 : currentGwPoints(p)) + ' pts</div>' : '') +
   '</div>';
@@ -1558,7 +1637,6 @@ function renderMore(){
       '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
     '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
       '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
-    '<button class="more-row" data-goto="predictions"><div class="m-left"><span>🔮 التوقعات والنصايح</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row" data-goto="admin"><div class="m-left"><span>لوحة تحكم الأدمن</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
     '<button class="more-row"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
@@ -1584,9 +1662,17 @@ function renderPlayerProfile(){
     '</div></div>'
   ) : '';
 
+  const lookahead = (state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || [];
+  const fixturesHtml = lookahead.length ? lookahead.map(f=>{
+    const fdrCls = f.fdr<=2 ? 'easy' : (f.fdr>=4 ? 'hard' : 'mid');
+    return '<div class="pp-fixcard"><div class="opp">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+      '<div class="venue">' + (f.isHome?'أرض':'خارج') + '</div>' +
+      '<div class="fdr ' + fdrCls + '">' + f.fdr + '</div></div>';
+  }).join('') : '<div class="hint">لا توجد بيانات مباريات قادمة حاليًا</div>';
+
   return '' +
   '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1><div class="spacer"></div></div>' +
-  '<div class="profile-hero"><div class="jersey pj ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '>' + p.num + '</div>' +
+  '<div class="profile-hero"><img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/110x140/p' + p.code + '.png" alt="' + p.name + '">' +
     '<div class="pn">' + p.name + '</div>' +
     '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
     '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
@@ -1600,6 +1686,8 @@ function renderPlayerProfile(){
   '<div class="own-bar"><div class="row1"><span>نسبة الملكية بين المديرين</span><span>' + p.ownership + '%</span></div>' +
     '<div class="track"><div class="fill" style="width:' + Math.min(100,p.ownership) + '%;"></div></div></div>' +
   '<div class="fix-row"><div class="k">المباراة القادمة</div><div class="v">' + (state.gwInfo.fixtures[p.club]||'-') + '</div></div>' +
+  '<div class="section-title"><h2>جدول المباريات</h2></div>' +
+  '<div class="pp-fixtures">' + fixturesHtml + '</div>' +
   '<div class="section-title"><h2>الفورم (آخر جولات)</h2></div>' +
   '<div style="margin:0 20px;"><div class="form-bars">' + last4.map(h=>{
     const hpct = Math.max(8,(h.pts/maxPts)*100);
