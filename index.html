@@ -908,7 +908,7 @@ let state = {
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
   realLeagues: [], overallRank: 0,
-  transferOutId:null, transferAddPos:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
+  transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true },
   flash:null,
@@ -1491,9 +1491,9 @@ function renderJersey(p, opts){
     (showPts ? '<div class="ppts' + (hasBonus?' has-bonus':'') + '">' + ptsVal + ' pts' + (hasBonus?' ⭐':'') + '</div>' : '') +
   '</div>';
 }
-function renderPlaceholder(pos){
+function renderPlaceholder(pos, slot){
   const label = {GK:'حارس', DEF:'مدافع', MID:'وسط', FWD:'مهاجم'}[pos] || pos;
-  return '<div class="player" data-add-pos="' + pos + '" style="cursor:pointer;">' +
+  return '<div class="player" data-add-pos="' + pos + '" data-add-slot="' + (slot || 'start') + '" style="cursor:pointer;">' +
     '<div class="jersey placeholder">＋</div>' +
     '<div class="pname placeholder-name">' + label + '</div>' +
   '</div>';
@@ -1512,7 +1512,7 @@ function renderPitchCard(interactive){
     let html = '';
     players.forEach(p => { html += renderJersey(p, opts); });
     for(let i = players.length; i < needed; i++){
-      html += renderPlaceholder(pos);
+      html += renderPlaceholder(pos, 'start');
     }
     return '<div class="row">' + html + '</div>';
   }
@@ -1533,7 +1533,7 @@ function renderPitchCard(interactive){
     benchHtml += renderJersey(p, o);
   });
   for(let i = benchAll.length; i < 4; i++){
-    benchHtml += renderPlaceholder(benchPositions[i] || 'GK');
+    benchHtml += renderPlaceholder(benchPositions[i] || 'GK', 'bench');
   }
 
   return '<div class="pitch-card"><div class="pitch">' +
@@ -1916,6 +1916,50 @@ function goToPlayer(id){
   render();
 }
 
+// تنفيذ عملية الشراء: إما استبدال لاعب موجود (transferOutId) أو إضافة لاعب جديد لمكان فارغ (transferAddPos)
+function tryBuyPlayer(inId){
+  const inPlayer = findPlayer(inId);
+  if(!inPlayer) return;
+
+  const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
+  const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
+
+  if(outPlayer){
+    // ① استبدال لاعب موجود في الفريق بلاعب تاني في نفس المركز
+    if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
+    const newBank = state.bank + outPlayer.price - inPlayer.price;
+    if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
+
+    outEntry.id = inPlayer.id; // keep the slot, swap identity
+    state.bank = newBank;
+    if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
+    if(state.freeTransfers > 0) state.freeTransfers -= 1;
+    state.transferOutId = null;
+    savePersonal();
+
+    setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+    return;
+  }
+
+  if(state.transferAddPos){
+    // ② إضافة لاعب جديد لمكان فارغ في التشكيلة (مش استبدال — مفيش لاعب يتباع)
+    if(inPlayer.pos !== state.transferAddPos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
+    if(state.mySquadIds.some(e=>e.id===inPlayer.id)){ setFlash('err','اللاعب موجود بالفعل في فريقك'); return; }
+    if(state.mySquadIds.length >= 15){ setFlash('err','التشكيلة مكتملة بالفعل (15 لاعب)'); return; }
+    const newBank = state.bank - inPlayer.price;
+    if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لشراء هذا اللاعب'); return; }
+
+    state.mySquadIds.push({ id: inPlayer.id, slot: state.transferAddSlot || 'start' });
+    state.bank = newBank;
+    state.transferAddPos = null;
+    state.transferAddSlot = null;
+    savePersonal();
+
+    setFlash('ok','تمت إضافة اللاعب لتشكيلتك بنجاح');
+    return;
+  }
+}
+
 function bindMarketListItems(container){
   container.querySelectorAll('[data-viewprofile]').forEach(b=>{
     b.addEventListener('click', (e)=>{ e.stopPropagation(); goToPlayer(parseInt(b.getAttribute('data-viewprofile'))); });
@@ -1923,23 +1967,7 @@ function bindMarketListItems(container){
   container.querySelectorAll('[data-in]').forEach(b=>{
     b.addEventListener('click', ()=>{
       if(b.disabled) return;
-      const inId = parseInt(b.getAttribute('data-in'));
-      const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
-      const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
-      const inPlayer = findPlayer(inId);
-      if(!outPlayer || !inPlayer) return;
-      if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
-      const newBank = state.bank + outPlayer.price - inPlayer.price;
-      if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
-
-      outEntry.id = inPlayer.id; // keep the slot, swap identity
-      state.bank = newBank;
-      if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
-      if(state.freeTransfers > 0) state.freeTransfers -= 1;
-      state.transferOutId = null;
-      savePersonal();
-
-      setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+      tryBuyPlayer(parseInt(b.getAttribute('data-in')));
     });
   });
 }
@@ -1970,8 +1998,10 @@ function bindBody(){
   el.querySelectorAll('[data-add-pos]').forEach(b=>{
     b.addEventListener('click', ()=>{
       const pos = b.getAttribute('data-add-pos');
+      const slot = b.getAttribute('data-add-slot') || 'start';
       state.transferOutId = null;
       state.transferAddPos = pos;
+      state.transferAddSlot = slot;
       state.tab = 'transfers';
       render();
     });
@@ -2047,31 +2077,16 @@ function bindBody(){
       const id = parseInt(b.getAttribute('data-out'));
       state.transferOutId = (state.transferOutId===id) ? null : id;
       state.transferAddPos = null;
+      state.transferAddSlot = null;
       renderBody();
     });
   });
 
-  // transfers: "in" -> execute swap
+  // transfers: "in" -> execute swap or add-to-empty-slot
   el.querySelectorAll('[data-in]').forEach(b=>{
     b.addEventListener('click', ()=>{
       if(b.disabled) return;
-      const inId = parseInt(b.getAttribute('data-in'));
-      const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
-      const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
-      const inPlayer = findPlayer(inId);
-      if(!outPlayer || !inPlayer) return;
-      if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
-      const newBank = state.bank + outPlayer.price - inPlayer.price;
-      if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
-
-      outEntry.id = inPlayer.id; // keep the slot, swap identity
-      state.bank = newBank;
-      if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
-      if(state.freeTransfers > 0) state.freeTransfers -= 1;
-      state.transferOutId = null;
-      savePersonal();
-
-      setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+      tryBuyPlayer(parseInt(b.getAttribute('data-in')));
     });
   });
 
