@@ -908,7 +908,7 @@ let state = {
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
   realLeagues: [], overallRank: 0,
-  transferOutId:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
+  transferOutId:null, transferAddPos:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true },
   flash:null,
@@ -1493,7 +1493,7 @@ function renderJersey(p, opts){
 }
 function renderPlaceholder(pos){
   const label = {GK:'حارس', DEF:'مدافع', MID:'وسط', FWD:'مهاجم'}[pos] || pos;
-  return '<div class="player">' +
+  return '<div class="player" data-add-pos="' + pos + '" style="cursor:pointer;">' +
     '<div class="jersey placeholder">＋</div>' +
     '<div class="pname placeholder-name">' + label + '</div>' +
   '</div>';
@@ -1565,8 +1565,8 @@ function renderTeam(){
 // --- سوق الانتقالات: مستخرجة في دالة مستقلة عشان يمكن تحديثها لوحدها ---
 function renderTransferMarket(){
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
-  // لو فيه لاعب مختار للبيع نعرض نفس مركزه فقط، غير كده نعرض الكل
-  const positions = outPlayer ? [outPlayer.pos] : ['GK', 'DEF', 'MID', 'FWD'];
+  // لو فيه لاعب مختار للبيع نعرض نفس مركزه فقط، أو لو فيه مركز فاضي محدد من الملعب نعرض مركزه فقط، غير كده نعرض الكل
+  const positions = outPlayer ? [outPlayer.pos] : (state.transferAddPos ? [state.transferAddPos] : ['GK', 'DEF', 'MID', 'FWD']);
   const posLabel  = {GK:'حراس المرمى', DEF:'المدافعون', MID:'خط الوسط', FWD:'المهاجمون'};
 
   const searchTerm = (state.transferSearch || '').trim().toLowerCase();
@@ -1585,7 +1585,8 @@ function renderTransferMarket(){
 
     const rows = candidates.map(p => {
       const budget = state.bank + (outPlayer ? outPlayer.price : 0);
-      const disabled = !outPlayer || outPlayer.pos !== pos || (budget - p.price) < 0;
+      const disabled = outPlayer ? (outPlayer.pos !== pos || (budget - p.price) < 0)
+        : (state.transferAddPos ? (state.transferAddPos !== pos || (budget - p.price) < 0) : true);
       return '<div class="p-row">' +
         '<div class="p-left" data-viewprofile="' + p.id + '">' +
           '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK'?'_1':'') + '-66.webp" alt="' + p.name + '" loading="lazy">' +
@@ -1663,7 +1664,9 @@ function renderTransfers(){
   '</div>' +
   (outPlayer
     ? '<div class="hint" style="margin-bottom:10px;">تعرض فقط لاعبي مركز ' + outPlayer.pos + ' لاستبدال <strong style="color:var(--coral);">' + outPlayer.name + '</strong></div>'
-    : '') +
+    : (state.transferAddPos
+        ? '<div class="hint" style="margin-bottom:10px;">اختر لاعب ' + ({GK:'حارس', DEF:'مدافع', MID:'وسط', FWD:'مهاجم'}[state.transferAddPos] || state.transferAddPos) + ' لملء المكان الفارغ في تشكيلتك</div>'
+        : '')) +
   '<div id="marketList">' + renderTransferMarket() + '</div>';
 }
 
@@ -1963,6 +1966,17 @@ function bindBody(){
     b.addEventListener('click', ()=>{ state.tab = b.getAttribute('data-goto'); state.notifOpen=false; render(); });
   });
 
+  // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
+  el.querySelectorAll('[data-add-pos]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const pos = b.getAttribute('data-add-pos');
+      state.transferOutId = null;
+      state.transferAddPos = pos;
+      state.tab = 'transfers';
+      render();
+    });
+  });
+
   // league items
   el.querySelectorAll('[data-league]').forEach(b=>{
     b.addEventListener('click', ()=>{ state.tab = 'leagues'; state.activeLeagueId = b.getAttribute('data-league'); render(); });
@@ -2032,6 +2046,7 @@ function bindBody(){
     b.addEventListener('click', ()=>{
       const id = parseInt(b.getAttribute('data-out'));
       state.transferOutId = (state.transferOutId===id) ? null : id;
+      state.transferAddPos = null;
       renderBody();
     });
   });
