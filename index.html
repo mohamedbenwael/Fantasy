@@ -1393,11 +1393,11 @@ function renderPitchCard(interactive){
     return '<div class="row">' + html + '</div>';
   }
 
-  // نستخدم أكبر عدد بين اللاعبين الفعليين والحد الأدنى المعتاد لكل مركز (1-3-2-1)
+  // نستخدم أكبر عدد بين اللاعبين الفعليين والحد الأدنى الرسمي للتشكيلة (1-4-4-2) لضمان 11 لاعب أساسي كحد أدنى
   const gkNeed  = Math.max(1, gkAll.length);
-  const defNeed = Math.max(3, defAll.length);
-  const midNeed = Math.max(2, midAll.length);
-  const fwdNeed = Math.max(1, fwdAll.length);
+  const defNeed = Math.max(4, defAll.length);
+  const midNeed = Math.max(4, midAll.length);
+  const fwdNeed = Math.max(2, fwdAll.length);
 
   // الاحتياطي: نعرض ما هو موجود + placeholders لإكمال 4
   const benchPositions = ['GK','DEF','MID','FWD'];
@@ -1436,37 +1436,16 @@ function renderTeam(){
 }
 
 // ===== TRANSFERS TAB =====
-function renderTransfers(){
-  const flash = state.flash
-    ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
-    : '';
+// --- سوق الانتقالات: مستخرجة في دالة مستقلة عشان يمكن تحديثها لوحدها ---
+function renderTransferMarket(){
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
-
-  // --- فريقك: مرتبة بالنقاط المتوقعة أولاً ---
-  const squadRows = squad().slice()
-    .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
-    .map(p => {
-      const isOut = state.transferOutId === p.id;
-      return '<div class="p-row' + (isOut ? ' out-selected' : '') + '">' +
-        '<div class="p-left" data-viewprofile="' + p.id + '">' +
-          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
-          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
-          '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · ' + p.pos +
-            ' · £' + fmt(p.price) + 'm · ' + fmt(predictedPoints(p)) + ' متوقعة' +
-            (p.slot === 'bench' ? ' · احتياطي' : '') + '</div></div></div>' +
-        '<button class="p-btn out' + (isOut ? ' active' : '') + '" data-out="' + p.id + '">' +
-          (isOut ? 'إلغاء' : 'استبعاد') + '</button>' +
-      '</div>';
-    }).join('');
-
-  // --- سوق الانتقالات ---
   // لو فيه لاعب مختار للبيع نعرض نفس مركزه فقط، غير كده نعرض الكل
   const positions = outPlayer ? [outPlayer.pos] : ['GK', 'DEF', 'MID', 'FWD'];
   const posLabel  = {GK:'حراس المرمى', DEF:'المدافعون', MID:'خط الوسط', FWD:'المهاجمون'};
 
   const searchTerm = (state.transferSearch || '').trim().toLowerCase();
 
-  const marketHtml = positions.map(pos => {
+  return positions.map(pos => {
     // القائمة الحقيقية فيها مئات اللاعبين — بنعرض أفضل 40 بالنسبة للنقاط المتوقعة عشان القائمة تفضل عملية
     let candidates = pool()
       .filter(p => p.pos === pos)
@@ -1492,6 +1471,30 @@ function renderTransfers(){
     return '<div class="pos-head">' + posLabel[pos] + '</div>' +
            '<div class="league-list" style="gap:8px;">' + rows + '</div>';
   }).join('');
+}
+
+function renderTransfers(){
+  const flash = state.flash
+    ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
+    : '';
+  const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
+
+  // --- فريقك: مرتبة بالنقاط المتوقعة أولاً ---
+  const squadRows = squad().slice()
+    .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
+    .map(p => {
+      const isOut = state.transferOutId === p.id;
+      return '<div class="p-row' + (isOut ? ' out-selected' : '') + '">' +
+        '<div class="p-left" data-viewprofile="' + p.id + '">' +
+          '<div class="p-mini jersey ' + jerseyClass(p) + '"' + clubStyleAttr(jerseyClass(p)) + '></div>' +
+          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+          '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · ' + p.pos +
+            ' · £' + fmt(p.price) + 'm · ' + fmt(predictedPoints(p)) + ' متوقعة' +
+            (p.slot === 'bench' ? ' · احتياطي' : '') + '</div></div></div>' +
+        '<button class="p-btn out' + (isOut ? ' active' : '') + '" data-out="' + p.id + '">' +
+          (isOut ? 'إلغاء' : 'استبعاد') + '</button>' +
+      '</div>';
+    }).join('');
 
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
@@ -1513,7 +1516,7 @@ function renderTransfers(){
   (outPlayer
     ? '<div class="hint" style="margin-bottom:10px;">تعرض فقط لاعبي مركز ' + outPlayer.pos + ' لاستبدال <strong style="color:var(--coral);">' + outPlayer.name + '</strong></div>'
     : '') +
-  marketHtml;
+  '<div id="marketList">' + renderTransferMarket() + '</div>';
 }
 
 // ===== LEAGUES TAB =====
@@ -1748,6 +1751,34 @@ function goToPlayer(id){
   render();
 }
 
+function bindMarketListItems(container){
+  container.querySelectorAll('[data-viewprofile]').forEach(b=>{
+    b.addEventListener('click', (e)=>{ e.stopPropagation(); goToPlayer(parseInt(b.getAttribute('data-viewprofile'))); });
+  });
+  container.querySelectorAll('[data-in]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(b.disabled) return;
+      const inId = parseInt(b.getAttribute('data-in'));
+      const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
+      const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
+      const inPlayer = findPlayer(inId);
+      if(!outPlayer || !inPlayer) return;
+      if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
+      const newBank = state.bank + outPlayer.price - inPlayer.price;
+      if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
+
+      outEntry.id = inPlayer.id; // keep the slot, swap identity
+      state.bank = newBank;
+      if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
+      if(state.freeTransfers > 0) state.freeTransfers -= 1;
+      state.transferOutId = null;
+      savePersonal();
+
+      setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+    });
+  });
+}
+
 function bindBody(){
   const el = document.getElementById('app-body');
 
@@ -1891,12 +1922,16 @@ function bindBody(){
     setTimeout(()=>{ state.adminSavedBanner = false; if(state.tab==='admin') renderBody(); }, 3000);
   });
 
-  // transfers: search box
+  // transfers: search box — نحدث marketList فقط عشان الحقل ميفقدش الـ focus
   const searchBox = el.querySelector('#transferSearch');
   if(searchBox){
     searchBox.addEventListener('input', ()=>{
       state.transferSearch = searchBox.value;
-      renderBody();
+      const marketList = el.querySelector('#marketList');
+      if(marketList){
+        marketList.innerHTML = renderTransferMarket();
+        bindMarketListItems(marketList);
+      }
     });
   }
 }
