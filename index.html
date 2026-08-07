@@ -107,6 +107,10 @@
   @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(0,230,118,0.5);} 70%{box-shadow:0 0 0 6px rgba(0,230,118,0);} 100%{box-shadow:0 0 0 0 rgba(0,230,118,0);} }
   .live-pill.warn{ color:var(--coral); background:rgba(255,77,109,0.1); border-color:rgba(255,77,109,0.28); }
   .live-pill.warn .dotpulse{ background:var(--coral); }
+  .live-synced{ font-size:9.5px; color:var(--muted); margin:4px 20px 0; }
+  .rank-live-badge{ display:inline-block; font-family:'Cairo'; font-weight:800; font-size:7.5px; color:#04321B; background:var(--green-soft); padding:1px 5px; border-radius:6px; margin-inline-start:5px; vertical-align:middle; }
+  .bonus-badge{ font-family:'Cairo'; font-weight:800; font-size:9px; color:#241A08; background:var(--gold); padding:1px 6px; border-radius:6px; white-space:nowrap; flex-shrink:0; margin-inline-start:5px; }
+  .ppts.has-bonus{ background:var(--gold); color:#241A08; }
 
   /* ===== deadline strip ===== */
   .deadline{
@@ -615,6 +619,8 @@ async function fetchFplEntry(fplId){
       managerName: [data.player_first_name, data.player_last_name].filter(Boolean).join(' ') || ('مدير ' + id),
       teamName: data.name || ('فريق ' + id),
       currentEvent: data.current_event || null,
+      overallRank: data.summary_overall_rank,
+      leagues: data.leagues?.classic || [],
     };
   }catch(e){
     return { error: 'حصل خطأ في الاتصال بـ FPL. تأكد من النت وحاول تاني' };
@@ -682,6 +688,9 @@ async function buildLiveDataset(){
   const finishedIds = events.filter(e=>e.finished).map(e=>e.id).slice(-5);
   const liveIds = Array.from(new Set([...finishedIds, gwId]));
   const historyByElement = {};
+  // بونص لحظي: بنسجل الـ bps ورقم المباراة (fixture) لكل لاعب في الجولة الحالية بس،
+  // عشان بعدين نرتبهم جوه كل مباراة ونديهم بونص افتراضي (3/2/1) قبل ما يتأكد رسمياً
+  const currentGwBps = {};
   for(const evId of liveIds){
     try{
       const live = await fplFetch('live', evId);
@@ -689,6 +698,11 @@ async function buildLiveDataset(){
         const pts = row.stats ? row.stats.total_points : 0;
         if(!historyByElement[row.id]) historyByElement[row.id] = [];
         historyByElement[row.id].push({ gw: evId, pts: pts||0 });
+        if(evId === gwId){
+          const bps = row.stats ? (row.stats.bps || 0) : 0;
+          const fx = (row.explain && row.explain[0] && row.explain[0].fixture) || null;
+          currentGwBps[row.id] = { bps: bps, fixtureId: fx };
+        }
       });
     }catch(e){ /* لو جولة معينة فشلت نكمل من غيرها */ }
   }
@@ -701,6 +715,7 @@ async function buildLiveDataset(){
 
   const fixturesMap = {};
   const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away, lookahead, avgFdrNext3 }
+  var provisionalBonusByElement = {};
   try{
     // بنجيب كل مباريات الموسم مرة واحدة (فيها cache في البروكسي)، ومنها بنستخرج
     // مباريات الجولة الحالية + "نظرة قدام" على أقرب 3 مباريات جاية لكل نادي —
@@ -725,6 +740,42 @@ async function buildLiveDataset(){
           ownDefHome: aTeam.strength_defence_home, ownDefAway: aTeam.strength_defence_away,
           oppAtkHome: hTeam.strength_attack_home, oppAtkAway: hTeam.strength_attack_away,
         };
+      }
+    });
+
+    // بونص لحظي (Provisional Bonus): بنجمع لاعبين كل مباراة لسه شغالة (بدأت ولسه ما خلصتش)
+    // ونرتبهم حسب الـ bps تنازلي، ونديهم 3/2/1 زي قاعدة الفانتازي الرسمية —
+    // لو فيه تعادل في الـ bps بين لاعبين أو أكتر بياخدوا نفس البونص وبيتخطى الترتيب اللي بعدهم
+    var liveFixtureIds = new Set(gwFx.filter(f=>f.started && !f.finished).map(f=>f.id));
+    var bpsByFixture = {};
+    Object.keys(currentGwBps).forEach(function(elIdStr){
+      var info = currentGwBps[elIdStr];
+      if(info.fixtureId!=null && liveFixtureIds.has(info.fixtureId)){
+        var fxKey = String(info.fixtureId);
+        (bpsByFixture[fxKey] = bpsByFixture[fxKey] || []).push({ id: Number(elIdStr), bps: info.bps });
+      }
+    });
+    Object.keys(bpsByFixture).forEach(function(fxKey){
+      var list = bpsByFixture[fxKey];
+      var distinctBps = Array.from(new Set(list.map(function(x){ return x.bps; }))).sort(function(a,b){ return b-a; });
+      var bonusTiers = [3,2,1];
+      var rankIdx = 0;
+      distinctBps.forEach(function(bpsVal){
+        if(rankIdx >= bonusTiers.length || bpsVal<=0) return;
+        var tied = list.filter(function(x){ return x.bps===bpsVal; });
+        var bonus = bonusTiers[rankIdx];
+        tied.forEach(function(pl){ provisionalBonusByElement[pl.id] = bonus; });
+        rankIdx += tied.length;
+      });
+    });
+    // نضيف البونص الافتراضي لإجمالي نقاط اللاعب في الجولة الحالية جوه الـ history
+    Object.keys(provisionalBonusByElement).forEach(function(elIdStr){
+      var elId = Number(elIdStr);
+      var bonus = provisionalBonusByElement[elId];
+      var hist = historyByElement[elId];
+      if(hist){
+        var cur = hist.find(function(h){ return h.gw===gwId; });
+        if(cur) cur.pts += bonus;
       }
     });
 
@@ -765,6 +816,7 @@ async function buildLiveDataset(){
       totalPointsReal: el.total_points || 0,
       status: el.status, // a=متاح, i=مصاب, s=موقوف, d=مشكوك فيه
       history: hist,
+      provisionalBonus: provisionalBonusByElement[el.id] || 0, // بونص لحظي غير مؤكد لسه (مبني على bps المباراة الجارية)
       // ===== حقول إضافية لمحرك التوقعات (كلها من الـ API الرسمي) =====
       epNext: parseFloat(el.ep_next) || 0,               // توقع FPL الرسمي لنقط الجولة الجاية
       form: parseFloat(el.form) || 0,                     // متوسط نقط آخر جولات (رسمي)
@@ -855,7 +907,7 @@ let state = {
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
-  overall:{ rank:null, total:0, standings:[] },
+  realLeagues: [], overallRank: 0,
   transferOutId:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true },
@@ -867,19 +919,6 @@ let state = {
   adminLinks: { news:'', advice:'' },
   transferFilterClub: 'all', transferFilterPrice: 'all',
 };
-
-const leagues = [
-  {id:'work', name:'دوري زملاء العمل', size:'18 لاعباً', rank:2, chg:1, dir:'up',
-   standings:[
-     {name:'Ahmed K.', pts:1912, me:false},{name:'أنت', pts:1842, me:true},
-     {name:'Mostafa R.', pts:1790, me:false},{name:'Youssef T.', pts:1755, me:false},
-     {name:'Karim S.', pts:1701, me:false},{name:'Omar F.', pts:1668, me:false}]},
-  {id:'ahly', name:'دوري جمهور المزاريطة', size:'64 لاعباً', rank:9, chg:3, dir:'down',
-   standings:[
-     {name:'Hazem M.', pts:2050, me:false},{name:'Sherif A.', pts:2011, me:false},
-     {name:'Tarek N.', pts:1980, me:false},{name:'أنت', pts:1842, me:true},
-     {name:'Bassem Y.', pts:1820, me:false},{name:'Ziad H.', pts:1790, me:false}]},
-];
 
 function jerseyClass(p){ return p.pos==='GK' ? 'gk' : p.club; }
 function fmt(n){ return Number(n).toFixed(1); }
@@ -1130,22 +1169,21 @@ async function boot(){
     if(raw){
       const m = JSON.parse(raw);
       state.managerName = m.managerName; state.teamName = m.teamName;
-    } else {
-      // id متخزن محليًا بس مفيش صف مدير (اتمسح من السيرفر مثلاً) —
-      // نجيب الاسم الحقيقي تاني من FPL بدل الاسم الوهمي
-      const entry = await fetchFplEntry(savedFplId);
-      if(entry && !entry.error){
-        state.managerName = entry.managerName;
-        state.teamName = entry.teamName;
-      } else {
-        state.managerName = 'مدير ' + savedFplId;
-        state.teamName = 'فريق ' + savedFplId;
-      }
+    }
+
+    // نجيب بيانات المدير الحقيقية من FPL — ده مصدرنا الوحيد للترتيب العام والدوريات
+    const entry = await fetchFplEntry(savedFplId);
+    if(entry && !entry.error){
+      if(!raw){ state.managerName = entry.managerName; state.teamName = entry.teamName; await saveManager(); }
+      state.overallRank = entry.overallRank;
+      state.realLeagues = entry.leagues;
+    } else if(!raw){
+      state.managerName = 'مدير ' + savedFplId;
+      state.teamName = 'فريق ' + savedFplId;
       await saveManager();
     }
 
     await loadSquadOrDraft();
-    await refreshOverall();
     state.phase = 'app';
     render();
   } catch(e){
@@ -1197,23 +1235,9 @@ async function loadSquadOrDraft(){
   await savePersonal();
 }
 
-async function refreshOverall(){
-  const keys = await sList('public_entry:', true);
-  const entries = [];
-  for(const k of keys.slice(0,150)){
-    const raw = await sGet(k, true);
-    if(raw){ try{ entries.push(Object.assign(JSON.parse(raw), {key:k})); }catch(e){} }
-  }
-  entries.sort((a,b)=>b.total-a.total);
-  const myKey = 'public_entry:'+state.deviceId;
-  const myIdx = entries.findIndex(e=>e.key===myKey);
-  state.overall = { rank: myIdx>=0 ? myIdx+1 : entries.length+1, total: entries.length, standings: entries.slice(0,50) };
-}
-
 async function refreshLiveData(){
   state.refreshing = true; render();
   await loadLiveData(true);
-  await refreshOverall();
   state.refreshing = false;
   render();
 }
@@ -1248,10 +1272,11 @@ async function submitOnboard(){
   state.deviceId = fplId;
   state.managerName = entry.managerName;
   state.teamName = entry.teamName;
+  state.overallRank = entry.overallRank;
+  state.realLeagues = entry.leagues;
 
   await saveManager();
   await loadSquadOrDraft(); // هتجيب التشكيلة الحقيقية من FPL (شوف التعديل فوق)
-  await refreshOverall();
   state.phase = 'app';
   render();
 }
@@ -1306,9 +1331,14 @@ function renderLivePill(){
   }
   return '<div class="live-pill"><div class="dotpulse"></div>متصل لايف بالأسعار والنقط الرسمية</div>';
 }
+function renderLiveSyncedAt(){
+  if(!state.liveSyncedAt) return '';
+  const timeText = new Date(state.liveSyncedAt).toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' });
+  return '<div class="live-synced">آخر تحديث للنقاط: ' + timeText + '</div>';
+}
 function renderHome(){
   const rp = roundPoints();
-  const st = starters(), stTop = state.overall;
+  const st = starters();
 
   // ===== محتوى التوقعات والنصايح (منقول من renderPredictions) =====
   const predSquad = predictedSquadPoints();
@@ -1387,6 +1417,7 @@ function renderHome(){
   '</div>' +
 
   renderLivePill() +
+  renderLiveSyncedAt() +
 
   '<div class="deadline">' +
     '<div class="left">' + ICON_CLOCK +
@@ -1402,7 +1433,7 @@ function renderHome(){
     '</div>' +
     '<div class="summary-grid">' +
       '<div class="cell"><div class="v">' + rp + '</div><div class="k">نقاط الجولة</div></div>' +
-      '<div class="cell"><div class="v">#' + (stTop.rank||'-').toLocaleString() + '</div><div class="k">الترتيب العام</div></div>' +
+      '<div class="cell"><div class="v">#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</div><div class="k">الترتيب العام</div></div>' +
       '<div class="cell"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
     '</div>' +
   '</div>' +
@@ -1425,18 +1456,22 @@ function renderHome(){
   '<div class="league-list">' + renderLeaguePreviewItems() + '</div>';
 }
 
+function leagueRankChange(lg){
+  const cur = lg.entry_rank, prev = lg.entry_last_rank;
+  if(cur==null || prev==null || prev===cur) return { dir:'up', chg:0 };
+  return cur < prev ? { dir:'up', chg: prev-cur } : { dir:'down', chg: cur-prev };
+}
+
 function renderLeaguePreviewItems(){
-  const overallItem = '<button class="league-item" data-league="overall">' +
-      '<div><div class="li-name">الدوري العام</div><div class="li-sub">' + state.overall.total + ' مدير لايف</div></div>' +
-      '<div class="li-rank"><div class="num">#' + (state.overall.rank||'-') + '</div></div>' +
+  if(!state.realLeagues.length) return '<div class="hint">لسه مش منضم لأي دوري خاص على فانتازي البريميرليج</div>';
+  return state.realLeagues.map(lg => {
+    const rc = leagueRankChange(lg);
+    return '<button class="league-item" data-league="' + lg.id + '">' +
+      '<div><div class="li-name">' + lg.name + '</div><div class="li-sub">' + (lg.rank_count ? lg.rank_count.toLocaleString() + ' مدير' : '') + '</div></div>' +
+      '<div class="li-rank"><div class="num">#' + (lg.entry_rank!=null ? lg.entry_rank.toLocaleString() : '-') + '</div>' +
+      (rc.chg ? '<div class="chg ' + rc.dir + '">' + (rc.dir==='up'?ICON_UP:ICON_DOWN) + rc.chg + '</div>' : '') + '</div>' +
     '</button>';
-  return overallItem + leagues.map(lg =>
-    '<button class="league-item" data-league="' + lg.id + '">' +
-      '<div><div class="li-name">' + lg.name + '</div><div class="li-sub">' + lg.size + '</div></div>' +
-      '<div class="li-rank"><div class="num">#' + lg.rank.toLocaleString() + '</div>' +
-      '<div class="chg ' + lg.dir + '">' + (lg.dir==='up'?ICON_UP:ICON_DOWN) + lg.chg + '</div></div>' +
-    '</button>'
-  ).join('');
+  }).join('');
 }
 
 function renderNotifPanel(){
@@ -1456,13 +1491,16 @@ function renderJersey(p, opts){
   const mode = opts.mode || 'view';
   const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
+  const hasBonus = (p.provisionalBonus||0) > 0;
+  // نقاط الجولة أصلاً بتتضمن البونص اللحظي (اتضاف في buildLiveDataset)، هنا بس بنميّزه بنجمة
+  const ptsVal = isCap ? currentGwPoints(p)*2 : currentGwPoints(p);
   return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="' + cls + '"' + dataAttr + '>' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
     '</div>' +
     '<div class="pname">' + p.name + '</div>' +
-    (showPts ? '<div class="ppts">' + (isCap ? currentGwPoints(p)*2 : currentGwPoints(p)) + ' pts</div>' : '') +
+    (showPts ? '<div class="ppts' + (hasBonus?' has-bonus':'') + '">' + ptsVal + ' pts' + (hasBonus?' ⭐':'') + '</div>' : '') +
   '</div>';
 }
 function renderPlaceholder(pos){
@@ -1644,25 +1682,17 @@ function renderTransfers(){
 // ===== LEAGUES TAB =====
 function renderLeagues(){
   if(state.activeLeagueId){
-    if(state.activeLeagueId==='overall'){
-      const rows = state.overall.standings.map((s,i)=>{
-        const mine = 'public_entry:'+state.deviceId === s.key;
-        return '<div class="standing-row'+(mine?' me':'')+'"><div class="s-left"><div class="s-rank">'+(i+1)+'</div>' +
-          '<div class="s-name">'+s.teamName+' <span style="color:var(--muted); font-weight:500;">('+s.managerName+')</span></div></div>' +
-          '<div class="s-pts">'+s.total.toLocaleString()+' نقطة</div></div>';
-      }).join('') || '<div class="hint">لسه محدش انضم للدوري العام غيرك 👋</div>';
-      return '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>الدوري العام (لايف)</h1><div class="spacer"></div></div>' +
-        '<div class="live-pill" style="margin:0 20px 12px;"><div class="dotpulse"></div>مبني لحظيًا من كل اللاعبين</div>' +
-        '<div class="league-list">' + rows + '</div>';
+    const lg = state.realLeagues.find(l=>String(l.id)===String(state.activeLeagueId));
+    if(!lg){
+      return '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>الدوري</h1><div class="spacer"></div></div>' +
+        '<div class="hint" style="margin:20px;">مفيش بيانات لهذا الدوري</div>';
     }
-    const lg = leagues.find(l=>l.id===state.activeLeagueId);
+    const rc = leagueRankChange(lg);
     return '' +
     '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>' + lg.name + '</h1><div class="spacer"></div></div>' +
-    '<div class="league-list">' + lg.standings.map((s,i) =>
-      '<div class="standing-row' + (s.me?' me':'') + '"><div class="s-left"><div class="s-rank">' + (i+1) + '</div>' +
-      '<div class="s-name">' + s.name + '</div></div>' +
-      '<div class="s-pts">' + (s.pts!==null ? s.pts.toLocaleString()+' نقطة' : '') + '</div></div>'
-    ).join('') + '</div>';
+    '<div class="league-list"><div class="standing-row me"><div class="s-left"><div class="s-rank">#' +
+      (lg.entry_rank!=null ? lg.entry_rank.toLocaleString() : '-') + '</div><div class="s-name">' + state.teamName + '</div></div>' +
+      '<div class="s-pts">' + (rc.chg ? ('<span class="chg ' + rc.dir + '">' + (rc.dir==='up'?ICON_UP:ICON_DOWN) + rc.chg + '</span>') : '') + '</div></div></div>';
   }
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الدوريات الخاصة بك</h1><div class="spacer"></div></div>' +
@@ -1743,11 +1773,14 @@ function renderPlayerProfile(){
 // ===== PREDICTIONS & ADVICE =====
 function predRow(p, chipText, chipClass, metaExtra){
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
+  const hasBonus = (p.provisionalBonus||0) > 0;
   return '<div class="p-row"><div class="p-left" data-viewprofile="' + p.id + '">' +
     '<img class="p-mini jersey-photo" src="' + shirtSrc + '" alt="' + p.name + '" loading="lazy">' +
     '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
     '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+metaExtra):'') + '</div></div></div>' +
-    '<div class="pred-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div></div>';
+    '<div class="pred-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div>' +
+    (hasBonus ? '<div class="bonus-badge">⭐ +' + p.provisionalBonus + '</div>' : '') +
+  '</div>';
 }
 
 function renderPredictions(){
