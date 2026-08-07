@@ -1559,13 +1559,44 @@ function renderPitchCard(interactive){
     return '<div class="row">' + html + '</div>';
   }
 
-  // الحد الأدنى الرسمي لكل مركز في الفانتازي: حارس واحد، 3 مدافعين، 2 وسط، مهاجم واحد
-  // (مش لازم تكوين 4-4-2 بالظبط — أي تشكيلة قانونية زي 3-4-3 أو 3-5-2 أو 4-3-3 مسموحة)
-  // نعرض الحد الأدنى كأماكن فاضية قابلة للنقر، أو أكتر لو المستخدم عنده لاعبين زيادة في مركز معين
-  const gkNeed  = Math.max(FORMATION_RULES.GK.min, gkAll.length);
-  const defNeed = Math.max(FORMATION_RULES.DEF.min, defAll.length);
-  const midNeed = Math.max(FORMATION_RULES.MID.min, midAll.length);
-  const fwdNeed = Math.max(FORMATION_RULES.FWD.min, fwdAll.length);
+  // التشكيلة الأساسية لازم تكون 11 لاعب بالظبط (حارس + 10 لاعبين خط)
+  // فمش كفاية إننا نوري الحد الأدنى لكل مركز (7 بس) — لازم نكمل الباقي كأماكن فاضية
+  // مع الالتزام بحدود كل مركز (مدافعين 3-5، وسط 2-5، مهاجمين 1-3)
+  function computeStartNeeds(gkCount, defCount, midCount, fwdCount){
+    const mins = { DEF: FORMATION_RULES.DEF.min, MID: FORMATION_RULES.MID.min, FWD: FORMATION_RULES.FWD.min };
+    const maxs = { DEF: FORMATION_RULES.DEF.max, MID: FORMATION_RULES.MID.max, FWD: FORMATION_RULES.FWD.max };
+    const counts = { DEF: defCount, MID: midCount, FWD: fwdCount };
+    const needed = { GK: 1, DEF: Math.max(mins.DEF, counts.DEF), MID: Math.max(mins.MID, counts.MID), FWD: Math.max(mins.FWD, counts.FWD) };
+    let total = needed.GK + needed.DEF + needed.MID + needed.FWD;
+
+    if(total < 11){
+      // نكمل الباقي بترتيب 4-4-2 كتشكيلة افتراضية معقولة، من غير ما نتخطى الحد الأقصى لأي مركز
+      const growOrder = ['DEF','MID','MID','FWD','DEF','MID','FWD','DEF'];
+      let gi = 0, guard = 0;
+      while(total < 11 && guard < 40){
+        const k = growOrder[gi % growOrder.length]; gi++; guard++;
+        if(needed[k] < maxs[k]){ needed[k]++; total++; }
+      }
+    } else if(total > 11){
+      // لو المستخدم عنده لاعبين زيادة في مركز معين، نقلل الأماكن الفاضية في مراكز تانية (من غير ما نلمس لاعبين حقيقيين)
+      const shrinkOrder = ['FWD','MID','DEF'];
+      let guard = 0;
+      while(total > 11 && guard < 40){
+        guard++;
+        let shrunk = false;
+        for(const k of shrinkOrder){
+          if(needed[k] > Math.max(mins[k], counts[k])){ needed[k]--; total--; shrunk = true; break; }
+        }
+        if(!shrunk) break;
+      }
+    }
+    return needed;
+  }
+  const needs = computeStartNeeds(gkAll.length, defAll.length, midAll.length, fwdAll.length);
+  const gkNeed  = needs.GK;
+  const defNeed = needs.DEF;
+  const midNeed = needs.MID;
+  const fwdNeed = needs.FWD;
 
   // الاحتياطي: نعرض ما هو موجود + placeholders لإكمال 4
   const benchPositions = ['GK','DEF','MID','FWD'];
