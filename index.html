@@ -1517,13 +1517,12 @@ function renderPitchCard(interactive){
     return '<div class="row">' + html + '</div>';
   }
 
-  // لو التشكيلة فاضية تمامًا نرسم 11 مكان فارغ بتكوين 1-4-4-2 الرسمي،
-  // أما لو فيه لاعبين فعلاً بنرسم العدد الموجود فقط بدون أي placeholders زيادة (حتى لا يتجاوز 11 لاعبًا)
-  const isEmpty = starters().length === 0;
-  const gkNeed  = isEmpty ? 1 : gkAll.length;
-  const defNeed = isEmpty ? 4 : defAll.length;
-  const midNeed = isEmpty ? 4 : midAll.length;
-  const fwdNeed = isEmpty ? 2 : fwdAll.length;
+  // نرسم دايمًا التكوين الرسمي 1-4-4-2 كحد أدنى (أو أكتر لو المستخدم عنده لاعبين زيادة في مركز معين)
+  // عشان أماكن الأدوار الفاضية تفضل ظاهرة وقابلة للنقر حتى بعد إضافة أول لاعب
+  const gkNeed  = Math.max(1, gkAll.length);
+  const defNeed = Math.max(4, defAll.length);
+  const midNeed = Math.max(4, midAll.length);
+  const fwdNeed = Math.max(2, fwdAll.length);
 
   // الاحتياطي: نعرض ما هو موجود + placeholders لإكمال 4
   const benchPositions = ['GK','DEF','MID','FWD'];
