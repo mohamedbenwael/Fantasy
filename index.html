@@ -1384,92 +1384,6 @@ function renderHome(){
   const rp = roundPoints();
   const st = starters();
 
-  // ===== محتوى التوقعات والنصايح (منقول من renderPredictions) =====
-  const predSquad = predictedSquadPoints();
-  const ownAvg = squadOwnershipAvg();
-  const c = captain();
-
-  const squadRows = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
-    const isCap = p.id===state.captainId;
-    const pts = predictedPoints(p) * (isCap?2:1);
-    return predRow(p, fmt(pts) + ' نقطة' + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
-  }).join('');
-
-  // ===== مقترحات الانتقال الذكية (دمج نصيحة البيع + نصيحة الشراء) =====
-  const sells = sellAdvice();
-  const buys = buyAdvice();
-  const ownedIds = new Set(state.mySquadIds.map(e=>e.id));
-
-  const swapSuggestions = [];
-  sells.forEach(s=>{
-    const budget = state.bank + s.p.price; // الرصيد المتاح لو باع اللاعب ده
-    let bestBuy = null;
-    buys.forEach(b=>{
-      if(b.p.pos !== s.p.pos) return;               // نفس المركز
-      if(b.p.price > budget) return;                 // ضمن الميزانية + سعر البيع
-      if(ownedIds.has(b.p.id)) return;                // مش موجود بالفعل في التشكيلة
-      if(!bestBuy || b.pred > bestBuy.pred) bestBuy = b; // أفضل بديل (يسمح بتكرار نفس اللاعب لأكتر من حالة بيع)
-    });
-    if(!bestBuy) return;
-    const diff = bestBuy.pred - predictedPoints(s.p);
-    if(diff > 0){
-      swapSuggestions.push({ sellP: s.p, buyP: bestBuy.p, diff });
-    }
-  });
-
-  swapSuggestions.sort((a,b)=>b.diff-a.diff);
-  const topSwaps = swapSuggestions.slice(0,3);
-
-  const suggestionsHtml = topSwaps.length ? topSwaps.map(sug=>
-    '<div class="swap-card">' +
-      '<div class="swap-title">🔥 متوقع زيادة: +' + fmt(sug.diff) + ' نقطة</div>' +
-      '<div class="swap-body">' +
-        '<div class="swap-side sell" data-viewprofile="' + sug.sellP.id + '">' +
-          '<div class="swap-tag">🔴 بيع</div>' +
-          '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.sellP.teamCode + (sug.sellP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.sellP.name + '" loading="lazy">' +
-          '<div class="swap-name">' + sug.sellP.name + '</div>' +
-          '<div class="swap-price">£' + fmt(sug.sellP.price) + 'm</div>' +
-          renderMiniFixtures(sug.sellP) +
-        '</div>' +
-        '<div class="swap-icon"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/></svg></div>' +
-        '<div class="swap-side buy" data-viewprofile="' + sug.buyP.id + '">' +
-          '<div class="swap-tag">🟢 شراء</div>' +
-          '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.buyP.teamCode + (sug.buyP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.buyP.name + '" loading="lazy">' +
-          '<div class="swap-name">' + sug.buyP.name + '</div>' +
-          '<div class="swap-price">£' + fmt(sug.buyP.price) + 'm</div>' +
-          renderMiniFixtures(sug.buyP) +
-        '</div>' +
-      '</div>' +
-    '</div>'
-  ).join('') : '<div class="hint">مفيش مقترحات تبديل قوية دلوقتي 👍</div>';
-
-  const csHtml = topCleanSheetKeepers(8).map(x=>
-    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
-      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" loading="lazy">' +
-      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
-      '<div class="cs-prob">' + x.prob + '%</div></div>'
-  ).join('');
-
-  const informHtml = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') ).join('');
-  const ownHtml = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') ).join('');
-
-  const predictionsHtml = '' +
-    '<div class="pred-banner"><div class="lbl">توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current + '</div>' +
-      '<div class="big">' + fmt(predSquad) + ' نقطة</div>' +
-      '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
-    '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
-    '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
-    '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
-    '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
-    '<div style="margin:0 20px;">' + suggestionsHtml + '</div>' +
-    '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
-    '<div style="margin:0 20px;">' + csHtml + '</div>' +
-    '<div class="section-title"><h2>الأكثر تألقًا متوقع الجولة دي</h2></div>' +
-    '<div class="league-list" style="gap:8px;">' + informHtml + '</div>' +
-    '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
-    '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
-
   const adminLinksHtml =
     '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
       (state.adminLinks.news ?
@@ -1519,7 +1433,12 @@ function renderHome(){
 
   renderPitchCard(false) +
 
-  predictionsHtml +
+  '<button class="nudge" data-goto="predictions" style="width:calc(100% - 40px); margin:14px 20px; text-align:right; display:flex; align-items:center; gap:12px; cursor:pointer; background:linear-gradient(120deg, rgba(232,196,104,0.15), rgba(232,196,104,0.02)); border-color:rgba(232,196,104,0.3);">' +
+    '<div class="ic" style="background:var(--gold); color:#241A08;">' + ICON_BULB + '</div>' +
+    '<div class="txt"><div class="t1" style="color:var(--gold);">المساعد الذكي والتوقعات</div>' +
+    '<div class="t2">اكتشف أفضل مقترحات التبديل وترشيحات الكلين شيت</div></div>' +
+    '<div style="margin-inline-start:auto; color:var(--gold);">' + ICON_CHEV + '</div>' +
+  '</button>' +
 
   adminLinksHtml +
 
@@ -1822,6 +1741,7 @@ function renderMore(){
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>المزيد</h1><div class="spacer"></div></div>' +
   '<div class="more-list">' +
+    '<button class="more-row" data-goto="predictions"><div class="m-left"><span>💡 المساعد الذكي والتوقعات</span></div>' + ICON_CHEV + '</button>' +
     '<div class="more-row"><div class="m-left"><span>الإشعارات</span></div>' +
       '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
     '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
@@ -1935,6 +1855,7 @@ function renderPredictions(){
       if(b.p.pos !== s.p.pos) return;               // نفس المركز
       if(b.p.price > budget) return;                 // ضمن الميزانية + سعر البيع
       if(ownedIds.has(b.p.id)) return;                // مش موجود بالفعل في التشكيلة
+      if(b.p.club !== s.p.club && clubCountInSquad(b.p.club, s.p.id) >= MAX_PER_CLUB) return; // ما يكسرش حد أقصى لاعبي النادي
       if(!bestBuy || b.pred > bestBuy.pred) bestBuy = b; // أفضل بديل (يسمح بتكرار نفس اللاعب لأكتر من حالة بيع)
     });
     if(!bestBuy) return;
