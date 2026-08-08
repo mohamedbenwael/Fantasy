@@ -294,12 +294,50 @@
   .p-btn.in:disabled{ opacity:0.35; }
   .pos-head{ margin:16px 20px 8px; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--muted); letter-spacing:0.5px; }
 
-  /* ===== more tab ===== */
-  .more-list{ margin:0 20px; display:flex; flex-direction:column; gap:8px; }
-  .more-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:13px 16px; border-radius:14px; }
-  .more-row .m-left{ display:flex; align-items:center; gap:11px; color:var(--muted); }
-  .more-row .m-left span{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); }
-  .more-row.danger .m-left span{ color:var(--coral); }
+  /* ===== more tab (redesigned) ===== */
+  .more-list{ margin:0 20px 20px; }
+  .more-hero{
+    display:flex; align-items:center; gap:12px; padding:18px; border-radius:18px; margin-bottom:22px;
+    background:linear-gradient(135deg, rgba(0,230,118,0.14), rgba(92,18,104,0.28)), var(--card);
+    border:1px solid var(--card-line);
+  }
+  .more-hero .mh-crest{ width:46px; height:46px; border-radius:50%; overflow:hidden; flex-shrink:0; box-shadow:0 0 0 2px rgba(124,255,194,0.35); }
+  .more-hero .mh-crest img{ width:100%; height:100%; object-fit:cover; }
+  .more-hero .mh-text .mh-team{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); }
+  .more-hero .mh-text .mh-manager{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+
+  .more-group-label{ margin:0 4px 10px; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--muted); letter-spacing:0.5px; text-transform:uppercase; }
+  .more-section{ margin-bottom:24px; }
+
+  .tile-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .feature-tile{
+    display:flex; flex-direction:column; gap:10px; text-align:right; padding:16px 14px; border-radius:16px;
+    background:var(--card); border:1px solid var(--card-line); text-decoration:none;
+  }
+  .feature-tile:active{ border-color:var(--green-soft); }
+  .feature-tile .ft-icon{
+    width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:18px;
+    background:linear-gradient(160deg,var(--green-soft),var(--green-deep)); color:#04321B;
+  }
+  .feature-tile.alt .ft-icon{ background:linear-gradient(160deg,#FFD98D,var(--gold)); }
+  .feature-tile .ft-title{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
+  .feature-tile .ft-sub{ font-size:9.5px; color:var(--muted); line-height:1.5; }
+
+  .grouped-card{ background:var(--card); border:1px solid var(--card-line); border-radius:16px; overflow:hidden; }
+  .grouped-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px;
+    text-decoration:none; color:inherit;
+  }
+  .grouped-row:not(:last-child){ border-bottom:1px solid var(--card-line); }
+  .grouped-row .gr-left{ display:flex; align-items:center; gap:11px; }
+  .grouped-row .gr-icon{ width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13.5px; background:rgba(255,255,255,0.06); color:var(--muted); flex-shrink:0; }
+  .grouped-row .gr-icon.fb{ background:rgba(24,119,242,0.16); color:#4E9EFF; }
+  .grouped-row .gr-text{ display:flex; flex-direction:column; gap:1px; }
+  .grouped-row .gr-text span{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); }
+  .grouped-row .gr-sub{ font-size:9px; color:var(--muted); }
+  .grouped-row .gr-chev{ color:var(--muted2); flex-shrink:0; }
+  .grouped-row .gr-chev svg{ width:14px; height:14px; }
+  .more-footer{ text-align:center; margin-top:26px; font-size:9.5px; color:var(--muted2); line-height:1.8; }
   .switch{ width:40px; height:23px; border-radius:20px; background:rgba(255,255,255,0.12); position:relative; transition:background .15s; flex-shrink:0; }
   .switch.on{ background:var(--green-deep); }
   .switch .knob{ position:absolute; top:2.5px; right:2.5px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
@@ -685,6 +723,7 @@ async function buildLiveDataset(){
   const teams = boot.teams || [];
   const elements = boot.elements || [];
   const events = boot.events || [];
+  const totalManagers = boot.total_players || 0; // إجمالي عدد مديري الفانتازي — لازم لحساب مؤشر توقع تغيير الأسعار
 
   const clubTag = {}, clubName = {}, teamIdToKey = {};
   teams.forEach(t=>{
@@ -828,6 +867,8 @@ async function buildLiveDataset(){
       num: el.squad_number || '',
       ownership: parseFloat(el.selected_by_percent) || 0,
       priceChange: (el.cost_change_event||0) / 10,
+      transfersInEvent: el.transfers_in_event || 0,   // عدد مرات الشراء من بداية الجولة الحالية (مؤشر توقع تغيير السعر)
+      transfersOutEvent: el.transfers_out_event || 0, // عدد مرات البيع من بداية الجولة الحالية
       totalPointsReal: el.total_points || 0,
       status: el.status, // a=متاح, i=مصاب, s=موقوف, d=مشكوك فيه
       history: hist,
@@ -863,7 +904,7 @@ async function buildLiveDataset(){
     fixtures: fixturesMap,
   };
 
-  return { players, gwInfo, clubTag, clubName, teamFixtures };
+  return { players, gwInfo, clubTag, clubName, teamFixtures, totalManagers };
 }
 
 async function loadLiveData(force){
@@ -909,6 +950,7 @@ function applyLiveDataset(d){
   CLUB_TAG = d.clubTag;
   CLUB_NAME = d.clubName;
   state.teamFixtures = d.teamFixtures || {};
+  state.totalManagers = d.totalManagers || 0;
 }
 
 // ===== app state =====
@@ -919,6 +961,7 @@ let state = {
   players:[],          // live shared player DB
   gwInfo:null,         // live shared gameweek info
   teamFixtures:{},     // live shared team strength/FDR data (لمحرك التوقعات)
+  totalManagers:0,     // إجمالي عدد مديري الفانتازي (لمؤشر توقع تغيير الأسعار)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
@@ -937,6 +980,12 @@ let state = {
 
 function jerseyClass(p){ return p.pos==='GK' ? 'gk' : p.club; }
 function fmt(n){ return Number(n).toFixed(1); }
+function fmtCount(n){ // بيفرمت رقم التحويلات بشكل مختصر (زي 12.3K)
+  const a = Math.abs(n);
+  const sign = n<0 ? '-' : '';
+  if(a >= 1000) return sign + (a/1000).toFixed(1) + 'K';
+  return sign + String(a);
+}
 function findPlayer(id){ return state.players.find(p=>p.id===id); }
 function totalPoints(p){ return (p.totalPointsReal!=null) ? p.totalPointsReal : (p.history||[]).reduce((s,h)=>s+h.pts,0); }
 function currentGwPoints(p){ const h=(p.history||[]).find(h=>h.gw===state.gwInfo.current); return h?h.pts:0; }
@@ -1106,6 +1155,35 @@ function inFormRanking(limit){
 // الأعلى نسبة ملكية بين كل المديرين
 function ownershipRanking(limit){
   return state.players.slice().sort((a,b)=>b.ownership-a.ownership).slice(0, limit||10);
+}
+
+// ===== مؤشر توقع تغيير الأسعار (تقديري) =====
+// بيعتمد على صافي التحويلات (شراء - بيع) من بداية الجولة الحالية، مقسومة على عدد
+// مديري الفانتازي المالكين للاعب حاليًا — كل ما زادت النسبة دي كل ما زاد احتمال
+// ارتفاع/انخفاض سعر اللاعب في التحديث القادم من فانتازي البريميرليج.
+// ده مش رقم رسمي من فانتازي (الخوارزمية الحقيقية مش معلنة)، لكنه أقرب تقدير ممكن.
+function netTransfers(p){ return (p.transfersInEvent||0) - (p.transfersOutEvent||0); }
+
+function priceMoveScore(p){
+  const owners = Math.max(1, Math.round((p.ownership/100) * (state.totalManagers||0)));
+  const net = netTransfers(p);
+  return { net, owners, ratio: net / owners };
+}
+
+function priceRisers(limit){
+  return state.players
+    .map(p=>({ p: p, net: priceMoveScore(p).net, owners: priceMoveScore(p).owners, ratio: priceMoveScore(p).ratio }))
+    .filter(x=>x.net > 0)
+    .sort((a,b)=>b.ratio - a.ratio || b.net - a.net)
+    .slice(0, limit||10);
+}
+
+function priceFallers(limit){
+  return state.players
+    .map(p=>({ p: p, net: priceMoveScore(p).net, owners: priceMoveScore(p).owners, ratio: priceMoveScore(p).ratio }))
+    .filter(x=>x.net < 0)
+    .sort((a,b)=>a.ratio - b.ratio || a.net - b.net)
+    .slice(0, limit||10);
 }
 
 // نصايح: مين تبيع من فريقك الحالي
@@ -1346,6 +1424,10 @@ const ICON_BACK = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="
 const ICON_BELL = '<svg class="i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
 const ICON_BULB = '<svg class="i" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>';
 const ICON_REFRESH = '<svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v6h-6"/></svg>';
+const ICON_FACEBOOK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H8v3h3v7h3v-7h3l1-3h-4V9c0-.6.4-1 1-1z"/></svg>';
+const ICON_PREDICT = '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="10" r="7"/><path d="M8.5 21h7"/><path d="M12 17v4"/><path d="M9 10a3 3 0 0 1 3-3"/></svg>';
+const ICON_PRICE = '<svg class="i" viewBox="0 0 24 24"><path d="M20.6 13.4 12.6 21.4a2 2 0 0 1-2.8 0l-7.2-7.2a2 2 0 0 1-.6-1.4V4.6A1.6 1.6 0 0 1 3.6 3h8.2c.5 0 1 .2 1.4.6l7.4 7.4a2 2 0 0 1 0 2.4z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>';
+const ICON_NEWS = '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="15" rx="2"/><path d="M7 9.5h6"/><path d="M7 13h6"/><path d="M7 16.5h3.5"/><path d="M17 8.5h1.4A2.6 2.6 0 0 1 21 11.1v6.3a2.6 2.6 0 0 1-2.6 2.6H9"/></svg>';
 
 // ===== BOOT / ONBOARD screens =====
 function renderBoot(){
@@ -1444,9 +1526,17 @@ function renderHome(){
   const informRowsArrHome = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
   const ownRowsArrHome = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
 
+  const priceRowsArrHome = [].concat(
+    priceRisers(3).map(x=> predRow(x.p, '+' + fmtCount(x.net), null, x.p.ownership + '% ملكية') ),
+    priceFallers(3).map(x=> predRow(x.p, fmtCount(x.net), 'warn', x.p.ownership + '% ملكية') )
+  );
+
   const predictionsHtml = '' +
     '<div class="section-title"><h2>🔥 تبديلة الأسبوع المقترحة</h2></div>' +
     '<div style="margin:0 20px;">' + topSwapHtml + '</div>' +
+
+    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;">' + ICON_PRICE + 'توقع تغيير الأسعار</h2><a data-goto="prices">التفاصيل ' + ICON_CHEV + '</a></div>' +
+    (priceRowsArrHome.length ? limitedListHtml(priceRowsArrHome, 'homePriceMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">مفيش بيانات تحويلات كفاية دلوقتي</div>') +
 
     '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
     limitedListHtml(csRowsArrHome, 'homeCsMore', '', 'margin:0 20px;') +
@@ -1460,11 +1550,11 @@ function renderHome(){
   const adminLinksHtml =
     '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
       (state.adminLinks.news ?
-        '<a href="' + state.adminLinks.news + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>' :
-        '<a onclick="alert(\'لا توجد أخبار حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">📰 أخبار الجولة</a>') +
+        '<a href="' + state.adminLinks.news + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;">' + ICON_NEWS + 'أخبار الجولة</a>' :
+        '<a onclick="alert(\'لا توجد أخبار حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;">' + ICON_NEWS + 'أخبار الجولة</a>') +
       (state.adminLinks.advice ?
-        '<a href="' + state.adminLinks.advice + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>' :
-        '<a onclick="alert(\'لا توجد نصائح حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:block;">💡 نصايح المزاريطة</a>') +
+        '<a href="' + state.adminLinks.advice + '" target="_blank" rel="noopener" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;">' + ICON_BULB + 'نصايح المزاريطة</a>' :
+        '<a onclick="alert(\'لا توجد نصائح حالياً، سيتم إضافتها قريباً!\')" class="btn-primary" style="flex:1;text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;">' + ICON_BULB + 'نصايح المزاريطة</a>') +
     '</div>';
 
   return '' +
@@ -1474,6 +1564,7 @@ function renderHome(){
       '<div class="greet"><div class="hi">أهلاً بعودتك،</div><div class="name">'+state.teamName+'</div></div>' +
     '</div>' +
     '<div class="header-actions">' +
+      '<a class="icon-btn" href="https://web.facebook.com/ELmazaretaFantasy1" target="_blank" rel="noopener" style="text-decoration:none; color:#1877F2;">'+ICON_FACEBOOK+'</a>' +
       '<button class="icon-btn'+(state.refreshing?' spin':'')+'" id="refreshBtn">'+ICON_REFRESH+'</button>' +
       '<button class="icon-btn" id="bellBtn">' + ICON_BELL + '<span class="dot"></span></button>' +
     '</div>' +
@@ -1806,16 +1897,69 @@ function renderLeagues(){
 
 // ===== MORE TAB =====
 function renderMore(){
+  const initial = (state.teamName || 'م').trim().charAt(0) || 'م';
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>المزيد</h1><div class="spacer"></div></div>' +
   '<div class="more-list">' +
-    '<button class="more-row" data-goto="predictions"><div class="m-left"><span>💡 المساعد الذكي والتوقعات</span></div>' + ICON_CHEV + '</button>' +
-    '<div class="more-row"><div class="m-left"><span>الإشعارات</span></div>' +
-      '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
-    '<div class="more-row"><div class="m-left"><span>تذكير الديدلاين</span></div>' +
-      '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
-    '<button class="more-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')"><div class="m-left"><span>المساعدة والدعم</span></div>' + ICON_CHEV + '</button>' +
-    '<button class="more-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')"><div class="m-left"><span>الشروط والأحكام</span></div>' + ICON_CHEV + '</button>' +
+
+    '<div class="more-hero">' +
+      '<div class="mh-crest" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,var(--green-soft),var(--green-deep));">' +
+        '<span style="font-family:\'Cairo\';font-weight:900;font-size:18px;color:#04321B;">' + initial + '</span>' +
+      '</div>' +
+      '<div class="mh-text"><div class="mh-team">' + (state.teamName||'فريقك') + '</div>' +
+      '<div class="mh-manager">' + (state.managerName||'') + '</div></div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
+      '<div class="more-group-label">المميزات</div>' +
+      '<div class="tile-grid">' +
+        '<button class="feature-tile" data-goto="predictions">' +
+          '<div class="ft-icon">' + ICON_PREDICT + '</div>' +
+          '<div><div class="ft-title">التوقعات والنصايح</div><div class="ft-sub">توقع نقط تشكيلتك ونصايح البيع والشراء</div></div>' +
+        '</button>' +
+        '<button class="feature-tile alt" data-goto="prices">' +
+          '<div class="ft-icon">' + ICON_PRICE + '</div>' +
+          '<div><div class="ft-title">توقع تغيير الأسعار</div><div class="ft-sub">مين متوقع يرتفع ومين متوقع ينزل سعره</div></div>' +
+        '</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
+      '<div class="more-group-label">الإعدادات</div>' +
+      '<div class="grouped-card">' +
+        '<div class="grouped-row"><div class="gr-left"><div class="gr-icon">🔔</div><div class="gr-text"><span>الإشعارات</span></div></div>' +
+          '<div class="switch ' + (state.toggles.notifications?'on':'') + '" data-toggle="notifications"><div class="knob"></div></div></div>' +
+        '<div class="grouped-row"><div class="gr-left"><div class="gr-icon">⏰</div><div class="gr-text"><span>تذكير الديدلاين</span></div></div>' +
+          '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
+      '<div class="more-group-label">تابعنا</div>' +
+      '<div class="grouped-card">' +
+        '<a class="grouped-row" href="https://web.facebook.com/ELmazaretaFantasy1" target="_blank" rel="noopener">' +
+          '<div class="gr-left"><div class="gr-icon fb">' + ICON_FACEBOOK + '</div>' +
+          '<div class="gr-text"><span>صفحتنا على فيسبوك</span><div class="gr-sub">آخر أخبار ونصايح المزاريطة</div></div></div>' +
+          '<div class="gr-chev">' + ICON_CHEV + '</div>' +
+        '</a>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
+      '<div class="more-group-label">الدعم</div>' +
+      '<div class="grouped-card">' +
+        '<button class="grouped-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')">' +
+          '<div class="gr-left"><div class="gr-icon">🆘</div><div class="gr-text"><span>المساعدة والدعم</span></div></div>' +
+          '<div class="gr-chev">' + ICON_CHEV + '</div>' +
+        '</button>' +
+        '<button class="grouped-row" onclick="alert(\'سيتم إضافة هذه الصفحة في التحديث القادم\')">' +
+          '<div class="gr-left"><div class="gr-icon">📄</div><div class="gr-text"><span>الشروط والأحكام</span></div></div>' +
+          '<div class="gr-chev">' + ICON_CHEV + '</div>' +
+        '</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-footer">المزاريطة فانتازي 🔴⚪</div>' +
   '</div>';
 }
 
@@ -2007,6 +2151,26 @@ function renderPredictions(){
   limitedListHtml(ownRowsArr, 'predOwnMore', 'league-list', 'gap:8px; margin-bottom:14px;');
 }
 
+// ===== توقع تغيير الأسعار =====
+function renderPrices(){
+  const risers = priceRisers(15);
+  const fallers = priceFallers(15);
+  const hasData = state.totalManagers > 0 && (risers.length || fallers.length);
+
+  const riserRows = risers.map(x=> predRow(x.p, '+' + fmtCount(x.net), null, x.p.ownership + '% ملكية') );
+  const fallerRows = fallers.map(x=> predRow(x.p, fmtCount(x.net), 'warn', x.p.ownership + '% ملكية') );
+
+  return '' +
+  '<div class="topbar"><button class="back" id="pricesBack">' + ICON_BACK + '</button><h1>توقع تغيير الأسعار</h1><div class="spacer"></div></div>' +
+  '<div class="pred-note">مؤشر تقديري مش رسمي من فانتازي البريميرليج، مبني على صافي عدد مرات الشراء والبيع للاعب من بداية الجولة الحالية مقارنة بعدد مالكيه — الأسعار الفعلية بتتحدث غالبًا في تحديث منتصف الليل بتوقيت بريطانيا.</div>' +
+  (hasData ? ('' +
+    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#1DDB6A;">' + ICON_UP + 'متوقع ترتفع أسعارهم</h2></div>' +
+    (riserRows.length ? limitedListHtml(riserRows, 'priceRiseMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">مفيش لاعبين قريبين من الارتفاع دلوقتي</div>') +
+    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#FF5C5C;">' + ICON_DOWN + 'متوقع تنزل أسعارهم</h2></div>' +
+    (fallerRows.length ? limitedListHtml(fallerRows, 'priceFallMore', 'league-list', 'gap:8px; margin-bottom:14px;') : '<div class="hint" style="margin:0 20px;">مفيش لاعبين قريبين من النزول دلوقتي</div>')
+  ) : '<div class="hint" style="margin:20px;">بيانات التحويلات مش متاحة دلوقتي — جرب تحدّث الصفحة بعد شوية</div>');
+}
+
 // ===== ADMIN =====
 function renderAdmin(){
   if(!state.adminUnlocked){
@@ -2069,6 +2233,7 @@ function renderBody(){
   else if(state.tab==='player') html = renderPlayerProfile();
   else if(state.tab==='admin') html = renderAdmin();
   else if(state.tab==='predictions') html = renderPredictions();
+  else if(state.tab==='prices') html = renderPrices();
   el.innerHTML = html;
   document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
   bindBody();
@@ -2203,6 +2368,9 @@ function bindBody(){
   // predictions back
   const predBack = el.querySelector('#predBack');
   if(predBack) predBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+
+  const pricesBack = el.querySelector('#pricesBack');
+  if(pricesBack) pricesBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
 
   // view profile triggers (jersey name tags, transfer rows)
   el.querySelectorAll('[data-viewprofile]').forEach(b=>{
