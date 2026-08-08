@@ -1433,10 +1433,28 @@ function renderHome(){
     '</div>'
   ).join('') : '<div class="hint">مفيش مقترحات تبديل قوية دلوقتي 👍</div>';
 
+  const csRowsArrHome = topCleanSheetKeepers(8).map(x=>
+    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
+      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" loading="lazy">' +
+      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
+      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
+      '<div class="cs-prob">' + x.prob + '%</div></div>'
+  );
+  const informRowsArrHome = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
+  const ownRowsArrHome = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
+
   const predictionsHtml = '' +
     '<div class="section-title"><h2>🔥 تبديلة الأسبوع المقترحة</h2></div>' +
     '<div style="margin:0 20px;">' + topSwapHtml + '</div>' +
-    '<button class="btn-ghost" data-goto="predictions" style="width:calc(100% - 40px); margin:10px 20px 14px; display:block; border-color:rgba(0,230,118,0.4); color:var(--green-soft);">💡 افتح المساعد الذكي لكل التوقعات</button>';
+
+    '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
+    limitedListHtml(csRowsArrHome, 'homeCsMore', '', 'margin:0 20px;') +
+
+    '<div class="section-title"><h2>الأكثر تألقًا متوقع الجولة دي</h2></div>' +
+    limitedListHtml(informRowsArrHome, 'homeInformMore', 'league-list', 'gap:8px;') +
+
+    '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
+    limitedListHtml(ownRowsArrHome, 'homeOwnMore', 'league-list', 'gap:8px;');
 
   const adminLinksHtml =
     '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
@@ -1880,16 +1898,30 @@ function renderMiniFixtures(p) {
   return '<div style="display:flex; gap:4px; margin-top:6px; justify-content:center;">' + fixCards + '</div>';
 }
 
+// بيرجع HTML لقايمة بس أول 3 عناصر ظاهرين، والباقي مخفي وراه زرار "عرض المزيد"
+// items: مصفوفة الـ HTML الجاهز لكل صف، toggleKey: مفتاح فريد في state.toggles، wrapClass: كلاس الحاوية
+function limitedListHtml(items, toggleKey, wrapClass, wrapStyle){
+  if(!items.length) return '';
+  const expanded = !!state.toggles[toggleKey];
+  const shown = expanded ? items : items.slice(0,3);
+  const moreBtn = items.length>3 ?
+    '<button class="btn-ghost" data-toggle="' + toggleKey + '" style="width:calc(100% - 40px); margin:8px 20px 0; display:block;">' +
+      (expanded ? 'عرض أقل' : 'عرض المزيد (' + (items.length-3) + ')') +
+    '</button>' : '';
+  const classAttr = wrapClass ? (' class="' + wrapClass + '"') : '';
+  return '<div' + classAttr + (wrapStyle?(' style="'+wrapStyle+'"'):'') + '>' + shown.join('') + '</div>' + moreBtn;
+}
+
 function renderPredictions(){
   const predSquad = predictedSquadPoints();
   const ownAvg = squadOwnershipAvg();
   const c = captain();
 
-  const squadRows = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
+  const squadRowsArr = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
     const isCap = p.id===state.captainId;
     const pts = predictedPoints(p) * (isCap?2:1);
     return predRow(p, fmt(pts) + ' نقطة' + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
-  }).join('');
+  });
 
   // ===== مقترحات الانتقال الذكية (دمج نصيحة البيع + نصيحة الشراء) =====
   const sells = sellAdvice();
@@ -1940,16 +1972,16 @@ function renderPredictions(){
     '</div>'
   ).join('') : '<div class="hint">مفيش مقترحات تبديل قوية دلوقتي 👍</div>';
 
-  const csHtml = topCleanSheetKeepers(8).map(x=>
+  const csRowsArr = topCleanSheetKeepers(8).map(x=>
     '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
       '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" loading="lazy">' +
       '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
       '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
       '<div class="cs-prob">' + x.prob + '%</div></div>'
-  ).join('');
+  );
 
-  const informHtml = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') ).join('');
-  const ownHtml = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') ).join('');
+  const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
+  const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
 
   return '' +
   '<div class="topbar"><button class="back" id="predBack">' + ICON_BACK + '</button><h1>التوقعات والنصايح</h1><div class="spacer"></div></div>' +
@@ -1959,19 +1991,19 @@ function renderPredictions(){
   '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
 
   '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
-  '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
+  limitedListHtml(squadRowsArr, 'predSquadMore', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
   '<div style="margin:0 20px;">' + suggestionsHtml + '</div>' +
 
   '<div class="section-title"><h2>أفضل ترشيحات كلين شيت الجولة دي</h2></div>' +
-  '<div style="margin:0 20px;">' + csHtml + '</div>' +
+  limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
   '<div class="section-title"><h2>الأكثر تألقًا متوقع الجولة دي</h2></div>' +
-  '<div class="league-list" style="gap:8px;">' + informHtml + '</div>' +
+  limitedListHtml(informRowsArr, 'predInformMore', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
-  '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + ownHtml + '</div>';
+  limitedListHtml(ownRowsArr, 'predOwnMore', 'league-list', 'gap:8px; margin-bottom:14px;');
 }
 
 // ===== ADMIN =====
