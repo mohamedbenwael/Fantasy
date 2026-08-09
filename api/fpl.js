@@ -14,14 +14,12 @@
 
 const BASE = 'https://fantasy.premierleague.com/api';
 
-// كام ثانية نخلي الـ CDN بتاع Vercel يحتفظ بنسخة مخزنة من كل نوع رد
-// (بيقلل الضغط على سيرفر الفانتازي الرسمي ويخلي موقعك أسرع)
 const CACHE_SECONDS = {
-  bootstrap: 120,   // الأسعار والنقط بتتغير خلال المباريات، فتحديث كل دقيقتين كافي
+  bootstrap: 120,
   fixtures: 300,
-  live: 60,         // وقت المباريات الفعلي محتاج تحديث أسرع شوية
-  entry: 60,        // بيانات الفريق (زي الرتبة العامة) بتتغير باستمرار وقت الجولة
-  picks: 300,        // الاختيارات في جولة معينة (خصوصًا لو الجولة خلصت) مش بتتغير كتير
+  live: 60,
+  entry: 60,
+  picks: 300,
 };
 
 module.exports = async function handler(req, res) {
@@ -65,9 +63,12 @@ module.exports = async function handler(req, res) {
   try {
     const upstream = await fetch(url, {
       headers: {
-        // بعض الأحيان الـ FPL API بيرفض الطلبات اللي مفهاش user-agent واضح
-        'User-Agent': 'Mozilla/5.0 (compatible; MazaretaFantasy/1.0)',
-        'Accept': 'application/json',
+        // لازم الـ User-Agent يبقى شبه متصفح حقيقي، لأن FPL بترفض أي حاجة
+        // شكلها بوت أو سكريبت (زي أي اسم مخصص فيه "compatible; ...").
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+        'Referer': 'https://fantasy.premierleague.com/',
       },
     });
 
@@ -79,7 +80,6 @@ module.exports = async function handler(req, res) {
     const data = await upstream.json();
     const secs = CACHE_SECONDS[cacheBucket] || 120;
 
-    // تخزين مؤقت على مستوى الـ CDN — يقلل عدد الطلبات الفعلية لسيرفر FPL
     res.setHeader('Cache-Control', `s-maxage=${secs}, stale-while-revalidate=${secs * 5}`);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(200).json(data);
