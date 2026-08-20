@@ -1139,22 +1139,20 @@ function statModelPoints(p){
   return appearancePts + goalPts + assistPts + csPts + bonusPts + savePts;
 }
 
-// خوارزمية الجولة الأولى الذكية: مفيش أي تاريخ داتا نقدر نثق فيه، وأرقام epNext الرسمية
-// بتاعة فانتازي البريميرليج نفسها بتخرف مع الناشئين/اللاعبين الجداد (زي داسيلفا وداومان) وبتديهم
-// أرقام عالية عشوائيًا لمجرد إنهم مسجلين. أذكى مؤشرين نقدر نثق فيهم قبل أي مباراة تتلعب أصلاً هما:
+// خوارزمية الجولة الأولى: من غير أي مباريات لعبت فعلاً في الموسم ده، أي إحصائية جاية من الـ API
+// (xG90, xA90, بونص لكل مباراة... إلخ) ممكن تكون محسوبة على 5 دقايق لعبهم آخر الموسم اللي فات
+// وطلعت رقم فلكي لمجرد إنهم شاطوا كورة فيها. عشان كده في الجولة الأولى بنتجاهل كل إحصائيات
+// الـ API تمامًا (مفيش statModelPoints هنا خالص) ونعتمد 100% على مؤشرين مضمونين:
 // - سعر اللاعب: فانتازي نفسها حطته بناءً على مستواه وموسمه اللي فات.
 // - نسبة ملكيته: يعني آلاف المديرين راجعوا بياناته واختاروه فعلاً (مش رقم مهرج من الـ API).
-// أي لاعب ملكيته أقل من 1% بيتقطع فورًا من أي تريقة لـ epNext ويرجع لنموذجنا الإحصائي (xG/xA)
-// بس، اللي أصلاً هيبقى قريب من صفر لحد ما يلعب مباريات حقيقية.
+// أي لاعب ملكيته أقل من 1% بياخد قيمة أرضية ثابتة ومفيهاش أي اعتماد على إحصائياته المحتمل تكون مضروبة.
 function gw1BaseEstimate(p){
-  const stat = statModelPoints(p);
-  if((p.ownership||0) < 1) return stat; // استبعاد فوري: يخسف بنقطه الأرض، مفيش وزن لـ epNext خالص
+  if((p.ownership||0) < 1) return 1; // استبعاد فوري: نقطة ظهور تقريبية بس، من غير أي إحصائيات API
 
   const posFloor = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
   const priceScore = Math.max(0, (p.price - posFloor)) * 0.9; // كل نص مليون فوق سعر مركزه ≈ نقطة إضافية
   const ownScore = Math.min(p.ownership||0, 45) * 0.09;        // الملكية بتضيف تدريجيًا لغاية سقف معقول
-  const base = 1.5 + priceScore + ownScore; // 1.5 قاعدة أساسية تقريبية لنقط الظهور
-  return Math.max(base, stat); // النموذج الإحصائي بردو له كلمة، مايقلش عن استحقاقه الفعلي
+  return 1.5 + priceScore + ownScore; // 1.5 قاعدة أساسية تقريبية لنقط الظهور
 }
 
 // توقع نقاط اللاعب في الجولة الجاية:
@@ -1166,18 +1164,17 @@ function predictedPoints(p){
   const avail = availabilityMultiplier(p);
   if(avail===0) return 0;
   const fx = teamFixtureInfo(p.club);
-  const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
-  const stat = statModelPoints(p);
   let base;
   if(state.gwInfo.current<=1){
-    base = gw1BaseEstimate(p);
+    base = gw1BaseEstimate(p); // ما فيهاش أي استدعاء لـ statModelPoints في الجولة الأولى، خالص
   }
-  else if(p.epNext && p.epNext>0){
-    base = p.epNext*0.5 + stat*0.5;
+  else {
+    const stat = statModelPoints(p);
+    if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
+    else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
+    else if(stat>0){ base = stat; }
+    else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
   }
-  else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
-  else if(stat>0){ base = stat; }
-  else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
   const pts = base * fdrMul * avail;
   return Math.max(0, Math.round(pts*10)/10);
 }
