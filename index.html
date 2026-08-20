@@ -1139,6 +1139,20 @@ function statModelPoints(p){
   return appearancePts + goalPts + assistPts + csPts + bonusPts + savePts;
 }
 
+// مدى ثقتنا في توقع FPL الرسمي (ep_next) للاعب ده — عشان نعرف نديله وزن أد إيه
+// جوه المزيج. بنستخدم مؤشرين بيتنقذوا بعض بـ max بدل ما أي واحد فيهم يحكم لوحده:
+// - priceTrust: لاعب سعره أعلى من سعر الحد الأدنى لمركزه = عادةً معروف ومتابَع أكتر.
+// - ownershipTrust: حتى لو رخيص، لو عدد معقول من المديرين مالكينه (يعني عارفينه ومتابعينه)
+//   ده مؤشر إنه لاعب معروف والسعر بس هو اللي مضلل، فبنرجّع له الثقة بدل ما نعاقبه.
+// أسوأ حالة (لاعب رخيص وملكيته شبه صفر) بتاخد حد أدنى 0.2 بدل ما تتصفّى بالكامل.
+function epNextTrust(p, gwId){
+  if(gwId>1) return 1;
+  const floorPrice = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
+  const priceTrust = Math.max(0, Math.min(1, (p.price - floorPrice) / 3.0));
+  const ownershipTrust = Math.min(1, (p.ownership||0) / 8); // 8%+ ملكية = ثقة كاملة من الملكية
+  return Math.max(0.2, Math.max(priceTrust, ownershipTrust));
+}
+
 // توقع نقاط اللاعب في الجولة الجاية:
 // بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
 // وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي،
@@ -1150,7 +1164,10 @@ function predictedPoints(p){
   const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
   const stat = statModelPoints(p);
   let base;
-  if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
+  if(p.epNext && p.epNext>0){
+    const trust = epNextTrust(p, state.gwInfo.current) * 0.5; // 0.5 هو الوزن الأقصى لـ ep_next في المزيج الأصلي
+    base = p.epNext*trust + stat*(1-trust);
+  }
   else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
   else if(stat>0){ base = stat; }
   else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
