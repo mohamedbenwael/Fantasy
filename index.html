@@ -1098,11 +1098,13 @@ function fdrMultiplier(fdr){
   return map[fdr] || 1;
 }
 
-// احتمالية مشاركة اللاعب أصلاً (مصاب/موقوف/مشكوك فيه)
+// احتمالية مشاركة اللاعب أصلاً (مصاب/موقوف/مشكوك فيه/انتقل بره الدوري/مش مسجل الموسم ده)
+// أي حالة غير "a" (متاح) أو "d" (مشكوك فيه) بترفض بشكل افتراضي — ده بيغطي حالات زي
+// لاعب اتباع لدوري تاني أو مش مسجل في الدوري الموسم ده (status زي "u")، مش بس الإصابة والإيقاف
 function availabilityMultiplier(p){
-  if(p.status==='i' || p.status==='s') return 0;
+  if(p.status==='a') return 1;
   if(p.status==='d') return Math.max(0.35, (p.chanceNext!=null ? p.chanceNext : 75) / 100);
-  return 1;
+  return 0; // i, s, u, n أو أي حالة تانية غير معروفة = مش متاح، منستبعده من كل الترشيحات
 }
 
 // احتمال الكلين شيت الأساسي لنادي اللاعب في مباراته الجاية (قوة دفاعه مقابل هجوم الخصم)
@@ -1188,7 +1190,7 @@ function cleanSheetRanking(){
 // أفضل حراس مرمى مرشحين لكلين شيت (أول حارس أساسي في كل نادي من أعلى الترتيب)
 function topCleanSheetKeepers(limit){
   return cleanSheetRanking().map(r=>{
-    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===r.club && p.status!=='i' && p.status!=='s');
+    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===r.club && availabilityMultiplier(p)>0);
     if(!keepers.length) return null;
     keepers.sort((a,b)=> b.minutes-a.minutes || b.ownership-a.ownership);
     return { p:keepers[0], prob:r.prob, fx:r.fx };
