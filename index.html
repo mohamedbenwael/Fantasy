@@ -1139,23 +1139,28 @@ function statModelPoints(p){
   return appearancePts + goalPts + assistPts + csPts + bonusPts + savePts;
 }
 
-// مدى ثقتنا في توقع FPL الرسمي (ep_next) للاعب ده — عشان نعرف نديله وزن أد إيه
-// جوه المزيج. بنستخدم مؤشرين بيتنقذوا بعض بـ max بدل ما أي واحد فيهم يحكم لوحده:
-// - priceTrust: لاعب سعره أعلى من سعر الحد الأدنى لمركزه = عادةً معروف ومتابَع أكتر.
-// - ownershipTrust: حتى لو رخيص، لو عدد معقول من المديرين مالكينه (يعني عارفينه ومتابعينه)
-//   ده مؤشر إنه لاعب معروف والسعر بس هو اللي مضلل، فبنرجّع له الثقة بدل ما نعاقبه.
-// أسوأ حالة (لاعب رخيص وملكيته شبه صفر) بتاخد حد أدنى 0.2 بدل ما تتصفّى بالكامل.
-function epNextTrust(p, gwId){
-  if(gwId>1) return 1;
-  const floorPrice = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
-  const priceTrust = Math.max(0, Math.min(1, (p.price - floorPrice) / 3.0));
-  const ownershipTrust = Math.min(1, (p.ownership||0) / 8); // 8%+ ملكية = ثقة كاملة من الملكية
-  return Math.max(0.2, Math.max(priceTrust, ownershipTrust));
+// خوارزمية الجولة الأولى الذكية: مفيش أي تاريخ داتا نقدر نثق فيه، وأرقام epNext الرسمية
+// بتاعة فانتازي البريميرليج نفسها بتخرف مع الناشئين/اللاعبين الجداد (زي داسيلفا وداومان) وبتديهم
+// أرقام عالية عشوائيًا لمجرد إنهم مسجلين. أذكى مؤشرين نقدر نثق فيهم قبل أي مباراة تتلعب أصلاً هما:
+// - سعر اللاعب: فانتازي نفسها حطته بناءً على مستواه وموسمه اللي فات.
+// - نسبة ملكيته: يعني آلاف المديرين راجعوا بياناته واختاروه فعلاً (مش رقم مهرج من الـ API).
+// أي لاعب ملكيته أقل من 1% بيتقطع فورًا من أي تريقة لـ epNext ويرجع لنموذجنا الإحصائي (xG/xA)
+// بس، اللي أصلاً هيبقى قريب من صفر لحد ما يلعب مباريات حقيقية.
+function gw1BaseEstimate(p){
+  const stat = statModelPoints(p);
+  if((p.ownership||0) < 1) return stat; // استبعاد فوري: يخسف بنقطه الأرض، مفيش وزن لـ epNext خالص
+
+  const posFloor = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
+  const priceScore = Math.max(0, (p.price - posFloor)) * 0.9; // كل نص مليون فوق سعر مركزه ≈ نقطة إضافية
+  const ownScore = Math.min(p.ownership||0, 45) * 0.09;        // الملكية بتضيف تدريجيًا لغاية سقف معقول
+  const base = 1.5 + priceScore + ownScore; // 1.5 قاعدة أساسية تقريبية لنقط الظهور
+  return Math.max(base, stat); // النموذج الإحصائي بردو له كلمة، مايقلش عن استحقاقه الفعلي
 }
 
 // توقع نقاط اللاعب في الجولة الجاية:
-// بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
-// وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي،
+// - في الجولة الأولى: سعر + ملكية بس (gw1BaseEstimate)، وexception واحد بيقطع epNext تمامًا.
+// - من الجولة التانية: بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
+//   وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي.
 // وبعدين بنضرب في صعوبة المباراة (FDR) واحتمال المشاركة.
 function predictedPoints(p){
   const avail = availabilityMultiplier(p);
@@ -1164,9 +1169,11 @@ function predictedPoints(p){
   const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
   const stat = statModelPoints(p);
   let base;
-  if(p.epNext && p.epNext>0){
-    const trust = epNextTrust(p, state.gwInfo.current) * 0.5; // 0.5 هو الوزن الأقصى لـ ep_next في المزيج الأصلي
-    base = p.epNext*trust + stat*(1-trust);
+  if(state.gwInfo.current<=1){
+    base = gw1BaseEstimate(p);
+  }
+  else if(p.epNext && p.epNext>0){
+    base = p.epNext*0.5 + stat*0.5;
   }
   else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
   else if(stat>0){ base = stat; }
