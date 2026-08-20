@@ -687,9 +687,29 @@ function getLocalDeviceId(){
 // ===== FPL live data (via /api/fpl proxy) =====
 const POS_MAP = {1:'GK',2:'DEF',3:'MID',4:'FWD'};
 
+// أي fetch من المتصفح ممكن يفضل معلق للأبد (مش بس يفشل) لو النت عند المستخدم بطيء،
+// أو السيرفر بتاعنا نفسه واقف بيستنى، أو حتى مجرد قطع اتصال هادي من غير أي error حقيقي.
+// من غير timeout هنا، الـ catch في boot() عمره ما هيتنفذ لأن الـ promise أصلاً معلق
+// مش مرفوض، وده اللي بيسبب "السبينر اللي مابيتحركش" اللي المستخدم شايفه.
+async function fetchWithTimeout(url, options, timeoutMs){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs || 12000);
+  try{
+    return await fetch(url, { ...(options||{}), signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fplFetch(type, event){
   const url = FPL_ENDPOINT + '?type=' + type + (event ? '&event=' + event : '');
-  const res = await fetch(url);
+  let res;
+  try{
+    res = await fetchWithTimeout(url, undefined, 12000);
+  } catch(e){
+    const timedOut = e && e.name === 'AbortError';
+    throw new Error(timedOut ? ('استغرق جلب ' + type + ' وقت طويل جدًا (Timeout)') : ('تعذّر الاتصال بالسيرفر: ' + type));
+  }
   if(!res.ok) throw new Error('fpl fetch failed: ' + type);
   return res.json();
 }
@@ -701,7 +721,7 @@ async function fetchFplEntry(fplId){
     return { error: 'رقم الـ FPL Team ID غير صحيح' };
   }
   try{
-    const res = await fetch(FPL_ENDPOINT + '?type=entry&id=' + encodeURIComponent(id));
+    const res = await fetchWithTimeout(FPL_ENDPOINT + '?type=entry&id=' + encodeURIComponent(id), undefined, 12000);
     if(res.status === 404){
       return { error: 'مفيش فريق بالـ ID ده. تأكد من الرقم وحاول تاني' };
     }
@@ -732,7 +752,7 @@ async function fetchFplPicks(fplId, gw){
   const id = String(fplId || '').trim();
   if(!id || !gw) return null;
   try{
-    const res = await fetch(FPL_ENDPOINT + '?type=picks&id=' + encodeURIComponent(id) + '&event=' + encodeURIComponent(gw));
+    const res = await fetchWithTimeout(FPL_ENDPOINT + '?type=picks&id=' + encodeURIComponent(id) + '&event=' + encodeURIComponent(gw), undefined, 12000);
     if(!res.ok) return null;
     const data = await res.json();
     const picks = data.picks || [];
