@@ -22,7 +22,28 @@ const CACHE_SECONDS = {
   picks: 300,
 };
 
+// أقصى وقت بننتظره من FPL نفسها قبل ما نستسلم ونرجّع خطأ للمستخدم.
+// لازم يبقى أصغر من الـ timeout بتاع الـ serverless function نفسها (شوف maxDuration تحت)
+// عشان نضمن إننا نرجّع رسالة خطأ واضحة إحنا اللي بنتحكم فيها، بدل ما Vercel تقطع
+// الفنكشن فجأة وترجّع 504 فاضي مالوش أي تفسير، واللي بيسيب المستخدم شايف سبينر
+// معلق للأبد لحد ما يقفل الصفحة بنفسه.
+const UPSTREAM_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 module.exports = async function handler(req, res) {
+  // لازم تتحطّ من الأول قبل أي return مبكر (زي حالات الـ 400)، عشان أي رد بيرجع
+  // للمتصفح — نجاح أو فشل — يقدر يتقرأ من غير ما يتحجب بسبب CORS.
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   const { type, event, id } = req.query;
 
   let url;
@@ -61,7 +82,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const upstream = await fetch(url, {
+    const upstream = await fetchWithTimeout(url, {
       headers: {
         // لازم الـ User-Agent يبقى شبه متصفح حقيقي، لأن FPL بترفض أي حاجة
         // شكلها بوت أو سكريبت (زي أي اسم مخصص فيه "compatible; ...").
@@ -70,7 +91,7 @@ module.exports = async function handler(req, res) {
         'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
         'Referer': 'https://fantasy.premierleague.com/',
       },
-    });
+    }, UPSTREAM_TIMEOUT_MS);
 
     if (!upstream.ok) {
       res.status(upstream.status).json({ error: 'فشل الاتصال بـ FPL API', status: upstream.status });
@@ -81,9 +102,24 @@ module.exports = async function handler(req, res) {
     const secs = CACHE_SECONDS[cacheBucket] || 120;
 
     res.setHeader('Cache-Control', `s-maxage=${secs}, stale-while-revalidate=${secs * 5}`);
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.status(200).json(data);
   } catch (err) {
-    res.status(502).json({ error: 'تعذّر جلب البيانات من FPL', detail: String(err) });
+    // err.name === 'AbortError' يعني FPL ماردتش خالص خلال الوقت المسموح — ده أشهر
+    // سبب لظاهرة "السبينر المعلق" اللي المستخدم شايفها، فبنميزه برسالة مختلفة
+    // عشان لو تكرر كتير يبقى واضح إن FPL نفسها هي اللي واقفة/بتعمل throttle.
+    const timedOut = err && err.name === 'AbortError';
+    res.status(504).json({
+      error: timedOut
+        ? 'FPL API ماردتش خلال الوقت المسموح (Timeout). جرب تاني كمان شوية'
+        : 'تعذّر جلب البيانات من FPL',
+      detail: String(err),
+    });
   }
 }
+
+// نضمن إن Vercel نفسها مادّياش الفنكشن Timeout قبل ما نلحق نرجّع رسالتنا إحنا.
+// UPSTREAM_TIMEOUT_MS (8 ثواني) + هامش لباقي المعالجة، فـ 15 ثانية كافية ومتاحة
+// حتى على خطة Hobby المجانية.
+module.exports.config = {
+  maxDuration: 15,
+};
