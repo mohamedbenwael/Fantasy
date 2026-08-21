@@ -595,13 +595,28 @@
   .stat-lbl { flex-shrink: 0; width: 66px; text-align: center; color: var(--muted); font-size: 10px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 2px; }
 
   /* ===== تشكيلة الماتش جوه المودال ===== */
-  .lineup-wrap { display: flex; gap: 10px; }
-  .lineup-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-  .lineup-row { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text); padding: 3px 0; }
-  .lineup-col.away .lineup-row { flex-direction: row-reverse; text-align: left; }
-  .lineup-pos { flex-shrink: 0; width: 22px; text-align: center; font-family: 'Cairo'; font-weight: 800; font-size: 8.5px; color: var(--muted); background: rgba(255,255,255,0.04); border-radius: 5px; padding: 1.5px 0; }
-  .lineup-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lineup-sub { color: var(--muted); font-size: 9px; flex-shrink: 0; }
+  .lineup-group { margin-bottom: 10px; }
+  .lineup-group-label {
+    text-align: center; font-family: 'Cairo'; font-weight: 800; font-size: 9.5px;
+    letter-spacing: 0.3px; color: var(--muted); margin: 0 0 6px;
+  }
+  .lineup-wrap { display: flex; gap: 0; position: relative; }
+  .lineup-wrap::after {
+    content: ''; position: absolute; left: 50%; top: 2px; bottom: 2px; width: 1px;
+    background: rgba(255,255,255,0.08); transform: translateX(-0.5px);
+  }
+  .lineup-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .lineup-col.home { padding-inline-end: 10px; align-items: flex-start; }
+  .lineup-col.away { padding-inline-start: 10px; align-items: flex-end; }
+  .lineup-row { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text); max-width: 100%; }
+  .lineup-col.away .lineup-row { flex-direction: row-reverse; }
+  .lineup-pos { flex-shrink: 0; width: 18px; text-align: center; font-family: 'Cairo'; font-weight: 800; font-size: 8px; color: var(--muted); background: rgba(255,255,255,0.05); border-radius: 5px; padding: 1.5px 0; }
+  .lineup-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 108px; }
+  .lineup-row.is-sub .lineup-name { color: var(--muted); }
+  .lineup-sub {
+    flex-shrink: 0; color: var(--primary-soft); font-size: 8px; font-weight: 800; font-family: 'Cairo';
+    background: rgba(216,27,96,0.14); border-radius: 5px; padding: 1.5px 5px; white-space: nowrap;
+  }
   .lineup-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ed573; flex-shrink: 0; animation: pulse-live-dot 1.8s infinite; }
 </style>
 </head>
@@ -2074,9 +2089,11 @@ function renderFixtures(){
 // بتاعة الجولة الحالية، فبتشتغل بس للجولة اللي بتُلعب/اتلعبت دلوقتي
 function renderMatchLineup(f){
   const posOrder = { GK:0, DEF:1, MID:2, FWD:3 };
+  const posGroupLabel = { GK:'حراسة المرمى', DEF:'الدفاع', MID:'الوسط', FWD:'الهجوم' };
+
   const teamPlayers = clubKey => state.players
     .filter(p => p.club === clubKey && (p.gwStarted || (p.gwMinutes||0) > 0))
-    .sort((a,b) => (posOrder[a.pos]-posOrder[b.pos]) || (Number(b.gwStarted)-Number(a.gwStarted)));
+    .sort((a,b) => (Number(b.gwStarted)-Number(a.gwStarted)));
 
   const hPlayers = teamPlayers(f.team_h);
   const aPlayers = teamPlayers(f.team_a);
@@ -2084,7 +2101,7 @@ function renderMatchLineup(f){
 
   const row = p => {
     const posLabel = { GK:'ح', DEF:'د', MID:'و', FWD:'هـ' }[p.pos] || p.pos;
-    return '<div class="lineup-row">' +
+    return '<div class="lineup-row' + (!p.gwStarted ? ' is-sub' : '') + '">' +
       '<div class="lineup-pos">' + posLabel + '</div>' +
       '<div class="lineup-name">' + p.name + '</div>' +
       (!p.gwStarted ? '<div class="lineup-sub">بديل</div>' : '') +
@@ -2092,11 +2109,21 @@ function renderMatchLineup(f){
     '</div>';
   };
 
-  return '<div class="section-title" style="margin:14px 0 8px;"><h2 style="font-size:12.5px;">التشكيلة</h2></div>' +
-    '<div class="lineup-wrap">' +
-      '<div class="lineup-col home">' + hPlayers.map(row).join('') + '</div>' +
-      '<div class="lineup-col away">' + aPlayers.map(row).join('') + '</div>' +
+  const groupsHtml = ['GK','DEF','MID','FWD'].map(pos => {
+    const h = hPlayers.filter(p => p.pos === pos);
+    const a = aPlayers.filter(p => p.pos === pos);
+    if(!h.length && !a.length) return '';
+    return '<div class="lineup-group">' +
+      '<div class="lineup-group-label">' + posGroupLabel[pos] + '</div>' +
+      '<div class="lineup-wrap">' +
+        '<div class="lineup-col home">' + h.map(row).join('') + '</div>' +
+        '<div class="lineup-col away">' + a.map(row).join('') + '</div>' +
+      '</div>' +
     '</div>';
+  }).join('');
+
+  return '<div class="section-title" style="margin:14px 0 8px;"><h2 style="font-size:12.5px;">التشكيلة</h2></div>' +
+    groupsHtml;
 }
 
 function renderMatchModal() {
