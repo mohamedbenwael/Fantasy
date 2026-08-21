@@ -1366,15 +1366,28 @@ function buyAdvice(){
 // ===== الدريم تيم: أفضل 11 لاعب ممكنين للجولة الجاية من كل قاعدة اللاعبين =====
 // (من غير أي تقيد بالميزانية — الهدف إنها تكون أداة استرشادية قبل قفل الجولة، مش تشكيلة رسمية)
 function dreamTeamXI(){
+  // التحقق: هل الجولة بدأت وفيه أي لاعب جاب نقط فعلية؟
+  const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
+  const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
+  const useLive = isStarted && hasLivePoints;
+
   const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
   state.players.forEach(p=>{
-    if(availabilityMultiplier(p) <= 0) return;
-    const score = predictedPoints(p);
+    // لو بنحسب توقعات نستبعد المصابين، لكن في اللايف اللي جاب نقطة يدخل حتى لو كان مصاب
+    if(!useLive && availabilityMultiplier(p) <= 0) return;
+
+    const score = useLive ? currentGwPoints(p) : predictedPoints(p);
     if(score <= 0) return;
+
     if(!byPos[p.pos]) return;
     byPos[p.pos].push({ p:p, score:score });
   });
-  Object.keys(byPos).forEach(k => byPos[k].sort((a,b)=>b.score-a.score));
+
+  // ترتيب اللاعبين داخل كل مركز (في حالة التعادل في النقط، الأرخص بيكسب)
+  Object.keys(byPos).forEach(k => {
+    byPos[k].sort((a,b) => b.score - a.score || a.p.price - b.p.price);
+  });
+
   if(byPos.GK.length<1) return null;
 
   let best = null;
@@ -1383,35 +1396,51 @@ function dreamTeamXI(){
       const fwd = 10 - def - mid;
       if(fwd < FORMATION_RULES.FWD.min || fwd > FORMATION_RULES.FWD.max) continue;
       if(byPos.DEF.length<def || byPos.MID.length<mid || byPos.FWD.length<fwd) continue;
+
       const picks = [].concat(byPos.GK.slice(0,1), byPos.DEF.slice(0,def), byPos.MID.slice(0,mid), byPos.FWD.slice(0,fwd));
-      const total = picks.reduce((s,x)=>s+x.score,0);
-      if(!best || total > best.total){ best = { total:total, picks:picks, formation: def+'-'+mid+'-'+fwd }; }
+      const total = picks.reduce((s,x)=>s+x.score, 0);
+
+      if(!best || total > best.total){
+        best = { total:total, picks:picks, formation: def+'-'+mid+'-'+fwd };
+      }
     }
   }
   if(!best) return null;
+
   const capEntry = best.picks.slice().sort((a,b)=>b.score-a.score)[0];
   const scoreById = {};
   best.picks.forEach(x=>{ scoreById[x.p.id] = x.score; });
+
+  // الكابتن بياخد النقط دبل
+  const finalTotal = best.total + (capEntry ? capEntry.score : 0);
+
   return {
     xi: best.picks.map(x=>x.p),
     formation: best.formation,
-    total: Math.round(best.total*10)/10,
+    total: useLive ? finalTotal : Math.round(finalTotal*10)/10,
     captainId: capEntry ? capEntry.p.id : null,
     scoreById: scoreById,
+    useLive: useLive // متغير بيفهم الواجهة إحنا لايف ولا توقعات
   };
 }
 
-function renderDreamTeamJersey(p, scoreById, capId){
+function renderDreamTeamJersey(p, scoreById, capId, useLive){
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
   const isCap = p.id === capId;
-  const pts = scoreById[p.id]!=null ? scoreById[p.id] : predictedPoints(p);
+
+  // لو لايف بناخد النقط الفعلية، لو توقع بناخد التوقع
+  let pts = scoreById[p.id] != null ? scoreById[p.id] : (useLive ? currentGwPoints(p) : predictedPoints(p));
+  if (isCap) pts *= 2; // نضاعف نقط الكابتن
+
+  const ptsFormatted = useLive ? pts : fmt(pts); // اللايف رقم صحيح، التوقع بكسر
+
   return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="jersey jersey-photo">' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
     '</div>' +
     '<div class="pname">' + p.name + '</div>' +
-    '<div class="ppts">' + fmt(pts) + ' pts' + (isCap ? ' (C)' : '') + '</div>' +
+    '<div class="ppts">' + ptsFormatted + ' pts' + (isCap ? ' (C)' : '') + '</div>' +
   '</div>';
 }
 
@@ -1422,15 +1451,26 @@ function renderDreamTeamCard(){
   const def = dt.xi.filter(p=>p.pos==='DEF');
   const mid = dt.xi.filter(p=>p.pos==='MID');
   const fwd = dt.xi.filter(p=>p.pos==='FWD');
-  function row(list){ return '<div class="row">' + list.map(p=>renderDreamTeamJersey(p, dt.scoreById, dt.captainId)).join('') + '</div>'; }
+
+  function row(list){
+    return '<div class="row">' + list.map(p=>renderDreamTeamJersey(p, dt.scoreById, dt.captainId, dt.useLive)).join('') + '</div>';
+  }
+
+  // تغيير العنوان والوصف ديناميكياً
+  const titleText = dt.useLive ? '⭐ دريم تيم الجولة (لايف)' : '⭐ دريم تيم الجولة ' + state.gwInfo.current;
+  const scoreText = dt.useLive ? dt.total + ' نقطة فعلية' : 'توقع ' + fmt(dt.total) + ' نقطة';
+  const descText = dt.useLive
+    ? 'أفضل تشكيلة حققت نقاط فعلية حتى الآن في هذه الجولة (بدون تقيد بالميزانية).'
+    : 'أفضل تشكيلة متوقعة من كل اللاعبين (بدون تقيد بالميزانية)، مبنية على نموذج التوقعات (فورم + xG/xA + صعوبة المباراة).';
+
   return '' +
-  '<div class="section-title"><h2>⭐ دريم تيم الجولة ' + state.gwInfo.current + '</h2>' +
-    '<span class="hint" style="font-size:11px;white-space:nowrap;">' + dt.formation + ' • توقع ' + fmt(dt.total) + ' نقطة</span>' +
+  '<div class="section-title"><h2>' + titleText + '</h2>' +
+    '<span class="hint" style="font-size:11px;white-space:nowrap;">' + dt.formation + ' • ' + scoreText + '</span>' +
   '</div>' +
   '<div class="pitch-card"><div class="pitch">' +
     row(gk) + row(def) + row(mid) + row(fwd) +
   '</div></div>' +
-  '<div class="hint" style="margin:6px 20px 16px;">أفضل تشكيلة متوقعة من كل اللاعبين (من غير تقيد بالميزانية)، مبنية على نموذج التوقعات عندنا (فورم + xG/xA + صعوبة المباراة + احتمال المشاركة) — مش تشكيلة رسمية من فانتازي البريميرليج.</div>';
+  '<div class="hint" style="margin:6px 20px 16px;">' + descText + '</div>';
 }
 
 function roundPoints(){
