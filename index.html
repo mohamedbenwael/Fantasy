@@ -246,7 +246,7 @@
     background:var(--gold); color:#241A08; font-family:'Cairo'; font-weight:900; font-size:8.5px;
     display:flex; align-items:center; justify-content:center; border:2px solid var(--pitch2);
   }
-  /* ===== ستايل كارت الاسم والنقاط (نظيف وخالي من القص العشوائي) ===== */
+  /* ===== ستايل كارت الاسم والنقاط (نسخة طبق الأصل من الصورة اللي طلبتها) ===== */
   .pname { 
     margin-top: 6px; 
     font-size: 9.5px; 
@@ -257,27 +257,30 @@
     border-radius: 6px; 
     white-space: nowrap; 
     cursor: pointer; 
+    max-width: 60px; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
     direction: ltr; /* بيخلي الأسامي الإنجليزي تظهر معدولة */
   }
   .ppts { 
-    margin-top: 3px; 
+    margin-top: 4px; 
     font-size: 9.5px; 
     font-weight: 800; 
-    padding: 1.5px 6px; 
-    border-radius: 5px; 
+    padding: 2px 8px; 
+    border-radius: 10px; /* الكبسولة المدورة */
     white-space: nowrap; 
-    direction: ltr;
+    direction: ltr; /* عشان كلمة pts تفضل على الشمال */
   }
   
   /* تلوين النقط بذكاء حسب حالة الماتش */
   .ppts.upcoming { 
-    background: rgba(255, 255, 255, 0.15); /* لون رمادي شفاف شيك جداً للدارك مود */
+    background: rgba(255, 255, 255, 0.15); /* رمادي شفاف شيك للماتشات اللي لسه */
     color: var(--text); 
     border: none; 
   }
   .ppts.played { 
-    background: linear-gradient(160deg, var(--primary-soft), var(--primary-deep)); 
-    color: #04321B; 
+    background: var(--primary-soft); /* اللون البينك الفاتح المميز بتاعك */
+    color: #04321B; /* لون الخط الكحلي الغامق من جوه */
   }
   .ppts.live-playing { 
     background: linear-gradient(135deg, #e90052, #ff005a) !important; 
@@ -1598,20 +1601,21 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
   const status = getPlayerMatchStatus(p);
 
   let pptsClass = 'ppts';
-  let displayBottom = ptsFormatted;
+  let displayBottom = '';
   const isLiveNow = useLive && p.isPlayingLive;
 
   if (useLive) {
     if (status.started) {
       pptsClass += ' played';
-      if (status.isLive) pptsClass += ' live-playing';
+      if (isLiveNow) pptsClass += ' live-playing';
+      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsFormatted;
     } else {
       pptsClass += ' upcoming';
       displayBottom = status.fixtureText;
     }
   } else {
      pptsClass += ' played';
-     displayBottom += ' pts';
+     displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsFormatted;
   }
 
   return '<div class="player" data-viewprofile="' + p.id + '">' +
@@ -1621,7 +1625,7 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
       (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
     '</div>' +
     '<div class="pname">' + p.name + '</div>' +
-    '<div class="' + pptsClass + '">' + displayBottom + (isCap && !useLive ? ' (C)' : '') + '</div>' +
+    '<div class="' + pptsClass + '">' + displayBottom + '</div>' +
   '</div>';
 }
 
@@ -1730,14 +1734,19 @@ function renderAiEvaluationCard(){
       const isCap = p.id === dt.captainId;
       const pts = dt.scoreById[p.id];
       const ptsFormatted = dt.isLive ? pts : fmt(pts);
+      const isLiveNow = dt.isLive && p.isPlayingLive;
+
+      let pptsClass = 'ppts played';
+      if (isLiveNow) pptsClass += ' live-playing';
 
       return '<div class="player" data-viewprofile="' + p.id + '">' +
-        '<div class="jersey jersey-photo">' +
+        '<div class="jersey jersey-photo' + (isLiveNow ? ' live-now' : '') + '">' +
           '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
           (isCap ? '<div class="cap">C</div>' : '') +
+          (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
         '</div>' +
         '<div class="pname">' + p.name + '</div>' +
-        '<div class="ppts played">' + ptsFormatted + ' pts' + (isCap ? ' (C)' : '') + '</div>' +
+        '<div class="' + pptsClass + '">pts ' + (isCap ? '(C) ' : '') + ptsFormatted + '</div>' +
       '</div>';
     }).join('') + '</div>';
   }
@@ -2325,10 +2334,11 @@ function renderJersey(p, opts){
     pptsClass += ' played';
     if (status.isLive) pptsClass += ' live-playing';
     if (hasBonus) pptsClass += ' has-bonus';
-    displayBottom = ptsVal + (hasBonus ? ' ⭐' : '');
+    // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
+    displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal + (hasBonus ? ' ⭐' : '');
   } else {
     pptsClass += ' upcoming';
-    displayBottom = status.fixtureText;
+    displayBottom = status.fixtureText; // مثال: BOU (H)
   }
 
   return '<div class="player" data-viewprofile="' + p.id + '">' +
