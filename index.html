@@ -1473,6 +1473,110 @@ function renderDreamTeamCard(){
   '<div class="hint" style="margin:6px 20px 16px;">' + descText + '</div>';
 }
 
+// ===== كشف حساب الذكاء الاصطناعي (التشكيلة المتوقعة بنقاط لايف) =====
+function aiEvaluationTeam(){
+  const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
+  state.players.forEach(p=>{
+    // بنختار بناءً على التوقع قبل الماتش عشان نثبت التشكيلة
+    const predScore = predictedPoints(p);
+    if(predScore <= 0 || availabilityMultiplier(p) <= 0) return;
+    if(!byPos[p.pos]) return;
+    byPos[p.pos].push({ p:p, pred:predScore });
+  });
+
+  Object.keys(byPos).forEach(k => {
+    byPos[k].sort((a,b) => b.pred - a.pred || a.p.price - b.p.price);
+  });
+
+  if(byPos.GK.length<1) return null;
+
+  let best = null;
+  for(let def=FORMATION_RULES.DEF.min; def<=FORMATION_RULES.DEF.max; def++){
+    for(let mid=FORMATION_RULES.MID.min; mid<=FORMATION_RULES.MID.max; mid++){
+      const fwd = 10 - def - mid;
+      if(fwd < FORMATION_RULES.FWD.min || fwd > FORMATION_RULES.FWD.max) continue;
+      if(byPos.DEF.length<def || byPos.MID.length<mid || byPos.FWD.length<fwd) continue;
+
+      const picks = [].concat(byPos.GK.slice(0,1), byPos.DEF.slice(0,def), byPos.MID.slice(0,mid), byPos.FWD.slice(0,fwd));
+      const totalPred = picks.reduce((s,x)=>s+x.pred, 0);
+
+      if(!best || totalPred > best.totalPred){
+        best = { totalPred:totalPred, picks:picks, formation: def+'-'+mid+'-'+fwd };
+      }
+    }
+  }
+  if(!best) return null;
+
+  // الكابتن هو أعلى واحد في التوقع
+  const capEntry = best.picks.slice().sort((a,b)=>b.pred-a.pred)[0];
+
+  const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
+  const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
+  const isLive = isStarted && hasLivePoints;
+
+  let actualTotal = 0;
+  const scoreById = {};
+
+  best.picks.forEach(x => {
+    // النقط المعروضة: لو لايف نجيب النقط الحقيقية، لو لسه يبقى التوقع
+    let pts = isLive ? currentGwPoints(x.p) : x.pred;
+    if (capEntry && x.p.id === capEntry.p.id) pts *= 2;
+    scoreById[x.p.id] = pts;
+    actualTotal += pts;
+  });
+
+  return {
+    xi: best.picks.map(x=>x.p),
+    formation: best.formation,
+    total: isLive ? actualTotal : Math.round(actualTotal*10)/10,
+    captainId: capEntry ? capEntry.p.id : null,
+    scoreById: scoreById,
+    isLive: isLive
+  };
+}
+
+function renderAiEvaluationCard(){
+  const dt = aiEvaluationTeam();
+  if(!dt) return '';
+  const gk  = dt.xi.filter(p=>p.pos==='GK');
+  const def = dt.xi.filter(p=>p.pos==='DEF');
+  const mid = dt.xi.filter(p=>p.pos==='MID');
+  const fwd = dt.xi.filter(p=>p.pos==='FWD');
+
+  function row(list){
+    return '<div class="row">' + list.map(p=>{
+      const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
+      const isCap = p.id === dt.captainId;
+      const pts = dt.scoreById[p.id];
+      const ptsFormatted = dt.isLive ? pts : fmt(pts);
+
+      return '<div class="player" data-viewprofile="' + p.id + '">' +
+        '<div class="jersey jersey-photo">' +
+          '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
+          (isCap ? '<div class="cap">C</div>' : '') +
+        '</div>' +
+        '<div class="pname">' + p.name + '</div>' +
+        '<div class="ppts">' + ptsFormatted + ' pts' + (isCap ? ' (C)' : '') + '</div>' +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  const titleText = '🤖 كشف حساب المزاريطة';
+  const scoreText = dt.isLive ? dt.total + ' نقطة فعلية' : 'توقع ' + fmt(dt.total) + ' نقطة';
+  const descText = dt.isLive
+    ? 'دي التشكيلة اللي الذكاء الاصطناعي توقعها قبل الجولة، ودي النقط الحقيقية اللي جابتها على أرض الواقع!'
+    : 'أفضل تشكيلة متوقعة من كل اللاعبين بناءً على خوارزمياتنا.';
+
+  return '' +
+  '<div class="section-title"><h2>' + titleText + '</h2>' +
+    '<span class="hint" style="font-size:11px;white-space:nowrap;">' + dt.formation + ' • ' + scoreText + '</span>' +
+  '</div>' +
+  '<div class="pitch-card"><div class="pitch">' +
+    row(gk) + row(def) + row(mid) + row(fwd) +
+  '</div></div>' +
+  '<div class="hint" style="margin:6px 20px 16px;">' + descText + '</div>';
+}
+
 function roundPoints(){
   const base = starters().reduce((s,p)=>s+currentGwPoints(p),0);
   const c = captain();
@@ -2512,6 +2616,7 @@ function renderPredictions(){
     '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
   '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
 
+  '<div style="margin-top: 14px;">' + renderAiEvaluationCard() + '</div>' +
   captainCardHtml +
   lineupSwapsHtml +
 
