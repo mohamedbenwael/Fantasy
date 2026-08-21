@@ -2133,46 +2133,12 @@ function renderHome(){
     '</div>'
   ).join('') : '<div class="hint">لا توجد ترشيحات انتقال ملحة حالياً.</div>';
 
-  const csRowsArrHome = topCleanSheetKeepers(8).map(x=>
-    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
-      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
-      '<div class="cs-prob">' + x.prob + '%</div></div>'
-  );
-  const informRowsArrHome = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
-  const ownRowsArrHome = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
-
-  const priceRowsArrHome = [].concat(
-    priceRisers(3).map(x=> predRow(x.p, '+' + fmtCount(x.net), null, x.p.ownership + '% ملكية') ),
-    priceFallers(3).map(x=> predRow(x.p, fmtCount(x.net), 'warn', x.p.ownership + '% ملكية') )
-  );
-
-  // ===== تريندات السوق: أكثر شراءً ومبيعاً هذه الجولة =====
-  const topInRowsArrHome = topTransfersIn(3).map(p=> predRow(p, '+' + fmtCount(p.transfersInEvent), 'mkt-in', p.ownership + '% ملكية') );
-  const topOutRowsArrHome = topTransfersOut(3).map(p=> predRow(p, '-' + fmtCount(p.transfersOutEvent), 'mkt-out', p.ownership + '% ملكية') );
-
   const predictionsHtml = '' +
     '<div class="section-title"><h2>🔥 تبديلة الأسبوع المقترحة</h2></div>' +
-    '<div style="margin:0 20px;">' + topSwapHtml + '</div>' +
-
-    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;">' + ICON_PRICE + 'توقع تغيير الأسعار</h2><a data-goto="prices">التفاصيل ' + ICON_CHEV + '</a></div>' +
-    (priceRowsArrHome.length ? limitedListHtml(priceRowsArrHome, 'homePriceMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">بيانات الانتقالات غير كافية حالياً.</div>') +
-
-    '<div class="section-title"><h2>🔥 الأكثر شراءً هذه الجولة</h2></div>' +
-    (topInRowsArrHome.length ? limitedListHtml(topInRowsArrHome, 'homeTopInMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">بيانات الانتقالات غير كافية حالياً.</div>') +
-
-    '<div class="section-title"><h2>🔻 الأكثر مبيعاً هذه الجولة</h2></div>' +
-    (topOutRowsArrHome.length ? limitedListHtml(topOutRowsArrHome, 'homeTopOutMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">بيانات الانتقالات غير كافية حالياً.</div>') +
-
-    '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (Clean Sheet)</h2></div>' +
-    limitedListHtml(csRowsArrHome, 'homeCsMore', '', 'margin:0 20px;') +
-
-    '<div class="section-title"><h2>اللاعبون الأعلى توقعاً لهذه الجولة</h2></div>' +
-    limitedListHtml(informRowsArrHome, 'homeInformMore', 'league-list', 'gap:8px;') +
-
-    '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
-    limitedListHtml(ownRowsArrHome, 'homeOwnMore', 'league-list', 'gap:8px;');
+    '<div style="margin:0 20px 14px;">' + topSwapHtml + '</div>' +
+    '<div style="margin:0 20px 20px;">' +
+      '<button class="btn-primary" data-goto="predictions" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;">' + ICON_BULB + 'كل التوقعات والنصائح ' + ICON_CHEV + '</button>' +
+    '</div>';
 
   const adminLinksHtml =
     '<div style="display:flex; gap:10px; margin:0 20px 14px;">' +
@@ -2208,6 +2174,8 @@ function renderHome(){
     '<button class="cta" data-goto="team">تعديل التشكيلة</button>' +
   '</div>' +
 
+  renderFixturesList() +
+
   '<div class="summary">' +
     '<div class="summary-top">' +
       '<div><div class="lbl">إجمالي النقاط</div><div class="big">' + seasonTotal().toLocaleString() + ' <span>نقطة</span></div></div>' +
@@ -2234,8 +2202,6 @@ function renderHome(){
     '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
     '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
   '</div>' +
-
-  renderFixturesList() +
 
   '<div class="section-title"><h2>الدوريات الخاصة بك</h2><a data-goto="leagues">عرض الكل ' + ICON_CHEV + '</a></div>' +
 
