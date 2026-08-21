@@ -1199,6 +1199,7 @@ function predictedPoints(p){
   const avail = availabilityMultiplier(p);
   if(avail===0) return 0;
   const fx = teamFixtureInfo(p.club);
+  const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
   let base;
   if(state.gwInfo.current<=1){
     base = gw1BaseEstimate(p); // ما فيهاش أي استدعاء لـ statModelPoints في الجولة الأولى، خالص
