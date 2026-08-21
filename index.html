@@ -1929,8 +1929,14 @@ function renderPitchCard(interactive){
     let total = needed.GK + needed.DEF + needed.MID + needed.FWD;
 
     if(total < 11){
-      // نكمل الباقي بترتيب 4-4-2 كتشكيلة افتراضية معقولة، من غير ما نتخطى الحد الأقصى لأي مركز
-      const growOrder = ['DEF','MID','MID','FWD','DEF','MID','FWD','DEF'];
+      // نكمل الباقي: نفضّل المركز اللي عند اللاعب فيه لاعب احتياطي جاهز أصلاً (عشان يقدر
+      // يكمّل التشكيلة بتبديل فوري بدل ما يضطر يروح سوق الانتقالات)، وبعدين نرجع لترتيب
+      // افتراضي معقول (مهاجم الأول، لأن ده اللي المستخدمين غالبًا بيدوروا يزودوه)
+      const benchCounts = { DEF:0, MID:0, FWD:0 };
+      benchAll.forEach(p=>{ if(benchCounts[p.pos] != null) benchCounts[p.pos]++; });
+      const growOrder = ['FWD','MID','DEF','FWD','MID','DEF','FWD','MID']
+        .slice()
+        .sort((a,b)=> (benchCounts[b]>0?1:0) - (benchCounts[a]>0?1:0));
       let gi = 0, guard = 0;
       while(total < 11 && guard < 40){
         const k = growOrder[gi % growOrder.length]; gi++; guard++;
