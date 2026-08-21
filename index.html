@@ -1524,8 +1524,26 @@ async function boot(){
 async function loadSquadOrDraft(){
   const gw = state.gwInfo && state.gwInfo.current;
 
-  // ⓪ لو فيه تشكيلة محفوظة وهي خاصة بنفس الجولة الحالية، استخدمها زي ما هي
-  // (يعني أي تعديل/تجربة عملها المستخدم جوه الجولة نفسها يفضل محفوظ)
+  // ١. الأولوية المطلقة: محاولة جلب التشكيلة الرسمية من سيرفر الفانتازي
+  // (لو الديدلاين قفل، الفانتازي هيرجع الداتا الحقيقية وهنمسح بيها التشكيلة التجريبية)
+  try{
+    const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
+    if(picks && picks.squadIds && picks.squadIds.length){
+      state.mySquadIds = picks.squadIds;
+      state.captainId = picks.captainId;
+      state.bank = picks.bank;
+      state.freeTransfers = 2; // رقم شكلي للواجهة
+      state.seasonBaseline = 0;
+
+      // حفظ التشكيلة الرسمية في التخزين المحلي عشان نكتب فوق التشكيلة التجريبية
+      await savePersonal();
+      return;
+    }
+  }catch(e){
+    // الجولة لسه مقفلتش (الفانتازي مخبي التشكيلة) أو مفيش إنترنت
+  }
+
+  // ٢. لو الفانتازي لسه مخبي التشكيلة: نعرض التشكيلة التجريبية اللي اليوزر عاملها جوه الأبلكيشن
   try{
     const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
     if(savedRaw){
@@ -1541,23 +1559,7 @@ async function loadSquadOrDraft(){
     }
   }catch(e){}
 
-  // ① جولة جديدة بدأت (أو أول مرة للمستخدم) — نجيب التشكيلة الحقيقية بتاعته من FPL
-  try{
-    const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
-    if(picks && picks.squadIds && picks.squadIds.length){
-      state.mySquadIds = picks.squadIds;
-      state.captainId = picks.captainId;
-      state.bank = picks.bank;
-      state.freeTransfers = 2;
-      state.seasonBaseline = 0;
-      await savePersonal();
-      return;
-    }
-  }catch(e){
-    // الجولة الأولى لم تبدأ بعد أو API غير متاح — نبدأ بتشكيلة فارغة
-  }
-
-  // ② تشكيلة فارغة تماماً — المستخدم يبني فريقه من الصفر
+  // ٣. لو مفيش داتا خالص: نبدأ بتشكيلة فاضية
   state.mySquadIds = [];
   state.captainId = null;
   state.bank = 100;
