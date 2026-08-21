@@ -1087,6 +1087,16 @@ function pool(){ const owned=new Set(state.mySquadIds.map(e=>e.id)); return stat
 const MAX_PER_CLUB = 3; // أقصى عدد لاعبين من نفس النادي في التشكيلة كلها (15 لاعب)
 // حدود كل مركز في التشكيلة الأساسية (11 لاعب): حارس واحد بالظبط، 3-5 مدافعين، 2-5 وسط، 1-3 مهاجمين
 const FORMATION_RULES = { GK:{min:1,max:1}, DEF:{min:3,max:5}, MID:{min:2,max:5}, FWD:{min:1,max:3} };
+// حدود كل مركز في الفريق الكامل (15 لاعب: أساسي + احتياطي): بالظبط 2 حراس، 5 مدافعين، 5 وسط، 3 مهاجمين
+const SQUAD_POS_LIMITS = { GK:2, DEF:5, MID:5, FWD:3 };
+// عدد لاعبين مركز معين في الفريق كله حاليًا (أساسي + احتياطي)، مع إمكانية استبعاد لاعب معين (زي اللي هيتباع)
+function squadPosCount(pos, excludeId){
+  return state.mySquadIds.filter(e=>{
+    if(excludeId != null && e.id === excludeId) return false;
+    const p = findPlayer(e.id);
+    return p && p.pos === pos;
+  }).length;
+}
 
 // عدد لاعبين نادي معين في تشكيلتي حاليًا (مع إمكانية استبعاد لاعب معين، زي اللي هيتباع)
 function clubCountInSquad(club, excludeId){
@@ -2687,6 +2697,10 @@ function tryBuyPlayer(inId){
     if(inPlayer.pos !== state.transferAddPos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
     if(state.mySquadIds.some(e=>e.id===inPlayer.id)){ setFlash('err','اللاعب موجود بالفعل في فريقك'); return; }
     if(state.mySquadIds.length >= 15){ setFlash('err','التشكيلة مكتملة بالفعل (15 لاعب)'); return; }
+    if(squadPosCount(inPlayer.pos) >= SQUAD_POS_LIMITS[inPlayer.pos]){
+      const posLabelMap = {GK:'حراس', DEF:'مدافعين', MID:'وسط', FWD:'مهاجمين'};
+      setFlash('err','لا يمكن ضم أكثر من ' + SQUAD_POS_LIMITS[inPlayer.pos] + ' ' + (posLabelMap[inPlayer.pos] || inPlayer.pos) + ' في الفريق'); return;
+    }
     const newBank = state.bank - inPlayer.price;
     if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لشراء هذا اللاعب'); return; }
     if(clubCountInSquad(inPlayer.club) >= MAX_PER_CLUB){
