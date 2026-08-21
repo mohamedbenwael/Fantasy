@@ -1438,16 +1438,19 @@ function squadOwnershipAvg(){
   return Math.round((s.reduce((sum,p)=>sum+p.ownership,0)/s.length)*10)/10;
 }
 
-// ترتيب الأندية حسب احتمال الكلين شيت الجولة الجاية (قوة دفاعهم مقابل هجوم الخصم +
-// سهولة المباراة + متوسط الأهداف المتوقع استقبالها لحارس/دفاع كل نادي xGC)
+// ترتيب الأندية حسب احتمال الكلين شيت في مباراتهم القادمة اللي لسه ما اتلعبتش
+// (بنعتمد على lookahead[0] بدل مباراة الجولة الحالية، عشان لو مباراة النادي خلصت
+// بالفعل في الجولة الجارية، القسم ده يتحول تلقائيًا لمباراته الجاية مش يفضل واقف عليها)
 function cleanSheetRanking(){
   return Object.keys(CLUB_TAG).map(key=>{
-    const fx = teamFixtureInfo(key);
-    if(!fx || fx.ownDefHome==null) return null;
+    const fxInfo = state.teamFixtures[key];
+    if(!fxInfo || !fxInfo.lookahead || !fxInfo.lookahead.length) return null;
+    const nextFix = fxInfo.lookahead[0];
     const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key);
     const refPlayer = { pos:'GK', club:key, xGC90: keepers.length ? keepers[0].xGC90 : 0 };
-    const prob = Math.round(cleanSheetProbability(refPlayer) * 100);
-    return { club:key, prob: Math.max(3, Math.min(72, prob)), fx };
+    let prob = nextFix.fdr <= 2 ? 0.38 : (nextFix.fdr >= 4 ? 0.18 : 0.28);
+    if(refPlayer.xGC90>1.1){ prob = Math.max(0.02, prob - (refPlayer.xGC90-1.1)*0.12); }
+    return { club:key, prob: Math.max(3, Math.min(72, Math.round(prob*100))), fx: nextFix };
   }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
 }
 
@@ -1461,10 +1464,21 @@ function topCleanSheetKeepers(limit){
   }).filter(Boolean).slice(0, limit||8);
 }
 
-// اللاعبون الأعلى توقعاً لهذه الجولة (فورم + مباراة سهلة، من كل اللاعبين اللي بيلعبوا فعليًا)
+// اللاعبون الأعلى توقعاً للمباراة القادمة (فورم + مباراة سهلة، من كل اللاعبين اللي بيلعبوا فعليًا)
+// بنشيل تأثير fdr مباراة الجولة الحالية من predictedPoints ونحطله بدالها fdr المباراة
+// القادمة اللي لسه ما اتلعبتش، عشان لاعب مباراته خلصت بالفعل ميفضلش ظاهر بتوقع قديم
 function inFormRanking(limit){
   return state.players.filter(p=>availabilityMultiplier(p)>0 && p.minutes>0)
-    .map(p=>({ p, score: predictedPoints(p) }))
+    .map(p=>{
+      const curFx = teamFixtureInfo(p.club);
+      const curMul = curFx ? fdrMultiplier(curFx.fdr) : 1;
+      const fxInfo = state.teamFixtures[p.club];
+      const nextFix = (fxInfo && fxInfo.lookahead && fxInfo.lookahead[0]) ? fxInfo.lookahead[0] : null;
+      const nextMul = nextFix ? fdrMultiplier(nextFix.fdr) : curMul;
+      const base = predictedPoints(p) / (curMul || 1);
+      const score = Math.max(0, Math.round(base * nextMul * 10) / 10);
+      return { p, score, fx: nextFix };
+    })
     .sort((a,b)=>b.score-a.score)
     .slice(0, limit||10);
 }
@@ -2922,6 +2936,7 @@ function renderPredictions(){
 
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
+  const nextGwNum = (state.gwInfo.current||1) + 1;
 
   const noteText = isLive 
     ? 'النقاط الفعلية المحققة لتشكيلتك حتى الآن في هذه الجولة.' 
@@ -2945,10 +2960,10 @@ function renderPredictions(){
   '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
   '<div style="margin:0 20px;">' + suggestionsHtml + '</div>' +
 
-  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (Clean Sheet)</h2></div>' +
+  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ')</h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2>اللاعبون الأعلى توقعاً لهذه الجولة</h2></div>' +
+  '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (الجولة ' + nextGwNum + ')</h2></div>' +
   limitedListHtml(informRowsArr, 'predInformMore', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
