@@ -224,6 +224,22 @@
   .jersey-shirt{ width:38px; height:auto; display:block; }
   .jersey.jersey-photo.selected .jersey-shirt{ outline:2.5px solid var(--primary-soft); outline-offset:1px; border-radius:6px; }
   .bench .jersey-shirt{ width:28px; }
+  /* لاعب بيلعب لايف دلوقتي (مباراته شغالة وهو نازل الملعب فعليًا) — تمييز واضح في التشكيلة */
+  .jersey.jersey-photo.live-now .jersey-shirt{
+    outline:2.5px solid #2ed573; outline-offset:1px; border-radius:6px;
+    animation: pulse-live-ring 1.8s infinite;
+  }
+  .live-dot.pulse{ animation: pulse-live-dot 1.8s infinite; }
+  @keyframes pulse-live-ring{
+    0%{ filter:drop-shadow(0 0 0px rgba(46,213,115,0.9)); }
+    50%{ filter:drop-shadow(0 0 5px rgba(46,213,115,0.95)); }
+    100%{ filter:drop-shadow(0 0 0px rgba(46,213,115,0.9)); }
+  }
+  @keyframes pulse-live-dot{
+    0%{ box-shadow:0 0 0 0 rgba(46,213,115,0.7); }
+    70%{ box-shadow:0 0 0 6px rgba(46,213,115,0); }
+    100%{ box-shadow:0 0 0 0 rgba(46,213,115,0); }
+  }
 
   .cap{
     position:absolute; top:-6px; left:-6px; width:15px; height:15px; border-radius:50%;
@@ -564,6 +580,16 @@
   .stat-h { text-align: right; padding-left: 10px; }
   .stat-a { text-align: left; padding-right: 10px; }
   .stat-lbl { flex-shrink: 0; width: 66px; text-align: center; color: var(--muted); font-size: 10px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 2px; }
+
+  /* ===== تشكيلة الماتش جوه المودال ===== */
+  .lineup-wrap { display: flex; gap: 10px; }
+  .lineup-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .lineup-row { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text); padding: 3px 0; }
+  .lineup-col.away .lineup-row { flex-direction: row-reverse; text-align: left; }
+  .lineup-pos { flex-shrink: 0; width: 22px; text-align: center; font-family: 'Cairo'; font-weight: 800; font-size: 8.5px; color: var(--muted); background: rgba(255,255,255,0.04); border-radius: 5px; padding: 1.5px 0; }
+  .lineup-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lineup-sub { color: var(--muted); font-size: 9px; flex-shrink: 0; }
+  .lineup-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ed573; flex-shrink: 0; animation: pulse-live-dot 1.8s infinite; }
 </style>
 </head>
 <body>
@@ -897,6 +923,10 @@ async function buildLiveDataset(){
   // بونص لحظي: بنسجل الـ bps ورقم المباراة (fixture) لكل لاعب في الجولة الحالية بس،
   // عشان بعدين نرتبهم جوه كل مباراة ونديهم بونص افتراضي (3/2/1) قبل ما يتأكد رسمياً
   const currentGwBps = {};
+  // دقايق ولو اتأسس اللاعب في الجولة الحالية — عشان نعرف مين "نازل الملعب فعليًا" دلوقتي
+  // (مش بس إن فريقه بيلعب)، ومين لسه على دكة الاحتياط
+  const currentGwMinutes = {};
+  const currentGwStarted = {};
   for(const evId of liveIds){
     try{
       const live = await fplFetch('live', evId);
@@ -908,6 +938,8 @@ async function buildLiveDataset(){
           const bps = row.stats ? (row.stats.bps || 0) : 0;
           const fx = (row.explain && row.explain[0] && row.explain[0].fixture) || null;
           currentGwBps[row.id] = { bps: bps, fixtureId: fx };
+          currentGwMinutes[row.id] = row.stats ? (row.stats.minutes || 0) : 0;
+          currentGwStarted[row.id] = !!(row.stats && row.stats.starts);
         }
       });
     }catch(e){ /* لو جولة معينة فشلت نكمل من غيرها */ }
@@ -1069,7 +1101,11 @@ async function buildLiveDataset(){
                : el.direct_freekicks_order===1 ? 'ضربات حرة'
                : el.corners_and_indirect_freekicks_order===1 ? 'كورنرات'
                : null,
-      isPlayingLive: liveTeams.has(club),
+      // بيلعب دلوقتي فعليًا = مباراة فريقه شغالة + هو نازل الملعب (اتأسس أو عنده دقايق already)
+      // مش مجرد إن فريقه بيلعب (عشان محدش على الدكة يتحط عليه هايلايت غلط)
+      isPlayingLive: liveTeams.has(club) && (currentGwStarted[el.id] || (currentGwMinutes[el.id]||0) > 0),
+      gwMinutes: currentGwMinutes[el.id] || 0,
+      gwStarted: !!currentGwStarted[el.id],
     };
   });
 
@@ -1529,12 +1565,14 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
   const ptsFormatted = useLive ? pts : fmt(pts); // اللايف رقم صحيح، التوقع بكسر
 
   let pptsClass = 'ppts';
-  if (useLive && p.isPlayingLive) pptsClass += ' live-playing';
+  const isLiveNow = useLive && p.isPlayingLive;
+  if (isLiveNow) pptsClass += ' live-playing';
 
   return '<div class="player" data-viewprofile="' + p.id + '">' +
-    '<div class="jersey jersey-photo">' +
+    '<div class="jersey jersey-photo' + (isLiveNow ? ' live-now' : '') + '">' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
+      (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
     '</div>' +
     '<div class="player-tag">' +
       '<div class="pname">' + p.name + '</div>' +
@@ -1962,6 +2000,35 @@ function renderFixturesList() {
          '<div style="margin: 0 20px 20px;">' + listHtml + '</div>';
 }
 
+// تشكيلة كل فريق في الماتش (أساسي + بدلاء نزلوا فعلاً) — مبنية من بيانات اللايف
+// بتاعة الجولة الحالية، فبتشتغل بس للجولة اللي بتُلعب/اتلعبت دلوقتي
+function renderMatchLineup(f){
+  const posOrder = { GK:0, DEF:1, MID:2, FWD:3 };
+  const teamPlayers = clubKey => state.players
+    .filter(p => p.club === clubKey && (p.gwStarted || (p.gwMinutes||0) > 0))
+    .sort((a,b) => (posOrder[a.pos]-posOrder[b.pos]) || (Number(b.gwStarted)-Number(a.gwStarted)));
+
+  const hPlayers = teamPlayers(f.team_h);
+  const aPlayers = teamPlayers(f.team_a);
+  if(!hPlayers.length && !aPlayers.length) return '';
+
+  const row = p => {
+    const posLabel = { GK:'ح', DEF:'د', MID:'و', FWD:'هـ' }[p.pos] || p.pos;
+    return '<div class="lineup-row">' +
+      '<div class="lineup-pos">' + posLabel + '</div>' +
+      '<div class="lineup-name">' + p.name + '</div>' +
+      (!p.gwStarted ? '<div class="lineup-sub">بديل</div>' : '') +
+      (p.isPlayingLive ? '<div class="lineup-live-dot" title="بيلعب دلوقتي"></div>' : '') +
+    '</div>';
+  };
+
+  return '<div class="section-title" style="margin:14px 0 8px;"><h2 style="font-size:12.5px;">التشكيلة</h2></div>' +
+    '<div class="lineup-wrap">' +
+      '<div class="lineup-col home">' + hPlayers.map(row).join('') + '</div>' +
+      '<div class="lineup-col away">' + aPlayers.map(row).join('') + '</div>' +
+    '</div>';
+}
+
 function renderMatchModal() {
   if(!state.viewMatchId) return '';
   const f = state.fixturesList.find(x => x.id === state.viewMatchId);
@@ -2005,6 +2072,7 @@ function renderMatchModal() {
         </div>
         <div style="font-size:12px; color:var(--muted); font-weight:700;">${f.started && !f.finished ? '🔴 مباشر - الدقيقة '+f.minutes+"'" : (f.finished ? 'انتهت المباراة' : 'لم تبدأ بعد')}</div>
       </div>
+      ${renderMatchLineup(f)}
       <div style="background:rgba(255,255,255,0.02); border:1px solid var(--card-line); border-radius:16px; padding:10px;">
         ${statsHtml}
       </div>
@@ -2215,6 +2283,7 @@ function renderJersey(p, opts){
   opts = opts || {};
   let cls = 'jersey jersey-photo';
   if(opts.selected) cls += ' selected';
+  if(p.isPlayingLive) cls += ' live-now';
 
   const isCap = p.id === state.captainId;
   const showPts = p.slot === 'start';
@@ -2234,6 +2303,7 @@ function renderJersey(p, opts){
     '<div class="' + cls + '"' + dataAttr + '>' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
+      (p.isPlayingLive ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
     '</div>' +
     '<div class="player-tag">' +
       '<div class="pname">' + p.name + '</div>' +
