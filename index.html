@@ -246,7 +246,7 @@
     background:var(--gold); color:#241A08; font-family:'Cairo'; font-weight:900; font-size:8.5px;
     display:flex; align-items:center; justify-content:center; border:2px solid var(--pitch2);
   }
-  /* ===== ستايل كارت الاسم والنقاط (عودة للشكل القديم المنفصل) ===== */
+  /* ===== ستايل كارت الاسم والنقاط (نظيف وخالي من القص العشوائي) ===== */
   .pname { 
     margin-top: 6px; 
     font-size: 9.5px; 
@@ -257,9 +257,7 @@
     border-radius: 6px; 
     white-space: nowrap; 
     cursor: pointer; 
-    max-width: 56px; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
+    direction: ltr; /* بيخلي الأسامي الإنجليزي تظهر معدولة */
   }
   .ppts { 
     margin-top: 3px; 
@@ -268,11 +266,19 @@
     padding: 1.5px 6px; 
     border-radius: 5px; 
     white-space: nowrap; 
+    direction: ltr;
   }
   
   /* تلوين النقط بذكاء حسب حالة الماتش */
-  .ppts.upcoming { background: #f3f5f8; color: #37003c; border: 1px solid #e1e1e1; }
-  .ppts.played { background: linear-gradient(135deg, #e90052, #ff005a); color: #ffffff; }
+  .ppts.upcoming { 
+    background: rgba(255, 255, 255, 0.15); /* لون رمادي شفاف شيك جداً للدارك مود */
+    color: var(--text); 
+    border: none; 
+  }
+  .ppts.played { 
+    background: linear-gradient(160deg, var(--primary-soft), var(--primary-deep)); 
+    color: #04321B; 
+  }
   .ppts.live-playing { 
     background: linear-gradient(135deg, #e90052, #ff005a) !important; 
     color: #ffffff !important; 
@@ -280,7 +286,7 @@
     box-shadow: 0 2px 8px rgba(233, 0, 82, 0.4); 
   }
   
-  /* المكان الفاضي */
+  /* المكان الفاضي في الدكة */
   .pname.placeholder-name { 
     color: rgba(255,255,255,0.25); 
     background: rgba(255,255,255,0.04); 
@@ -1210,19 +1216,27 @@ function findPlayer(id){ return state.players.find(p=>p.id===id); }
 function totalPoints(p){ return (p.totalPointsReal!=null) ? p.totalPointsReal : (p.history||[]).reduce((s,h)=>s+h.pts,0); }
 function currentGwPoints(p){ const h=(p.history||[]).find(h=>h.gw===state.gwInfo.current); return h?h.pts:0; }
 // بيحدد حالة مباراة اللاعب دلوقتي: لسه ماجاش، شغالة، أو خلصت — عشان نعرض الوقت أو النقط بشكل مناسب
-function getPlayerMatchStatus(p){
-  const f = (state.fixturesList||[]).find(x => x.team_h === p.club || x.team_a === p.club);
-  if(!f){
-    return { started:false, isLive:false, fixtureText: (state.gwInfo && state.gwInfo.fixtures && state.gwInfo.fixtures[p.club]) || '-' };
+// دالة بتعرف هل ماتش اللاعب بدأ، وبتجيب اختصار اسم الخصم (مثال: BOU (H))
+function getPlayerMatchStatus(p) {
+  let started = false;
+  let isLive = false;
+  let fixtureText = '-';
+
+  if (state.fixturesList && state.fixturesList.length) {
+    const fx = state.fixturesList.find(f => f.team_h === p.club || f.team_a === p.club);
+    if (fx) {
+      started = fx.started;
+      isLive = fx.started && !fx.finished;
+      const isHome = fx.team_h === p.club;
+      const opp = isHome ? CLUB_TAG[fx.team_a] : CLUB_TAG[fx.team_h];
+      fixtureText = (opp || '؟') + (isHome ? ' (H)' : ' (A)');
+    }
+  } else {
+     if(currentGwPoints(p) > 0 || p.minutes > 0) started = true;
+     fixtureText = (state.gwInfo.fixtures[p.club] || '').split(' ')[1] || '-';
+     if(!fixtureText.includes('(')) fixtureText += ' (H)';
   }
-  if(f.started && !f.finished){
-    return { started:true, isLive:true, fixtureText:'' };
-  }
-  if(f.finished){
-    return { started:true, isLive:false, fixtureText:'' };
-  }
-  const time = new Date(f.kickoff).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
-  return { started:false, isLive:false, fixtureText: time };
+  return { started, isLive, fixtureText };
 }
 function lastForm(p, n){ return (p.history||[]).slice(-n); }
 
@@ -2294,7 +2308,6 @@ function renderJersey(p, opts){
   opts = opts || {};
   let cls = 'jersey jersey-photo';
   if(opts.selected) cls += ' selected';
-  if(p.isPlayingLive) cls += ' live-now';
 
   const isCap = p.id === state.captainId;
   const showPts = p.slot === 'start';
