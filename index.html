@@ -656,22 +656,37 @@ const SUPABASE_KEY = 'sb_publishable_8QQ0WjCvIFP7C8wmc5vT9w_VYAIgedo';
 const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== storage helpers (never throw) — same key/value shape as before, backed by Supabase now =====
+
+// أي نداء لـ Supabase (زي أي fetch عادي) ممكن يفضل معلق للأبد لو فيه مشكلة شبكة أو
+// إعدادات، من غير ما يرفض (reject) أبدًا — وساعتها الـ try/catch اللي تحت مبيحميش
+// حد، لأنه بيمسك الرفض بس مش التعليق. بنسابق الـ promise بتاعة Supabase بـ timeout
+// يدوي، وأول واحد يخلّص هو اللي بياخد القرار.
+function withTimeout(promise, ms){
+  return new Promise((resolve, reject)=>{
+    const timer = setTimeout(()=>reject(new Error('supabase timeout')), ms || 8000);
+    promise.then(
+      (v)=>{ clearTimeout(timer); resolve(v); },
+      (e)=>{ clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 async function sGet(key, shared){
   try{
-    const { data, error } = await supa.from('mazareta_kv').select('value').eq('key', key).maybeSingle();
+    const { data, error } = await withTimeout(supa.from('mazareta_kv').select('value').eq('key', key).maybeSingle(), 8000);
     if(error || !data) return null;
     return data.value;
   } catch(e){ return null; }
 }
 async function sSet(key, value, shared){
   try{
-    const { error } = await supa.from('mazareta_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+    const { error } = await withTimeout(supa.from('mazareta_kv').upsert({ key, value, updated_at: new Date().toISOString() }), 8000);
     return !error;
   } catch(e){ return false; }
 }
 async function sList(prefix, shared){
   try{
-    const { data, error } = await supa.from('mazareta_kv').select('key').like('key', prefix+'%');
+    const { data, error } = await withTimeout(supa.from('mazareta_kv').select('key').like('key', prefix+'%'), 8000);
     if(error || !data) return [];
     return data.map(r=>r.key);
   } catch(e){ return []; }
