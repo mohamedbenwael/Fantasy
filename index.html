@@ -2514,13 +2514,23 @@ function suggestedLineupSwaps(){
 }
 
 function renderPredictions(){
-  const predSquad = predictedSquadPoints();
+  // التحقق هل الجولة بدأت وفي نقط لايف؟
+  const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
+  const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
+  const isLive = isStarted && hasLivePoints;
+
   const ownAvg = squadOwnershipAvg();
   const c = captain();
 
+  // نقاط التشكيلة (لايف أو متوقع)
+  const squadScore = isLive ? roundPoints() : predictedSquadPoints();
+  const bannerLabel = isLive ? 'نقاط تشكيلتك اللايف — الجولة ' + state.gwInfo.current : 'توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current;
+  const bannerScoreText = isLive ? squadScore + ' نقطة فعلية' : fmt(squadScore) + ' نقطة متوقعة';
+
   // ===== كارت ترشيح الكابتن =====
+  // ملوش لازمة نظهره لو الجولة بدأت والتشكيلة اتقفلت
   const suggCap = suggestedCaptain();
-  const captainCardHtml = suggCap ? ('' +
+  const captainCardHtml = (!isStarted && suggCap) ? ('' +
     '<div class="section-title"><h2>👑 كابتن الجولة المقترح من فريقك</h2></div>' +
     '<div style="margin:0 20px;">' +
       predRow(
@@ -2533,8 +2543,9 @@ function renderPredictions(){
   ) : '';
 
   // ===== كارت تبديلات التشكيل المقترحة (أساسي/احتياطي) =====
+  // ملوش لازمة برضه لو الديدلاين قفل خلاص
   const lineupSwaps = suggestedLineupSwaps();
-  const lineupSwapsHtml = lineupSwaps.length ? ('' +
+  const lineupSwapsHtml = (!isStarted && lineupSwaps.length) ? ('' +
     '<div class="section-title"><h2>🔄 تبديلات مقترحة في التشكيل</h2></div>' +
     '<div style="margin:0 20px;">' +
       lineupSwaps.map(s=>
@@ -2543,27 +2554,33 @@ function renderPredictions(){
     '</div>'
   ) : '';
 
-  const squadRowsArr = starters().slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a)).map(p=>{
+  // ===== قائمة لاعبي تشكيلتك (بالترتيب بناءً على النقط أو التوقع) =====
+  const squadRowsArr = starters().slice().sort((a,b) => {
+    const scoreA = isLive ? currentGwPoints(a) : predictedPoints(a);
+    const scoreB = isLive ? currentGwPoints(b) : predictedPoints(b);
+    return scoreB - scoreA;
+  }).map(p => {
     const isCap = p.id===state.captainId;
-    const pts = predictedPoints(p) * (isCap?2:1);
-    return predRow(p, fmt(pts) + ' نقطة' + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
+    const pts = isLive ? (currentGwPoints(p) * (isCap?2:1)) : (predictedPoints(p) * (isCap?2:1));
+    const ptsText = isLive ? pts + ' نقطة' : fmt(pts) + ' نقطة';
+    return predRow(p, ptsText + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
   });
 
-  // ===== مقترحات الانتقال الذكية (دمج نصيحة البيع + نصيحة الشراء) =====
+  // ===== مقترحات الانتقال الذكية (بنسيبها عشان الناس بتخطط للجولة الجاية) =====
   const sells = sellAdvice();
   const buys = buyAdvice();
   const ownedIds = new Set(state.mySquadIds.map(e=>e.id));
 
   const swapSuggestions = [];
   sells.forEach(s=>{
-    const budget = state.bank + s.p.price; // الرصيد المتاح لو باع اللاعب ده
+    const budget = state.bank + s.p.price;
     let bestBuy = null;
     buys.forEach(b=>{
-      if(b.p.pos !== s.p.pos) return;               // نفس المركز
-      if(b.p.price > budget) return;                 // ضمن الميزانية + سعر البيع
-      if(ownedIds.has(b.p.id)) return;                // مش موجود بالفعل في التشكيلة
-      if(b.p.club !== s.p.club && clubCountInSquad(b.p.club, s.p.id) >= MAX_PER_CLUB) return; // ما يكسرش حد أقصى لاعبي النادي
-      if(!bestBuy || b.pred > bestBuy.pred) bestBuy = b; // أفضل بديل (يسمح بتكرار نفس اللاعب لأكتر من حالة بيع)
+      if(b.p.pos !== s.p.pos) return;
+      if(b.p.price > budget) return;
+      if(ownedIds.has(b.p.id)) return;
+      if(b.p.club !== s.p.club && clubCountInSquad(b.p.club, s.p.id) >= MAX_PER_CLUB) return;
+      if(!bestBuy || b.pred > bestBuy.pred) bestBuy = b;
     });
     if(!bestBuy) return;
     const diff = bestBuy.pred - predictedPoints(s.p);
@@ -2609,18 +2626,23 @@ function renderPredictions(){
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
 
+  const noteText = isLive 
+    ? 'دي النقط الفعلية اللي تشكيلتك جابتها لحد دلوقتي في الجولة دي.' 
+    : 'التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.';
+
   return '' +
   '<div class="topbar"><button class="back" id="predBack">' + ICON_BACK + '</button><h1>التوقعات والنصايح</h1><div class="spacer"></div></div>' +
-  '<div class="pred-banner"><div class="lbl">توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current + '</div>' +
-    '<div class="big">' + fmt(predSquad) + ' نقطة</div>' +
+  '<div class="pred-banner"><div class="lbl">' + bannerLabel + '</div>' +
+    '<div class="big">' + bannerScoreText + '</div>' +
     '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
-  '<div class="pred-note">التوقعات دي تقديرية، مبنية على توقع فانتازي الرسمي + فورم موزون (الجولات الأقرب أهم) + معدل الأهداف والأسيستات المتوقع لكل لاعب (xG/xA) + صعوبة أقرب 3 مباريات + خطر الدوران — مش أرقام مضمونة.</div>' +
+  '<div class="pred-note">' + noteText + '</div>' +
 
-  '<div style="margin-top: 14px;">' + renderAiEvaluationCard() + '</div>' +
   captainCardHtml +
   lineupSwapsHtml +
+  
+  '<div style="margin-top: 14px;">' + (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') + '</div>' +
 
-  '<div class="section-title"><h2>توقع نقاط لاعبين تشكيلتك</h2></div>' +
+  '<div class="section-title"><h2>' + (isLive ? 'نقاط لاعبين تشكيلتك' : 'توقع نقاط لاعبين تشكيلتك') + '</h2></div>' +
   limitedListHtml(squadRowsArr, 'predSquadMore', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
