@@ -1464,11 +1464,15 @@ function topCleanSheetKeepers(limit){
   }).filter(Boolean).slice(0, limit||8);
 }
 
-// اللاعبون الأعلى توقعاً للمباراة القادمة (فورم + مباراة سهلة، من كل اللاعبين اللي بيلعبوا فعليًا)
+// اللاعبون الأعلى توقعاً للمباراة القادمة (فورم + مباراة سهلة، من كل اللاعبين المتاحين فعلاً)
 // بنشيل تأثير fdr مباراة الجولة الحالية من predictedPoints ونحطله بدالها fdr المباراة
-// القادمة اللي لسه ما اتلعبتش، عشان لاعب مباراته خلصت بالفعل ميفضلش ظاهر بتوقع قديم
+// القادمة اللي لسه ما اتلعبتش، عشان لاعب مباراته خلصت بالفعل ميفضلش ظاهر بتوقع قديم.
+// ملحوظة مهمة: بنفلتر بـ availabilityMultiplier بس (مش p.minutes>0) — لأن p.minutes هي
+// دقايق الموسم المتراكمة، وأول ما جولة تبدأ (أو أول جولة في الموسم) بتكون صفر لكل لاعبي
+// الفرق اللي لسه ما لعبتش، فلو فلترنا بيها هتستبعد كل اللاعبين إلا لاعبي الفريق الوحيد
+// اللي خلص ماتشه فعلاً — وده بالظبط اللي كان بيحصل.
 function inFormRanking(limit){
-  return state.players.filter(p=>availabilityMultiplier(p)>0 && p.minutes>0)
+  return state.players.filter(p=>availabilityMultiplier(p)>0)
     .map(p=>{
       const curFx = teamFixtureInfo(p.club);
       const curMul = curFx ? fdrMultiplier(curFx.fdr) : 1;
@@ -2724,9 +2728,9 @@ function renderPlayerProfile(){
 }
 
 // ===== PREDICTIONS & ADVICE =====
-function predRow(p, chipText, chipClass, metaExtra){
+function predRow(p, chipText, chipClass, metaExtra, showBonus){
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
-  const hasBonus = (p.provisionalBonus||0) > 0;
+  const hasBonus = showBonus!==false && (p.provisionalBonus||0) > 0;
   return '<div class="p-row"><div class="p-left" data-viewprofile="' + p.id + '">' +
     '<img class="p-mini jersey-photo" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
     '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
@@ -2934,7 +2938,7 @@ function renderPredictions(){
       '<div class="cs-prob">' + x.prob + '%</div></div>'
   );
 
-  const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة') );
+  const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة', null, null, false) );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
   const nextGwNum = (state.gwInfo.current||1) + 1;
 
