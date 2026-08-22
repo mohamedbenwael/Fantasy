@@ -37,6 +37,8 @@
     --primary:#D81B60; --primary-soft:#F48FB1; --primary-deep:#880E4F;
     --gold:#E8C468;
     --coral:#FF4D6D;
+    --easy-green:#3DD68C;
+    --mid-grey:#AFA9B8;
     --muted:rgba(235,238,244,0.52);
     --muted2:rgba(235,238,244,0.34);
     --text:#F3F5F8;
@@ -481,10 +483,14 @@
   .pp-fixcard{ flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:10px 6px; text-align:center; }
   .pp-fixcard .opp{ font-family:'Cairo'; font-weight:800; font-size:11.5px; color:var(--text); }
   .pp-fixcard .venue{ font-size:9px; color:var(--muted); margin-top:2px; }
-  .pp-fixcard .fdr{ margin-top:6px; display:inline-block; min-width:20px; padding:2px 6px; border-radius:6px; font-size:10.5px; font-weight:800; }
-  .pp-fixcard .fdr.easy{ background:rgba(216,27,96,0.16); color:var(--primary-soft); }
-  .pp-fixcard .fdr.mid{ background:rgba(232,196,104,0.18); color:var(--gold); }
-  .pp-fixcard .fdr.hard{ background:rgba(255,77,109,0.16); color:var(--coral); }
+  .pp-fixcard{ position:relative; overflow:hidden; border-top:2.5px solid transparent; }
+  .pp-fixcard.easy{ border-top-color:var(--easy-green); }
+  .pp-fixcard.mid{ border-top-color:var(--mid-grey); }
+  .pp-fixcard.hard{ border-top-color:var(--coral); }
+  .pp-fixcard .fdr{ margin-top:6px; display:inline-block; min-width:20px; padding:3px 8px; border-radius:7px; font-size:11px; font-weight:900; font-family:'Cairo'; }
+  .pp-fixcard .fdr.easy{ background:rgba(61,214,140,0.16); color:var(--easy-green); }
+  .pp-fixcard .fdr.mid{ background:rgba(175,169,184,0.16); color:var(--mid-grey); }
+  .pp-fixcard .fdr.hard{ background:rgba(255,77,109,0.18); color:var(--coral); }
   .price-tag{ display:inline-flex; align-items:center; gap:5px; margin-top:10px; background:rgba(0,0,0,0.25); padding:6px 12px; border-radius:20px; }
   .price-tag .amt{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
   .price-tag .chg{ font-size:10.5px; font-weight:800; display:flex; align-items:center; gap:2px; }
@@ -500,10 +506,13 @@
   .fix-row{ margin:12px 20px 0; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; }
   .fix-row .k{ font-size:10.5px; color:var(--muted); }
   .fix-row .v{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
-  .form-bars{ display:flex; align-items:flex-end; gap:8px; height:54px; margin-top:10px; }
-  .form-bars .fb{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:5px; }
-  .form-bars .bar{ width:100%; border-radius:5px 5px 2px 2px; background:linear-gradient(180deg,var(--primary-soft),var(--primary-deep)); }
-  .form-bars .lbl{ font-size:8.5px; color:var(--muted2); }
+  .form-card{ margin:0 20px; background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:16px 14px 12px; }
+  .form-bars{ display:flex; align-items:flex-end; gap:10px; }
+  .form-bars .fb{ flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .form-bars .val{ font-family:'Cairo'; font-weight:900; font-size:13.5px; color:var(--text); }
+  .form-bars .bar-wrap{ position:relative; width:62%; height:74px; border-radius:8px; background:rgba(255,255,255,0.06); overflow:hidden; display:flex; align-items:flex-end; }
+  .form-bars .bar{ width:100%; border-radius:6px 6px 0 0; min-height:6px; background:linear-gradient(180deg,var(--primary-soft),var(--primary-deep)); }
+  .form-bars .lbl{ font-size:10px; color:var(--muted2); font-weight:700; }
   .hist-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:10px 14px; border-radius:12px; }
   .hist-row .g{ font-size:11px; color:var(--muted); font-weight:700; }
   .hist-row .p{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--primary-soft); }
@@ -2982,7 +2991,7 @@ function renderPlayerProfile(){
   const lookahead = (state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || [];
   const fixturesHtml = lookahead.length ? lookahead.map(f=>{
     const fdrCls = f.fdr<=2 ? 'easy' : (f.fdr>=4 ? 'hard' : 'mid');
-    return '<div class="pp-fixcard"><div class="opp">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+    return '<div class="pp-fixcard ' + fdrCls + '"><div class="opp">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
       '<div class="venue">' + (f.isHome?'أرض':'خارج') + '</div>' +
       '<div class="fdr ' + fdrCls + '">' + f.fdr + '</div></div>';
   }).join('') : '<div class="hint">لا توجد بيانات مباريات قادمة حاليًا</div>';
@@ -3006,9 +3015,9 @@ function renderPlayerProfile(){
   '<div class="section-title"><h2>جدول المباريات</h2></div>' +
   '<div class="pp-fixtures">' + fixturesHtml + '</div>' +
   '<div class="section-title"><h2>الفورم (آخر جولات)</h2></div>' +
-  '<div style="margin:0 20px;"><div class="form-bars">' + last4.map(h=>{
+  '<div class="form-card"><div class="form-bars">' + last4.map(h=>{
     const hpct = Math.max(8,(h.pts/maxPts)*100);
-    return '<div class="fb"><div style="font-size:9.5px;color:var(--text);font-weight:800;">'+h.pts+'</div><div class="bar" style="height:'+hpct+'%;"></div><div class="lbl">ج'+h.gw+'</div></div>';
+    return '<div class="fb"><div class="val">'+h.pts+'</div><div class="bar-wrap"><div class="bar" style="height:'+hpct+'%;"></div></div><div class="lbl">جولة '+h.gw+'</div></div>';
   }).join('') + '</div></div>' +
   '<div class="section-title"><h2>نقاط كل جولة</h2></div>' +
   '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + hist.slice().reverse().map(h=>
@@ -3035,7 +3044,7 @@ function renderMiniFixtures(p) {
   if (!lookahead.length) return '<div class="hint" style="font-size:8px;">لا توجد مباريات</div>';
   const fixCards = lookahead.map(f => {
     const fdrCls = f.fdr <= 2 ? 'easy' : (f.fdr >= 4 ? 'hard' : 'mid');
-    return '<div class="pp-fixcard" style="padding:4px 2px; border-radius:6px; min-width:30px;"><div class="opp" style="font-size:9px;">' + (CLUB_TAG[f.oppKey]||'؟') + '</div><div class="fdr ' + fdrCls + '" style="font-size:8px; padding:1px; margin-top:2px;">' + f.fdr + '</div></div>';
+    return '<div class="pp-fixcard ' + fdrCls + '" style="padding:4px 2px; border-radius:6px; min-width:30px;"><div class="opp" style="font-size:9px;">' + (CLUB_TAG[f.oppKey]||'؟') + '</div><div class="fdr ' + fdrCls + '" style="font-size:8px; padding:1px; margin-top:2px;">' + f.fdr + '</div></div>';
   }).join('');
   return '<div style="display:flex; gap:4px; margin-top:6px; justify-content:center;">' + fixCards + '</div>';
 }
