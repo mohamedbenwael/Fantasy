@@ -829,6 +829,12 @@ async function sSet(key, value, shared){
     return !error;
   } catch(e){ return false; }
 }
+async function sDelete(key){
+  try{
+    const { error } = await withTimeout(supa.from('mazareta_kv').delete().eq('key', key), 8000);
+    return !error;
+  } catch(e){ return false; }
+}
 async function sList(prefix, shared){
   try{
     const { data, error } = await withTimeout(supa.from('mazareta_kv').select('key').like('key', prefix+'%'), 8000);
@@ -1406,6 +1412,8 @@ let state = {
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
+  // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
+  draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
   realLeagues: [], overallRank: 0, eventRank: null,
   leagueStandingsCache:{}, viewMemberId:null, viewMemberSquad:null,
   canInstall:false, showInstallGuide:false,
@@ -1461,11 +1469,41 @@ function getPlayerMatchStatus(p) {
 }
 function lastForm(p, n){ return (p.history||[]).slice(-n); }
 
-function squad(){ return state.mySquadIds.map(e=>{ const p=findPlayer(e.id); return p?Object.assign({},p,{slot:e.slot}):null; }).filter(Boolean); }
-function starters(){ return squad().filter(p=>p.slot==='start'); }
-function benched(){ return squad().filter(p=>p.slot==='bench'); }
+function squad(ids){ const list = ids || state.mySquadIds; return list.map(e=>{ const p=findPlayer(e.id); return p?Object.assign({},p,{slot:e.slot}):null; }).filter(Boolean); }
+function starters(ids){ return squad(ids).filter(p=>p.slot==='start'); }
+function benched(ids){ return squad(ids).filter(p=>p.slot==='bench'); }
 function captain(){ return findPlayer(state.captainId); }
-function pool(){ const owned=new Set(state.mySquadIds.map(e=>e.id)); return state.players.filter(p=>!owned.has(p.id)); }
+function pool(ids){ const list = ids || state.mySquadIds; const owned=new Set(list.map(e=>e.id)); return state.players.filter(p=>!owned.has(p.id)); }
+
+// ===== قفل الجولة: لو الديدلاين فات بقى فيه مباريات شغالة/هتشتغل، والتشكيلة الرسمية اتقفلت =====
+// أي تعديل (كابتن / تبديل احتياطي / انتقال) في الحالة دي مينفعش يأثر على الجولة الشغالة —
+// فبيتسجل كـ"مسودة" للجولة الجاية وبتتطبق تلقائيًا لما الجولة دي توصل.
+function isGwLocked(){
+  return !!(state.gwInfo && new Date(state.gwInfo.deadline).getTime() < Date.now());
+}
+function ensureDraftLoaded(){
+  if(!state.draftSquadIds){
+    state.draftSquadIds = state.mySquadIds.map(e=>Object.assign({}, e));
+    state.draftCaptainId = state.captainId;
+    state.draftBank = state.bank;
+    state.draftFreeTransfers = state.freeTransfers;
+    state.draftForGw = (state.gwInfo && state.gwInfo.current || 1) + 1;
+  }
+}
+function activeIds(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftSquadIds; } return state.mySquadIds; }
+function activeCaptainId(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftCaptainId; } return state.captainId; }
+function activeBank(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftBank; } return state.bank; }
+function activeFreeTransfers(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftFreeTransfers; } return state.freeTransfers; }
+async function saveActive(){
+  if(isGwLocked()){
+    await sSet('mazareta_squad_next:'+state.deviceId, JSON.stringify({
+      draftForGw: state.draftForGw, mySquadIds: state.draftSquadIds, captainId: state.draftCaptainId,
+      bank: state.draftBank, freeTransfers: state.draftFreeTransfers
+    }), false);
+  } else {
+    await savePersonal();
+  }
+}
 
 // ===== قواعد الفانتازي الرسمية =====
 const MAX_PER_CLUB = 3; // أقصى عدد لاعبين من نفس النادي في التشكيلة كلها (15 لاعب)
@@ -1474,8 +1512,9 @@ const FORMATION_RULES = { GK:{min:1,max:1}, DEF:{min:3,max:5}, MID:{min:2,max:5}
 // حدود كل مركز في الفريق الكامل (15 لاعب: أساسي + احتياطي): بالظبط 2 حراس، 5 مدافعين، 5 وسط، 3 مهاجمين
 const SQUAD_POS_LIMITS = { GK:2, DEF:5, MID:5, FWD:3 };
 // عدد لاعبين مركز معين في الفريق كله حاليًا (أساسي + احتياطي)، مع إمكانية استبعاد لاعب معين (زي اللي هيتباع)
-function squadPosCount(pos, excludeId){
-  return state.mySquadIds.filter(e=>{
+function squadPosCount(pos, excludeId, ids){
+  const list = ids || state.mySquadIds;
+  return list.filter(e=>{
     if(excludeId != null && e.id === excludeId) return false;
     const p = findPlayer(e.id);
     return p && p.pos === pos;
@@ -1483,8 +1522,9 @@ function squadPosCount(pos, excludeId){
 }
 
 // عدد لاعبين نادي معين في تشكيلتي حاليًا (مع إمكانية استبعاد لاعب معين، زي اللي هيتباع)
-function clubCountInSquad(club, excludeId){
-  return state.mySquadIds.filter(e=>{
+function clubCountInSquad(club, excludeId, ids){
+  const list = ids || state.mySquadIds;
+  return list.filter(e=>{
     if(excludeId!=null && e.id===excludeId) return false;
     const p = findPlayer(e.id);
     return p && p.club === club;
@@ -1492,10 +1532,10 @@ function clubCountInSquad(club, excludeId){
 }
 
 // هل التبديل بين لاعب أساسي (outPos) ولاعب احتياطي (inPos) هيحافظ على تشكيلة قانونية؟
-function formationValidAfterSwap(outPos, inPos){
+function formationValidAfterSwap(outPos, inPos, ids){
   if(outPos === inPos) return true;
   const counts = { GK:0, DEF:0, MID:0, FWD:0 };
-  starters().forEach(p=>{ counts[p.pos] = (counts[p.pos]||0) + 1; });
+  starters(ids).forEach(p=>{ counts[p.pos] = (counts[p.pos]||0) + 1; });
   counts[outPos] -= 1;
   counts[inPos] = (counts[inPos]||0) + 1;
   return Object.keys(FORMATION_RULES).every(pos=>{
@@ -2010,7 +2050,7 @@ function roundPoints(){
   const extra = isCapStarting ? currentGwPoints(c) : 0;
   return base + extra;
 }
-function squadValue(){ return squad().reduce((s,p)=>s+p.price,0); }
+function squadValue(ids){ return squad(ids).reduce((s,p)=>s+p.price,0); }
 function seasonTotal(){ return state.seasonBaseline + roundPoints(); }
 
 function setFlash(type, text){
@@ -2091,6 +2131,34 @@ async function boot(){
   }
 }
 
+// لو فيه مسودة تعديلات محفوظة (كابتن/تبديل/انتقال اتعمل وقت الجولة كانت شغالة):
+// - لو الجولة اللي كانت المسودة مستنياها وصلت (أو فاتت)، نطبقها كتشكيلة رسمية دلوقتي ونمسحها.
+// - غير كده (لسه بدري)، نسيبها محمّلة في state.draft* عشان المستخدم يكمّل يعدّل فيها.
+async function syncDraftForGw(gw){
+  try{
+    const raw = await sGet('mazareta_squad_next:'+state.deviceId, false);
+    if(!raw) return;
+    const d = JSON.parse(raw);
+    if(!d || !d.draftForGw) return;
+    if(d.draftForGw <= gw){
+      state.mySquadIds = d.mySquadIds;
+      state.captainId = d.captainId;
+      if(typeof d.bank === 'number') state.bank = d.bank;
+      if(d.freeTransfers != null) state.freeTransfers = d.freeTransfers;
+      await savePersonal();
+      await sDelete('mazareta_squad_next:'+state.deviceId);
+      state.draftSquadIds = null; state.draftCaptainId = null; state.draftBank = null;
+      state.draftFreeTransfers = null; state.draftForGw = null;
+    } else {
+      state.draftSquadIds = d.mySquadIds;
+      state.draftCaptainId = d.captainId;
+      state.draftBank = d.bank;
+      state.draftFreeTransfers = d.freeTransfers;
+      state.draftForGw = d.draftForGw;
+    }
+  }catch(e){}
+}
+
 async function loadSquadOrDraft(){
   const gw = state.gwInfo && state.gwInfo.current;
   const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
@@ -2111,6 +2179,7 @@ async function loadSquadOrDraft(){
 
       // حفظ التشكيلة الرسمية في التخزين المحلي عشان نكتب فوق التشكيلة التجريبية
       await savePersonal();
+      await syncDraftForGw(gw);
       return;
     }
   }catch(e){
@@ -2130,6 +2199,7 @@ async function loadSquadOrDraft(){
         state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
 
         state.seasonBaseline = saved.seasonBaseline || 0;
+        await syncDraftForGw(gw);
         return;
       }
     }
@@ -2142,6 +2212,7 @@ async function loadSquadOrDraft(){
   state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
   state.seasonBaseline = 0;
   await savePersonal();
+  await syncDraftForGw(gw);
 }
 
 async function refreshLiveData(){
@@ -2553,7 +2624,7 @@ function renderJersey(p, opts){
   let cls = 'jersey jersey-photo';
   if(opts.selected) cls += ' selected';
 
-  const isCap = p.id === state.captainId;
+  const isCap = p.id === (opts.captainId !== undefined ? opts.captainId : state.captainId);
   const showPts = p.slot === 'start';
   const mode = opts.mode || 'view';
   const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
@@ -2595,13 +2666,18 @@ function renderPlaceholder(pos, slot){
   '</div>';
 }
 function renderPitchCard(interactive){
-  const gkAll  = starters().filter(p=>p.pos==='GK');
-  const defAll = starters().filter(p=>p.pos==='DEF');
-  const midAll = starters().filter(p=>p.pos==='MID');
-  const fwdAll = starters().filter(p=>p.pos==='FWD');
-  const benchAll = benched();
+  // في وضع التعديل (تشكيلتي): لو الجولة شغالة/مقفولة، بنشتغل على مسودة الجولة الجاية
+  // مش على التشكيلة الحقيقية المقفولة؛ غير كده (أو في وضع العرض بس) بنستخدم التشكيلة الحقيقية
+  const ids = interactive ? activeIds() : state.mySquadIds;
+  const capId = interactive ? activeCaptainId() : state.captainId;
 
-  const opts = { mode: interactive ? state.teamMode : 'view' };
+  const gkAll  = starters(ids).filter(p=>p.pos==='GK');
+  const defAll = starters(ids).filter(p=>p.pos==='DEF');
+  const midAll = starters(ids).filter(p=>p.pos==='MID');
+  const fwdAll = starters(ids).filter(p=>p.pos==='FWD');
+  const benchAll = benched(ids);
+
+  const opts = { mode: interactive ? state.teamMode : 'view', captainId: capId };
 
   // دالة مساعدة: تملأ صف بلاعبين حقيقيين + placeholders لو الصف ناقص
   function rowHtml(players, needed, pos){
@@ -2679,6 +2755,7 @@ function renderPitchCard(interactive){
 
 // ===== TEAM TAB =====
 function renderTeam(){
+  const locked = isGwLocked();
   const modeHint = state.teamMode==='captain'
     ? 'اضغط على أي لاعب أساسي لتعيينه كابتنًا'
     : (state.selectedBenchId
@@ -2687,9 +2764,15 @@ function renderTeam(){
   const flash = state.flash
     ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
     : '';
+  const lockBanner = locked
+    ? '<div class="hint" style="margin:0 20px 10px;background:rgba(232,196,104,0.12);border:1px solid rgba(232,196,104,0.32);border-radius:12px;padding:10px 14px;color:var(--gold);">'
+      + '🔒 الجولة ' + (state.gwInfo.current||'') + ' شغالة دلوقتي، فالتشكيلة اللي بتشوفها فوق مقفولة زي ما هي. '
+      + 'أي تعديل هتعمله هنا (كابتن أو تبديل احتياطي) هيتسجل تلقائيًا كتشكيلة الجولة ' + ((state.gwInfo.current||1)+1) + ' وهيتطبق أول ما الجولة الجاية دي تبدأ.'
+      + '</div>'
+    : '';
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>' +
-  flash +
+  flash + lockBanner +
   '<div class="segment">' +
     '<button data-mode="captain" class="' + (state.teamMode==='captain'?'on':'') + '">تعيين الكابتن</button>' +
     '<button data-mode="bench" class="' + (state.teamMode==='bench'?'on':'') + '">تبديل الاحتياطي</button>' +
@@ -2701,6 +2784,8 @@ function renderTeam(){
 // ===== TRANSFERS TAB =====
 // --- سوق الانتقالات: مستخرجة في دالة مستقلة عشان يمكن تحديثها لوحدها ---
 function renderTransferMarket(){
+  const ids = activeIds();
+  const bank = activeBank();
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
   // لو فيه لاعب مختار للبيع نعرض نفس مركزه فقط، أو لو فيه مركز فاضي محدد من الملعب نعرض مركزه فقط، غير كده نعرض الكل
   const positions = outPlayer ? [outPlayer.pos] : (state.transferAddPos ? [state.transferAddPos] : ['GK', 'DEF', 'MID', 'FWD']);
@@ -2710,7 +2795,7 @@ function renderTransferMarket(){
 
   return positions.map(pos => {
     // القائمة الحقيقية فيها مئات اللاعبين — بنعرض أفضل 40 بالنسبة للنقاط المتوقعة عشان القائمة تفضل عملية
-    let candidates = pool()
+    let candidates = pool(ids)
       .filter(p => p.pos === pos)
       .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm))
       .filter(p => state.transferFilterClub === 'all' || p.club === state.transferFilterClub)
@@ -2721,10 +2806,10 @@ function renderTransferMarket(){
     if(!candidates.length) return '';
 
     const rows = candidates.map(p => {
-      const budget = state.bank + (outPlayer ? outPlayer.price : 0);
+      const budget = bank + (outPlayer ? outPlayer.price : 0);
       const clubLimitHit = outPlayer
-        ? (p.club !== outPlayer.club && clubCountInSquad(p.club, outPlayer.id) >= MAX_PER_CLUB)
-        : (clubCountInSquad(p.club) >= MAX_PER_CLUB);
+        ? (p.club !== outPlayer.club && clubCountInSquad(p.club, outPlayer.id, ids) >= MAX_PER_CLUB)
+        : (clubCountInSquad(p.club, null, ids) >= MAX_PER_CLUB);
       const disabled = outPlayer ? (outPlayer.pos !== pos || (budget - p.price) < 0 || clubLimitHit)
         : (state.transferAddPos ? (state.transferAddPos !== pos || (budget - p.price) < 0 || clubLimitHit) : true);
       return '<div class="p-row">' +
@@ -2743,13 +2828,22 @@ function renderTransferMarket(){
 }
 
 function renderTransfers(){
+  const locked = isGwLocked();
+  const ids = activeIds();
+  const bank = activeBank();
+  const freeT = activeFreeTransfers();
   const flash = state.flash
     ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
+    : '';
+  const lockBanner = locked
+    ? '<div class="hint" style="margin:0 20px 10px;background:rgba(232,196,104,0.12);border:1px solid rgba(232,196,104,0.32);border-radius:12px;padding:10px 14px;color:var(--gold);">'
+      + '🔒 الجولة ' + (state.gwInfo.current||'') + ' شغالة دلوقتي. أي انتقال هتعمله هنا هيتسجل لجولة ' + ((state.gwInfo.current||1)+1) + ' ومش هيأثر على تشكيلتك المقفولة في الجولة الحالية.'
+      + '</div>'
     : '';
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
 
   // --- فريقك: مرتبة بالنقاط المتوقعة أولاً ---
-  const squadRows = squad().slice()
+  const squadRows = squad(ids).slice()
     .sort((a, b) => predictedPoints(b) - predictedPoints(a) || totalPoints(b) - totalPoints(a))
     .map(p => {
       const isOut = state.transferOutId === p.id;
@@ -2778,11 +2872,11 @@ function renderTransfers(){
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
   '<div class="stat-strip">' +
-    '<div class="stat-pill"><div class="v">£' + fmt(state.bank) + 'm</div><div class="k">الرصيد المتاح</div></div>' +
-    '<div class="stat-pill"><div class="v">' + state.freeTransfers + '</div><div class="k">تبديلات مجانية</div></div>' +
-    '<div class="stat-pill"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
+    '<div class="stat-pill"><div class="v">£' + fmt(bank) + 'm</div><div class="k">الرصيد المتاح</div></div>' +
+    '<div class="stat-pill"><div class="v">' + freeT + '</div><div class="k">تبديلات مجانية</div></div>' +
+    '<div class="stat-pill"><div class="v">£' + fmt(squadValue(ids)) + 'm</div><div class="k">قيمة الفريق</div></div>' +
   '</div>' +
-  flash +
+  flash + lockBanner +
   '<div class="section-title"><h2>فريقك</h2></div>' +
   '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
   '<div class="section-title" style="margin-bottom:8px;"><h2>سوق الانتقالات</h2></div>' +
@@ -3462,49 +3556,59 @@ function tryBuyPlayer(inId){
   const inPlayer = findPlayer(inId);
   if(!inPlayer) return;
 
-  const outEntry = state.mySquadIds.find(e=>e.id===state.transferOutId);
+  const locked = isGwLocked();
+  const ids = activeIds();
+  const bank = activeBank();
+  const freeT = activeFreeTransfers();
+
+  const outEntry = ids.find(e=>e.id===state.transferOutId);
   const outPlayer = outEntry ? findPlayer(outEntry.id) : null;
 
   if(outPlayer){
     // ① استبدال لاعب موجود في الفريق بلاعب تاني في نفس المركز
     if(outPlayer.pos !== inPlayer.pos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
-    const newBank = state.bank + outPlayer.price - inPlayer.price;
+    const newBank = bank + outPlayer.price - inPlayer.price;
     if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لإتمام هذا الانتقال'); return; }
-    if(inPlayer.club !== outPlayer.club && clubCountInSquad(inPlayer.club, outPlayer.id) >= MAX_PER_CLUB){
+    if(inPlayer.club !== outPlayer.club && clubCountInSquad(inPlayer.club, outPlayer.id, ids) >= MAX_PER_CLUB){
       setFlash('err','لا يمكن ضم أكثر من ' + MAX_PER_CLUB + ' لاعبين من نفس النادي'); return;
     }
 
     outEntry.id = inPlayer.id; // keep the slot, swap identity
-    state.bank = newBank;
-    if(state.captainId === outPlayer.id) state.captainId = inPlayer.id;
-    if(state.freeTransfers > 0) state.freeTransfers -= 1;
+    const capId = locked ? state.draftCaptainId : state.captainId;
+    const newCapId = (capId === outPlayer.id) ? inPlayer.id : capId;
+    const newFreeT = freeT > 0 ? freeT - 1 : freeT;
+    if(locked){
+      state.draftBank = newBank; state.draftCaptainId = newCapId; state.draftFreeTransfers = newFreeT;
+    } else {
+      state.bank = newBank; state.captainId = newCapId; state.freeTransfers = newFreeT;
+    }
     state.transferOutId = null;
-    savePersonal();
+    saveActive();
 
-    setFlash('ok','تم تنفيذ الانتقال بنجاح' + (state.freeTransfers===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
+    setFlash('ok','تم تنفيذ الانتقال بنجاح' + (newFreeT===0 ? ' — التبديل التالي سيخصم 4 نقاط' : ''));
     return;
   }
 
   if(state.transferAddPos){
     // ② إضافة لاعب جديد لمكان فارغ في التشكيلة (مش استبدال — مفيش لاعب يتباع)
     if(inPlayer.pos !== state.transferAddPos){ setFlash('err','اختر لاعبًا في نفس المركز'); return; }
-    if(state.mySquadIds.some(e=>e.id===inPlayer.id)){ setFlash('err','اللاعب موجود بالفعل في فريقك'); return; }
-    if(state.mySquadIds.length >= 15){ setFlash('err','التشكيلة مكتملة بالفعل (15 لاعب)'); return; }
-    if(squadPosCount(inPlayer.pos) >= SQUAD_POS_LIMITS[inPlayer.pos]){
+    if(ids.some(e=>e.id===inPlayer.id)){ setFlash('err','اللاعب موجود بالفعل في فريقك'); return; }
+    if(ids.length >= 15){ setFlash('err','التشكيلة مكتملة بالفعل (15 لاعب)'); return; }
+    if(squadPosCount(inPlayer.pos, null, ids) >= SQUAD_POS_LIMITS[inPlayer.pos]){
       const posLabelMap = {GK:'حراس', DEF:'مدافعين', MID:'وسط', FWD:'مهاجمين'};
       setFlash('err','لا يمكن ضم أكثر من ' + SQUAD_POS_LIMITS[inPlayer.pos] + ' ' + (posLabelMap[inPlayer.pos] || inPlayer.pos) + ' في الفريق'); return;
     }
-    const newBank = state.bank - inPlayer.price;
+    const newBank = bank - inPlayer.price;
     if(newBank < 0){ setFlash('err','الرصيد غير كافٍ لشراء هذا اللاعب'); return; }
-    if(clubCountInSquad(inPlayer.club) >= MAX_PER_CLUB){
+    if(clubCountInSquad(inPlayer.club, null, ids) >= MAX_PER_CLUB){
       setFlash('err','لا يمكن ضم أكثر من ' + MAX_PER_CLUB + ' لاعبين من نفس النادي'); return;
     }
 
-    state.mySquadIds.push({ id: inPlayer.id, slot: state.transferAddSlot || 'start' });
-    state.bank = newBank;
+    ids.push({ id: inPlayer.id, slot: state.transferAddSlot || 'start' });
+    if(locked){ state.draftBank = newBank; } else { state.bank = newBank; }
     state.transferAddPos = null;
     state.transferAddSlot = null;
-    savePersonal();
+    saveActive();
 
     setFlash('ok','تمت إضافة اللاعب لتشكيلتك بنجاح');
     return;
@@ -3635,24 +3739,28 @@ function bindBody(){
       // في وضع اختيار الكابتن أو تبديل الاحتياطي: النقرة على القميص تنفذ الأكشن مباشرة
       // وتوقف الحدث عشان ميفتحش بروفايل اللاعب كمان
       e.stopPropagation();
-      const entry = state.mySquadIds.find(e=>e.id===id);
+      const ids = activeIds(); // التشكيلة الحقيقية عادةً، أو مسودة الجولة الجاية لو الجولة الحالية شغالة
+      const entry = ids.find(e=>e.id===id);
       if(!entry) return;
       if(mode==='captain'){
-        if(entry.slot==='start'){ state.captainId = id; savePersonal(); renderBody(); }
+        if(entry.slot==='start'){
+          if(isGwLocked()){ state.draftCaptainId = id; } else { state.captainId = id; }
+          saveActive(); renderBody();
+        }
       } else if(mode==='bench'){
         if(entry.slot==='bench'){
           state.selectedBenchId = (state.selectedBenchId===id) ? null : id;
           renderBody();
         } else if(entry.slot==='start' && state.selectedBenchId){
-          const benchEntry = state.mySquadIds.find(e=>e.id===state.selectedBenchId);
+          const benchEntry = ids.find(e=>e.id===state.selectedBenchId);
           const benchP = findPlayer(benchEntry.id);
           const startP = findPlayer(id);
           // التبديل مسموح حتى لو المركز مختلف، طالما التشكيلة الناتجة لسه قانونية
           // (حارس واحد، 3-5 مدافعين، 2-5 وسط، 1-3 مهاجمين)
-          if(formationValidAfterSwap(startP.pos, benchP.pos)){
+          if(formationValidAfterSwap(startP.pos, benchP.pos, ids)){
             benchEntry.slot = 'start'; entry.slot = 'bench';
             state.selectedBenchId = null;
-            savePersonal();
+            saveActive();
             renderBody();
           } else {
             setFlash('err','هذا التبديل سيخالف قواعد التشكيلة (حارس واحد، 3-5 مدافعين، 2-5 لاعبي وسط، 1-3 مهاجمين)');
