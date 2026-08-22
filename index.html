@@ -3277,20 +3277,31 @@ function renderPredictions(){
 function renderPrices(){
   const risers = priceRisers(15);
   const fallers = priceFallers(15);
+  const inList = topTransfersIn(15);
+  const outList = topTransfersOut(15);
   const hasData = state.totalManagers > 0 && (risers.length || fallers.length);
+  const hasTransferData = inList.length || outList.length;
 
   const riserRows = risers.map(x=> predRow(x.p, '+' + fmtCount(x.net), null, x.p.ownership + '% ملكية') );
   const fallerRows = fallers.map(x=> predRow(x.p, fmtCount(x.net), 'warn', x.p.ownership + '% ملكية') );
+  const inRows = inList.map(p=> predRow(p, fmtCount(p.transfersInEvent||0), null, p.ownership + '% ملكية') );
+  const outRows = outList.map(p=> predRow(p, fmtCount(p.transfersOutEvent||0), 'warn', p.ownership + '% ملكية') );
 
   return '' +
   '<div class="topbar"><button class="back" id="pricesBack">' + ICON_BACK + '</button><h1>توقع تغيير الأسعار</h1><div class="spacer"></div></div>' +
   '<div class="pred-note">مؤشر تقديري غير رسمي من Fantasy Premier League، مبني على صافي عمليات الشراء والبيع للاعب منذ بداية الجولة الحالية مقارنةً بعدد مالكيه. عادةً ما يتم تحديث الأسعار الفعلية في تحديث منتصف الليل بتوقيت بريطانيا.</div>' +
+  (hasTransferData ? ('' +
+    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#1DDB6A;">' + ICON_SWAP_ALT + 'أكثر اللاعبين شراءً</h2></div>' +
+    (inRows.length ? limitedListHtml(inRows, 'transfersInMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">لا توجد بيانات كافية حالياً</div>') +
+    '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#FF5C5C;">' + ICON_SWAP_ALT + 'أكثر اللاعبين بيعاً</h2></div>' +
+    (outRows.length ? limitedListHtml(outRows, 'transfersOutMore', 'league-list', 'gap:8px; margin-bottom:14px;') : '<div class="hint" style="margin:0 20px;">لا توجد بيانات كافية حالياً</div>')
+  ) : '') +
   (hasData ? ('' +
     '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#1DDB6A;">' + ICON_UP + 'متوقع ترتفع أسعارهم</h2></div>' +
     (riserRows.length ? limitedListHtml(riserRows, 'priceRiseMore', 'league-list', 'gap:8px;') : '<div class="hint" style="margin:0 20px;">لا يوجد لاعبون قريبون من ارتفاع السعر حالياً</div>') +
     '<div class="section-title"><h2 style="display:flex;align-items:center;gap:6px;color:#FF5C5C;">' + ICON_DOWN + 'متوقع تنزل أسعارهم</h2></div>' +
     (fallerRows.length ? limitedListHtml(fallerRows, 'priceFallMore', 'league-list', 'gap:8px; margin-bottom:14px;') : '<div class="hint" style="margin:0 20px;">لا يوجد لاعبون قريبون من انخفاض السعر حالياً</div>')
-  ) : '<div class="hint" style="margin:20px;">بيانات الانتقالات غير متاحة حالياً — يرجى تحديث الصفحة بعد قليل</div>');
+  ) : (hasTransferData ? '' : '<div class="hint" style="margin:20px;">بيانات الانتقالات غير متاحة حالياً — يرجى تحديث الصفحة بعد قليل</div>'));
 }
 
 // ===== المساعدة والدعم =====
