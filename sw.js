@@ -1,4 +1,5 @@
-// Service Worker بسيط — بيخلي الموقع "قابل للتثبيت" (شرط أساسي لتغليفه كتطبيق أندرويد)
+// Service Worker — بيخلي الموقع "قابل للتثبيت" (شرط أساسي لتغليفه كتطبيق أندرويد)
+// + بيستقبل إشعارات Push حقيقية حتى لو التطبيق مقفول
 const CACHE_NAME = 'mazareta-fpl-v1';
 const CORE_ASSETS = ['/'];
 
@@ -33,5 +34,57 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+// ===== إشعارات Push — استقبال حدث جديد من السيرفر وعرضه كإشعار نظام حقيقي =====
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { title: 'المزاريطة فانتازي', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'المزاريطة فانتازي';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icon-192.png',
+    badge: payload.badge || '/icon-192.png',
+    dir: 'rtl',
+    lang: 'ar',
+    tag: payload.tag || undefined,       // لو فيه tag، الإشعارات الجديدة بتستبدل القديمة بدل ما تتكوم
+    renotify: !!payload.tag,
+    data: { url: payload.url || '/' },   // نستخدمه لما اليوزر يدوس على الإشعار
+    vibrate: payload.vibrate || [80, 40, 80],
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ===== لما اليوزر يدوس على الإشعار — نفتحله التطبيق (أو نركز على تاب مفتوح أصلاً) =====
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
+});
+
+// ===== لو الاشتراك انتهت صلاحيته (نادر) — نحاول نجدده تلقائيًا =====
+// التطبيق (index.html) هيحدث النسخة الجديدة عند أول فتح بعد كده عن طريق initPushSupport()
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe(event.oldSubscription ? event.oldSubscription.options : { userVisibleOnly: true })
+      .catch(() => {})
   );
 });
