@@ -2778,7 +2778,6 @@ function renderPitchCard(interactive){
 
 // ===== TEAM TAB =====
 function renderTeam(){
-  const locked = isGwLocked();
   const modeHint = state.teamMode==='captain'
     ? 'اضغط على أي لاعب أساسي لتعيينه كابتنًا'
     : (state.selectedBenchId
@@ -2787,15 +2786,9 @@ function renderTeam(){
   const flash = state.flash
     ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
     : '';
-  const lockBanner = locked
-    ? '<div class="hint" style="margin:0 20px 10px;background:rgba(232,196,104,0.12);border:1px solid rgba(232,196,104,0.32);border-radius:12px;padding:10px 14px;color:var(--gold);">'
-      + '🔒 الجولة ' + (state.gwInfo.current||'') + ' شغالة دلوقتي، فالتشكيلة اللي بتشوفها فوق مقفولة زي ما هي. '
-      + 'أي تعديل هتعمله هنا (كابتن أو تبديل احتياطي) هيتسجل تلقائيًا كتشكيلة الجولة ' + ((state.gwInfo.current||1)+1) + ' وهيتطبق أول ما الجولة الجاية دي تبدأ.'
-      + '</div>'
-    : '';
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>' +
-  flash + lockBanner +
+  flash +
   '<div class="segment">' +
     '<button data-mode="captain" class="' + (state.teamMode==='captain'?'on':'') + '">تعيين الكابتن</button>' +
     '<button data-mode="bench" class="' + (state.teamMode==='bench'?'on':'') + '">تبديل الاحتياطي</button>' +
@@ -2851,17 +2844,11 @@ function renderTransferMarket(){
 }
 
 function renderTransfers(){
-  const locked = isGwLocked();
   const ids = activeIds();
   const bank = activeBank();
   const freeT = activeFreeTransfers();
   const flash = state.flash
     ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
-    : '';
-  const lockBanner = locked
-    ? '<div class="hint" style="margin:0 20px 10px;background:rgba(232,196,104,0.12);border:1px solid rgba(232,196,104,0.32);border-radius:12px;padding:10px 14px;color:var(--gold);">'
-      + '🔒 الجولة ' + (state.gwInfo.current||'') + ' شغالة دلوقتي. أي انتقال هتعمله هنا هيتسجل لجولة ' + ((state.gwInfo.current||1)+1) + ' ومش هيأثر على تشكيلتك المقفولة في الجولة الحالية.'
-      + '</div>'
     : '';
   const outPlayer = state.transferOutId ? findPlayer(state.transferOutId) : null;
 
@@ -2899,7 +2886,7 @@ function renderTransfers(){
     '<div class="stat-pill"><div class="v">' + freeT + '</div><div class="k">تبديلات مجانية</div></div>' +
     '<div class="stat-pill"><div class="v">£' + fmt(squadValue(ids)) + 'm</div><div class="k">قيمة الفريق</div></div>' +
   '</div>' +
-  flash + lockBanner +
+  flash +
   '<div class="section-title"><h2>فريقك</h2></div>' +
   '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
   '<div class="section-title" style="margin-bottom:8px;"><h2>سوق الانتقالات</h2></div>' +
