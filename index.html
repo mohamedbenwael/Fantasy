@@ -971,6 +971,13 @@ async function buildLiveDataset(){
   // (مش بس إن فريقه بيلعب)، ومين لسه على دكة الاحتياط
   const currentGwMinutes = {};
   const currentGwStarted = {};
+  // إحصائيات لحظية للجولة الحالية لكل لاعب (جول/أسيست/كروت) — دي اللي بنقارنها
+  // بالنسخة اللي قبلها (state.lastKnownStats) عشان نطلع إشعار فوري لكل حدث جديد
+  // بيخص لاعب من تشكيلة اليوزر (شوف diffPlayerStats تحت).
+  const currentGwGoals = {};
+  const currentGwAssists = {};
+  const currentGwYellow = {};
+  const currentGwRed = {};
   for(const evId of liveIds){
     try{
       const live = await fplFetch('live', evId);
@@ -984,6 +991,10 @@ async function buildLiveDataset(){
           currentGwBps[row.id] = { bps: bps, fixtureId: fx };
           currentGwMinutes[row.id] = row.stats ? (row.stats.minutes || 0) : 0;
           currentGwStarted[row.id] = !!(row.stats && row.stats.starts);
+          currentGwGoals[row.id] = row.stats ? (row.stats.goals_scored || 0) : 0;
+          currentGwAssists[row.id] = row.stats ? (row.stats.assists || 0) : 0;
+          currentGwYellow[row.id] = row.stats ? (row.stats.yellow_cards || 0) : 0;
+          currentGwRed[row.id] = row.stats ? (row.stats.red_cards || 0) : 0;
         }
       });
     }catch(e){ /* لو جولة معينة فشلت نكمل من غيرها */ }
@@ -1150,6 +1161,11 @@ async function buildLiveDataset(){
       isPlayingLive: liveTeams.has(club) && (currentGwStarted[el.id] || (currentGwMinutes[el.id]||0) > 0),
       gwMinutes: currentGwMinutes[el.id] || 0,
       gwStarted: !!currentGwStarted[el.id],
+      // إحصائيات الجولة الحالية اللحظية (بتتقارن بالنسخة اللي قبلها لتوليد إشعارات الأحداث)
+      gwGoals: currentGwGoals[el.id] || 0,
+      gwAssists: currentGwAssists[el.id] || 0,
+      gwYellow: currentGwYellow[el.id] || 0,
+      gwRed: currentGwRed[el.id] || 0,
     };
   });
 
@@ -1160,6 +1176,101 @@ async function buildLiveDataset(){
   };
 
   return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures };
+}
+
+// ===== إشعارات أحداث اللاعبين اللحظية =====
+// بتضيف حدث جديد لقايمة state.liveEventNotifs (الأحدث فوق)، وبتحدد سقف 40 عنصر
+// عشان القايمة متكبرش من غير داعي على مدار مباريات كتير.
+function pushLiveNotif(entry){
+  entry.id = 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+  entry.ts = Date.now();
+  state.liveEventNotifs.unshift(entry);
+  if(state.liveEventNotifs.length > 40) state.liveEventNotifs.length = 40;
+}
+
+// نقط الهدف حسب المركز (نفس قاعدة فانتازي البريميرليج الرسمية: حراس/مدافعين 6، وسط 5، مهاجمين 4)
+const GOAL_PTS_BY_POS = { GK:6, DEF:6, MID:5, FWD:4 };
+
+// بتقارن كل لاعب من تشكيلة اليوزر بآخر نسخة معروفة من إحصائياته (state.lastKnownStats)،
+// ولو لقت فرق في الأهداف/الأسيست/الكروت/البونص اللحظي بتولّد إشعار جديد فوري.
+// أول مرة (مفيش نسخة قديمة محفوظة للاعب) بنسجّل بس القيم الحالية كخط أساس من غير إشعار،
+// عشان مانطلعش إشعارات وهمية لأحداث حصلت قبل ما اليوزر يفتح التطبيق أصلاً.
+function diffPlayerStats(newPlayers){
+  const squadIds = new Set(state.mySquadIds.map(e => e.id));
+  newPlayers.forEach(p=>{
+    if(!squadIds.has(p.id)) return;
+    const cur = { goals: p.gwGoals||0, assists: p.gwAssists||0, yellow: p.gwYellow||0, red: p.gwRed||0, bonus: p.provisionalBonus||0 };
+    const prev = state.lastKnownStats[p.id];
+    state.lastKnownStats[p.id] = cur;
+    if(!prev) return; // خط أساس بس، من غير إشعار
+
+    if(cur.goals > prev.goals){
+      const n = cur.goals - prev.goals;
+      const pts = (GOAL_PTS_BY_POS[p.pos]||4) * n;
+      pushLiveNotif({
+        kind:'goal', color:'#2ed573', icon: ICON_GOAL,
+        title: p.name + ' سجل هدف ⚽' + (n>1 ? ' (×'+n+')' : ''),
+        sub: 'من تشكيلتك — تقريبًا +' + pts + ' نقطة'
+      });
+    }
+    if(cur.assists > prev.assists){
+      const n = cur.assists - prev.assists;
+      pushLiveNotif({
+        kind:'assist', color:'#8FCBF2', icon: ICON_ASSIST,
+        title: p.name + ' صنع هدف 🎯' + (n>1 ? ' (×'+n+')' : ''),
+        sub: 'من تشكيلتك — تقريبًا +' + (3*n) + ' نقطة'
+      });
+    }
+    if(cur.yellow > prev.yellow){
+      pushLiveNotif({
+        kind:'yellow', color:'var(--gold)', icon: '<div class="card-icon yellow"></div>',
+        title: p.name + ' حصل على إنذار',
+        sub: 'كارت أصفر — -1 نقطة، وخطر الطرد لو اتكرر'
+      });
+    }
+    if(cur.red > prev.red){
+      pushLiveNotif({
+        kind:'red', color:'var(--coral)', icon: '<div class="card-icon red"></div>',
+        title: p.name + ' طرد بالكارت الأحمر',
+        sub: '-3 نقاط، وهيأثر على نقط باقي زمايله في المباراة'
+      });
+    }
+    if(cur.bonus > prev.bonus){
+      pushLiveNotif({
+        kind:'bonus', color:'var(--gold)', icon: ICON_STAR,
+        title: p.name + ' يتصدّر ترتيب البونص الآن',
+        sub: 'بونص لحظي +' + cur.bonus + ' نقطة (غير مؤكد لحد ما تنتهي المباراة رسمياً)'
+      });
+    }
+  });
+}
+
+// بتقارن نتيجة كل مباراة بآخر نسخة معروفة (state.lastKnownScores)، ولو فريق فيه لاعب
+// من تشكيلة اليوزر (حارس/مدافع/وسط — المراكز اللي بتستفيد من الكلين شيت) استقبل هدف
+// وهو نازل الملعب فعليًا، بتولّد إشعار "تسرب هدف" لأن فرصة الكلين شيت بتاعته راحت.
+function diffFixtureScores(newFixturesList){
+  const squadIds = new Set(state.mySquadIds.map(e => e.id));
+  (newFixturesList||[]).forEach(f=>{
+    if(f.score_h==null || f.score_a==null) return;
+    const prev = state.lastKnownScores[f.id];
+    state.lastKnownScores[f.id] = { h:f.score_h, a:f.score_a };
+    if(!prev) return; // خط أساس بس، من غير إشعار
+
+    if(f.score_a > prev.a) notifyConcede(f.team_h, f, squadIds);
+    if(f.score_h > prev.h) notifyConcede(f.team_a, f, squadIds);
+  });
+}
+function notifyConcede(clubKey, f, squadIds){
+  if(!clubKey) return;
+  state.players
+    .filter(p => p.club===clubKey && squadIds.has(p.id) && (p.pos==='GK'||p.pos==='DEF'||p.pos==='MID') && (p.isPlayingLive || (p.gwMinutes||0) > 0))
+    .forEach(p=>{
+      pushLiveNotif({
+        kind:'csleak', color:'var(--coral)', icon: ICON_WARN,
+        title: 'تسرب هدف لمرمى ' + (CLUB_NAME[clubKey] || CLUB_TAG[clubKey] || ''),
+        sub: p.name + ' — النتيجة الآن ' + f.score_h + ' : ' + f.score_a + ' (فرصة الكلين شيت راحت)'
+      });
+    });
 }
 
 async function loadLiveData(force){
@@ -1202,7 +1313,13 @@ async function loadLiveData(force){
 }
 let CLUB_CODE = {};
 function applyLiveDataset(d){
+  // توليد إشعارات أحداث اللاعبين (جول/أسيست/كارت/بونص) بمقارنة القديم بالجديد،
+  // قبل استبدال state.players، عشان القيم الجديدة تبقى واضحة في d.players.
+  diffPlayerStats(d.players || []);
   state.players = d.players;
+  // إشعار تسرب الأهداف بيحتاج state.players الجديد (عشان isPlayingLive/gwMinutes
+  // يعكسوا آخر حالة للاعب وقت الهدف)، فبنستدعيه بعد استبدال بيانات اللاعبين.
+  diffFixtureScores(d.fixturesList || []);
   state.gwInfo = d.gwInfo;
   CLUB_TAG = d.clubTag;
   CLUB_NAME = d.clubName;
@@ -1224,7 +1341,7 @@ let state = {
   totalManagers:0,     // إجمالي عدد مديري الفانتازي (لمؤشر توقع تغيير الأسعار)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
-  captainId:null, bank:1.8, freeTransfers:2, seasonBaseline:1744,
+  captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   realLeagues: [], overallRank: 0, eventRank: null,
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
@@ -1236,6 +1353,10 @@ let state = {
   liveSyncedAt:null, liveDataError:false, liveDataStale:false, hasLiveFixtures:false,
   adminLinks: { news:'', advice:'' },
   transferFilterClub: 'all', transferFilterPrice: 'all',
+  // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
+  lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
+  lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
+  liveEventNotifs: [],  // [{id, kind, color, icon, title, sub, ts}] — أحدث حدث أولاً
 };
 
 function jerseyClass(p){ return p.pos==='GK' ? 'gk' : p.club; }
@@ -1906,6 +2027,7 @@ async function boot(){
 
 async function loadSquadOrDraft(){
   const gw = state.gwInfo && state.gwInfo.current;
+  const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
 
   // ١. الأولوية المطلقة: محاولة جلب التشكيلة الرسمية من سيرفر الفانتازي
   // (لو الديدلاين قفل، الفانتازي هيرجع الداتا الحقيقية وهنمسح بيها التشكيلة التجريبية)
@@ -1915,7 +2037,10 @@ async function loadSquadOrDraft(){
       state.mySquadIds = picks.squadIds;
       state.captainId = picks.captainId;
       state.bank = picks.bank;
-      state.freeTransfers = 2; // رقم شكلي للواجهة
+
+      // تحديد التبديلات بذكاء (غير محدود قبل بداية الموسم، و 1 بعد البداية)
+      state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
+
       state.seasonBaseline = 0;
 
       // حفظ التشكيلة الرسمية في التخزين المحلي عشان نكتب فوق التشكيلة التجريبية
@@ -1935,7 +2060,9 @@ async function loadSquadOrDraft(){
         state.mySquadIds = saved.mySquadIds;
         state.captainId = saved.captainId;
         state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
-        state.freeTransfers = typeof saved.freeTransfers === 'number' ? saved.freeTransfers : 2;
+
+        state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
+
         state.seasonBaseline = saved.seasonBaseline || 0;
         return;
       }
@@ -1946,7 +2073,7 @@ async function loadSquadOrDraft(){
   state.mySquadIds = [];
   state.captainId = null;
   state.bank = 100;
-  state.freeTransfers = 100;
+  state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
   state.seasonBaseline = 0;
   await savePersonal();
 }
@@ -2306,11 +2433,50 @@ function renderLeaguePreviewItems(){
   }).join('');
 }
 
+// إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/بونص/تسرب هدف) — بتتفلتر حسب
+// مفاتيح الإشعارات في الإعدادات (notifGoals/notifCards/notifCS)، وبتتفلتر لحظة العرض
+// مش لحظة التوليد، عشان لو اليوزر قفّل/فتح مفتاح، القايمة القديمة تتحدث معاه فورًا.
+const LIVE_NOTIF_TOGGLE_KEY = { goal:'notifGoals', assist:'notifGoals', bonus:'notifGoals', yellow:'notifCards', red:'notifCards', csleak:'notifCS' };
+function renderLiveEventNotifs(){
+  return state.liveEventNotifs
+    .filter(n => state.toggles[LIVE_NOTIF_TOGGLE_KEY[n.kind]] !== false)
+    .slice(0, 12)
+    .map(n => '<div class="n-item"><div class="t1" style="color:' + n.color + '; display:flex; gap:6px; align-items:center;">' + n.icon + n.title + '</div><div class="t2">' + n.sub + '</div></div>')
+    .join('');
+}
+
 function renderNotifPanel(){
-  return '<div class="notif-panel">' +
-    '<div class="n-item"><div class="t1">اقتراب الموعد النهائي</div><div class="t2">يرجى تأكيد تشكيلتك قبل إغلاق الجولة.</div></div>' +
-    '<div class="n-item"><div class="t1">تحديثات لايف من FPL</div><div class="t2">الأسعار والنقط بتتحدث تلقائيًا من الموقع الرسمي</div></div>' +
-  '</div>';
+  const notifs = [];
+  const now = Date.now();
+  const deadline = new Date(state.gwInfo.deadline).getTime();
+  const diffHours = (deadline - now) / 3600000;
+
+  // 0. إشعارات أحداث اللاعبين اللحظية (لو في تحديثات جديدة من تشكيلتك)
+  const liveEventsHtml = renderLiveEventNotifs();
+
+  // 1. إشعار حالة الجولة والديدلاين
+  if (diffHours > 0 && diffHours < 24) {
+    notifs.push('<div class="n-item"><div class="t1" style="color:var(--gold); display:flex; gap:6px; align-items:center;">' + ICON_CLOCK + 'اقتراب الموعد النهائي</div><div class="t2">متبقي أقل من 24 ساعة لإغلاق التشكيلة. يرجى التأكيد.</div></div>');
+  } else if (diffHours <= 0) {
+    notifs.push('<div class="n-item"><div class="t1" style="color:var(--primary-soft); display:flex; gap:6px; align-items:center;">' + ICON_SHIELD + 'الجولة مغلقة</div><div class="t2">تم قفل التشكيلة. التبديلات ستحتسب للجولة القادمة.</div></div>');
+  } else {
+    notifs.push('<div class="n-item"><div class="t1" style="color:#8FCBF2; display:flex; gap:6px; align-items:center;">' + ICON_REFRESH + 'سوق الانتقالات مفتوح</div><div class="t2">يمكنك إجراء التبديلات لفريقك الآن.</div></div>');
+  }
+
+  // 2. إشعار المباريات المباشرة
+  if (state.hasLiveFixtures) {
+    notifs.push('<div class="n-item"><div class="t1" style="color:#2ed573; display:flex; gap:6px; align-items:center;">' + ICON_LIVE + 'مباريات تلعب الآن</div><div class="t2">النقاط والبونص يتم تحديثها لحظياً مع كل حدث.</div></div>');
+  }
+
+  // 3. إشعار حالة الاتصال بالسيرفر
+  const syncTime = state.liveSyncedAt ? new Date(state.liveSyncedAt).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'}) : 'الآن';
+  if (state.liveDataError) {
+     notifs.push('<div class="n-item"><div class="t1" style="color:var(--coral); display:flex; gap:6px; align-items:center;">' + ICON_WARN + 'خطأ في الاتصال</div><div class="t2">تعذر جلب البيانات. التطبيق يعمل ببيانات احتياطية.</div></div>');
+  } else {
+     notifs.push('<div class="n-item"><div class="t1" style="color:var(--muted); display:flex; gap:6px; align-items:center;">' + ICON_REFRESH + 'تحديث البيانات</div><div class="t2">آخر مزامنة مع سيرفر FPL: ' + syncTime + '</div></div>');
+  }
+
+  return '<div class="notif-panel">' + liveEventsHtml + notifs.join('') + '</div>';
 }
 
 // ===== PITCH =====
