@@ -11,6 +11,7 @@
 //   /api/fpl?type=live&event=5             -> نقاط كل اللاعبين لحظيًا في الجولة رقم 5
 //   /api/fpl?type=entry&id=123456          -> بيانات فريق معين (اسم المدير، الرتبة العامة...)
 //   /api/fpl?type=picks&id=123456&event=5  -> اختيارات فريق معين في جولة معينة
+//   /api/fpl?type=standings&id=987&page=1  -> ترتيب كل أعضاء دوري خاص (كلاسيك) معين
 
 const BASE = 'https://fantasy.premierleague.com/api';
 
@@ -20,6 +21,7 @@ const CACHE_SECONDS = {
   live: 60,
   entry: 60,
   picks: 300,
+  standings: 120,
 };
 
 // أقصى وقت بننتظره من FPL نفسها قبل ما نستسلم ونرجّع خطأ للمستخدم.
@@ -44,7 +46,7 @@ module.exports = async function handler(req, res) {
   // للمتصفح — نجاح أو فشل — يقدر يتقرأ من غير ما يتحجب بسبب CORS.
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  const { type, event, id } = req.query;
+  const { type, event, id, page } = req.query;
 
   let url;
   let cacheBucket = 'bootstrap';
@@ -76,8 +78,16 @@ module.exports = async function handler(req, res) {
     }
     url = `${BASE}/entry/${encodeURIComponent(id)}/event/${encodeURIComponent(event)}/picks/`;
     cacheBucket = 'picks';
+  } else if (type === 'standings') {
+    if (!id) {
+      res.status(400).json({ error: 'محتاج تحدد رقم الدوري: ?type=standings&id=987654' });
+      return;
+    }
+    const pageNum = page ? encodeURIComponent(page) : '1';
+    url = `${BASE}/leagues-classic/${encodeURIComponent(id)}/standings/?page_standings=${pageNum}`;
+    cacheBucket = 'standings';
   } else {
-    res.status(400).json({ error: "نوع غير معروف. استخدم type=bootstrap أو type=fixtures أو type=live أو type=entry أو type=picks" });
+    res.status(400).json({ error: "نوع غير معروف. استخدم type=bootstrap أو type=fixtures أو type=live أو type=entry أو type=picks أو type=standings" });
     return;
   }
 
