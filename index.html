@@ -926,6 +926,61 @@ async function fetchFplPicks(fplId, gw){
   }
 }
 
+// ===== جلب ترتيب دوري خاص (كل الأعضاء) عشان نعرضهم كلهم مش أنا بس =====
+async function fetchLeagueStandings(leagueId, page){
+  const id = String(leagueId || '').trim();
+  if(!id) return null;
+  try{
+    const res = await fetchWithTimeout(FPL_ENDPOINT + '?type=standings&id=' + encodeURIComponent(id) + '&page=' + (page||1), undefined, 12000);
+    if(!res.ok) return null;
+    const data = await res.json();
+    const results = (data.standings && data.standings.results) || [];
+    return {
+      leagueName: data.league && data.league.name,
+      results: results.map(r => ({
+        entryId: r.entry,
+        rank: r.rank,
+        teamName: r.entry_name,
+        managerName: r.player_name,
+        total: r.total,
+      })),
+      hasNext: !!(data.standings && data.standings.has_next),
+    };
+  }catch(e){
+    return null;
+  }
+}
+
+// نتأكد إن ترتيب الدوري محمّل (أو بنجيبه أول مرة) — بيتخزن في كاش عشان منجيبوش من الأول كل مرة
+async function ensureLeagueStandings(leagueId){
+  if(state.leagueStandingsCache[leagueId]) return;
+  state.leagueStandingsCache[leagueId] = { loading:true, results:[] };
+  const data = await fetchLeagueStandings(leagueId, 1);
+  state.leagueStandingsCache[leagueId] = data
+    ? { loading:false, results:data.results, leagueName:data.leagueName }
+    : { loading:false, error:true, results:[] };
+  if(state.tab==='leagues' && String(state.activeLeagueId)===String(leagueId) && !state.viewMemberId) renderBody();
+}
+
+// بنفتح تشكيلة عضو تاني في الدوري (زميلي)، بنستخدم نفس fetchFplPicks اللي شغالة بأي ID
+async function openMemberSquad(entryId, teamName, managerName){
+  state.viewMemberId = entryId;
+  state.viewMemberSquad = { loading:true, teamName, managerName };
+  renderBody();
+  const gw = state.gwInfo && state.gwInfo.current;
+  const picks = await fetchFplPicks(entryId, gw);
+  state.viewMemberSquad = (picks && picks.squadIds && picks.squadIds.length)
+    ? { loading:false, teamName, managerName, squadIds:picks.squadIds, captainId:picks.captainId }
+    : { loading:false, error:true, teamName, managerName };
+  if(state.tab==='leagues' && String(state.viewMemberId)===String(entryId)) renderBody();
+}
+
+// ===== تسجيل الخروج =====
+function logout(){
+  try{ localStorage.removeItem('mazareta_fpl_id'); } catch(e){}
+  location.reload();
+}
+
 // فورم موزون: بيدي وزن أكبر للجولات الأقرب بدل ما يعامل آخر 5 جولات بنفس الأهمية
 // (لاعب سجل 2 جولات كويسة الأسبوع اللي فات أهم من لاعب سجلهم بدري وبايت دلوقتي)
 function weightedFormPts(history){
@@ -1343,6 +1398,8 @@ let state = {
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   realLeagues: [], overallRank: 0, eventRank: null,
+  leagueStandingsCache:{}, viewMemberId:null, viewMemberSquad:null,
+  canInstall:false, showInstallGuide:false,
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
@@ -2164,6 +2221,8 @@ const ICON_GLOVE = '<svg class="i" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0
 const ICON_WARN = '<svg class="i" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 const ICON_SHIELD = '<svg class="i" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
 const ICON_MUTE = '<svg class="i" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>';
+const ICON_LOGOUT = '<svg class="i" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>';
+const ICON_INSTALL = '<svg class="i" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 7v7"/><path d="M9 11l3 3 3-3"/><line x1="10" y1="19" x2="14" y2="19"/></svg>';
 
 // ===== BOOT / ONBOARD screens =====
 function renderBoot(){
@@ -2744,19 +2803,55 @@ function renderTransfers(){
 
 // ===== LEAGUES TAB =====
 function renderLeagues(){
+  // ===== شاشة تشكيلة عضو تاني في الدوري =====
+  if(state.viewMemberId){
+    const vm = state.viewMemberSquad || {};
+    const header = '<div class="topbar"><button class="back" id="memberBack">' + ICON_BACK + '</button><h1>' + (vm.teamName || 'التشكيلة') + '</h1><div class="spacer"></div></div>';
+    if(vm.loading){
+      return header + '<div class="hint" style="margin:20px;">جاري تحميل التشكيلة...</div>';
+    }
+    if(vm.error || !vm.squadIds){
+      return header + '<div class="hint" style="margin:20px;">تعذر تحميل تشكيلة هذا المدير حاليًا (غالبًا لسه ما أعلنش تشكيلته للجولة دي)</div>';
+    }
+    // بنستعير renderPitchCard اللي شغالة بتشكيلتي، بس بنبدّل بيانات التشكيلة مؤقتًا للعضو ده
+    const savedSquad = state.mySquadIds, savedCap = state.captainId;
+    state.mySquadIds = vm.squadIds;
+    state.captainId = vm.captainId;
+    const pitchHtml = renderPitchCard(false);
+    state.mySquadIds = savedSquad;
+    state.captainId = savedCap;
+    return header +
+      (vm.managerName ? '<div class="hint" style="margin:0 20px 10px;">' + vm.managerName + '</div>' : '') +
+      pitchHtml;
+  }
+
+  // ===== ترتيب دوري معيّن (كل الأعضاء) =====
   if(state.activeLeagueId){
     const lg = state.realLeagues.find(l=>String(l.id)===String(state.activeLeagueId));
-    if(!lg){
-      return '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>الدوري</h1><div class="spacer"></div></div>' +
-        '<div class="hint" style="margin:20px;">لا توجد بيانات لهذا الدوري</div>';
+    const cache = state.leagueStandingsCache[state.activeLeagueId];
+    if(!cache) ensureLeagueStandings(state.activeLeagueId);
+    const title = (lg && lg.name) || (cache && cache.leagueName) || 'الدوري';
+    const header = '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>' + title + '</h1><div class="spacer"></div></div>';
+    if(!cache || cache.loading){
+      return header + '<div class="hint" style="margin:20px;">جاري تحميل الترتيب...</div>';
     }
-    const rc = leagueRankChange(lg);
-    return '' +
-    '<div class="topbar"><button class="back" id="leagueBack">' + ICON_BACK + '</button><h1>' + lg.name + '</h1><div class="spacer"></div></div>' +
-    '<div class="league-list"><div class="standing-row me"><div class="s-left"><div class="s-rank">#' +
-      (lg.entry_rank!=null ? lg.entry_rank.toLocaleString() : '-') + '</div><div class="s-name">' + state.teamName + '</div></div>' +
-      '<div class="s-pts">' + (rc.chg ? ('<span class="chg ' + rc.dir + '">' + (rc.dir==='up'?ICON_UP:ICON_DOWN) + rc.chg + '</span>') : '') + '</div></div></div>';
+    if(cache.error || !cache.results.length){
+      return header + '<div class="hint" style="margin:20px;">تعذر تحميل ترتيب هذا الدوري حاليًا</div>';
+    }
+    const rows = cache.results.map(r=>{
+      const isMe = state.deviceId && String(r.entryId)===String(state.deviceId);
+      return '<button class="standing-row' + (isMe ? ' me' : '') + '" data-member="' + r.entryId + '" ' +
+        'data-teamname="' + String(r.teamName||'').replace(/"/g,'&quot;') + '" ' +
+        'data-managername="' + String(r.managerName||'').replace(/"/g,'&quot;') + '" ' +
+        'style="width:100%;text-align:right;">' +
+        '<div class="s-left"><div class="s-rank">#' + r.rank + '</div><div class="s-name">' + r.teamName + '</div></div>' +
+        '<div class="s-pts">' + r.total + '</div>' +
+      '</button>';
+    }).join('');
+    return header + '<div class="league-list">' + rows + '</div>';
   }
+
+  // ===== كل الدوريات الخاصة بيا =====
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الدوريات الخاصة بك</h1><div class="spacer"></div></div>' +
   '<div class="league-list">' + renderLeaguePreviewItems() + '</div>';
@@ -2808,6 +2903,25 @@ function renderMore(){
     '</div>' +
 
     '<div class="more-section">' +
+      '<div class="more-group-label">التطبيق</div>' +
+      '<div class="grouped-card">' +
+        '<button class="grouped-row" id="installBtn">' +
+          '<div class="gr-left"><div class="gr-icon" style="background:rgba(232,196,104,0.16);color:var(--gold);">' + ICON_INSTALL + '</div>' +
+          '<div class="gr-text"><span>تثبيت التطبيق على شاشتك الرئيسية</span><div class="gr-sub">هيفتح زي أي أبلكيشن عادي، من غير متصفح</div></div></div>' +
+          '<div class="gr-chev">' + ICON_CHEV + '</div>' +
+        '</button>' +
+        (state.showInstallGuide ? (
+          '<div style="padding:12px 16px 14px;border-top:1px solid var(--card-line);font-size:11px;color:var(--muted);line-height:1.9;">' +
+            '<div style="color:var(--text);font-weight:700;margin-bottom:4px;">لو بتستخدم كروم (أندرويد):</div>' +
+            'دوس على الثلاث نقط ⋮ فوق يمين المتصفح، واختار "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".' +
+            '<div style="color:var(--text);font-weight:700;margin:8px 0 4px;">لو بتستخدم آيفون (Safari):</div>' +
+            'دوس على زر المشاركة (المربع وعليه سهم لفوق)، وبعدين "إضافة إلى الشاشة الرئيسية".' +
+          '</div>'
+        ) : '') +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
       '<div class="more-group-label">تابعنا</div>' +
       '<div class="grouped-card">' +
         '<a class="grouped-row" href="https://web.facebook.com/ELmazaretaFantasy1" target="_blank" rel="noopener">' +
@@ -2828,6 +2942,16 @@ function renderMore(){
         '<button class="grouped-row" data-goto="terms">' +
           '<div class="gr-left"><div class="gr-icon">' + ICON_DOC + '</div><div class="gr-text"><span>الشروط والأحكام</span></div></div>' +
           '<div class="gr-chev">' + ICON_CHEV + '</div>' +
+        '</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="more-section">' +
+      '<div class="more-group-label">الحساب</div>' +
+      '<div class="grouped-card">' +
+        '<button class="grouped-row" id="logoutBtn">' +
+          '<div class="gr-left"><div class="gr-icon" style="background:rgba(255,77,109,0.16);color:var(--coral);">' + ICON_LOGOUT + '</div>' +
+          '<div class="gr-text"><span style="color:var(--coral);">تسجيل خروج</span><div class="gr-sub">هيرجعك لشاشة إدخال الـ FPL Team ID</div></div></div>' +
         '</button>' +
       '</div>' +
     '</div>' +
@@ -3435,6 +3559,19 @@ function bindBody(){
   const leagueBack = el.querySelector('#leagueBack');
   if(leagueBack) leagueBack.addEventListener('click', ()=>{ state.activeLeagueId = null; renderBody(); });
 
+  // member rows inside a league's standings -> open their squad
+  el.querySelectorAll('[data-member]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      openMemberSquad(
+        b.getAttribute('data-member'),
+        b.getAttribute('data-teamname') || '',
+        b.getAttribute('data-managername') || ''
+      );
+    });
+  });
+  const memberBack = el.querySelector('#memberBack');
+  if(memberBack) memberBack.addEventListener('click', ()=>{ state.viewMemberId = null; state.viewMemberSquad = null; renderBody(); });
+
   // fixtures back
   const fixBack = el.querySelector('#fixBack');
   if(fixBack) fixBack.addEventListener('click', ()=>{ state.tab = 'home'; render(); });
@@ -3531,6 +3668,26 @@ function bindBody(){
     b.addEventListener('click', ()=>{ state.toggles[b.getAttribute('data-toggle')] = !state.toggles[b.getAttribute('data-toggle')]; renderBody(); });
   });
 
+  // more tab: logout
+  const logoutBtn = el.querySelector('#logoutBtn');
+  if(logoutBtn) logoutBtn.addEventListener('click', ()=>{
+    if(confirm('هل تريد تسجيل الخروج؟ هتحتاج تدخل الـ FPL Team ID تاني عشان تدخل')) logout();
+  });
+
+  // more tab: install app
+  const installBtn = el.querySelector('#installBtn');
+  if(installBtn) installBtn.addEventListener('click', async ()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch(e){}
+      deferredInstallPrompt = null;
+      state.canInstall = false;
+    } else {
+      state.showInstallGuide = !state.showInstallGuide;
+    }
+    renderBody();
+  });
+
   // admin pin
   const pinInput = el.querySelector('#pinInput');
   const pinSubmit = el.querySelector('#pinSubmit');
@@ -3609,6 +3766,20 @@ function bindBody(){
 }
 
 // close notif panel when tapping elsewhere
+// ===== تثبيت التطبيق (Add to Home Screen) =====
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  state.canInstall = true;
+  if(state.phase==='app' && state.tab==='more') renderBody();
+});
+window.addEventListener('appinstalled', ()=>{
+  deferredInstallPrompt = null;
+  state.canInstall = false;
+  if(state.phase==='app' && state.tab==='more') renderBody();
+});
+
 document.addEventListener('click', (e)=>{
   if(state.notifOpen && !e.target.closest('#bellBtn') && !e.target.closest('.notif-panel')){
     state.notifOpen = false;
@@ -3621,7 +3792,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     state.tab = btn.getAttribute('data-tab');
     state.notifOpen = false;
-    if(state.tab !== 'leagues') state.activeLeagueId = null;
+    if(state.tab !== 'leagues'){ state.activeLeagueId = null; state.viewMemberId = null; state.viewMemberSquad = null; }
     render();
   });
 });
