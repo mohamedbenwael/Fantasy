@@ -651,10 +651,6 @@
       <svg viewBox="0 0 24 24"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>
       الرئيسية<div class="dash"></div>
     </button>
-    <button class="nav-item" data-tab="team">
-      <svg viewBox="0 0 24 24"><path d="M8 4L4 7l2 3 2-1v11h8V9l2 1 2-3-4-3-2 2h-4z"/></svg>
-      تشكيلتي<div class="dash"></div>
-    </button>
     <button class="nav-item" data-tab="transfers">
       <svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3"/><path d="M17 17H6l3 3"/></svg>
       الانتقالات<div class="dash"></div>
@@ -670,6 +666,10 @@
     <button class="nav-item" data-tab="leagues">
       <svg viewBox="0 0 24 24"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a3 3 0 0 0 3 5"/><path d="M16 5h3a3 3 0 0 1-3 5"/><path d="M10 16h4v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2z"/><path d="M12 13v3"/><path d="M9 20h6"/></svg>
       الدوريات<div class="dash"></div>
+    </button>
+    <button class="nav-item" data-tab="more">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+      المزيد<div class="dash"></div>
     </button>
   </div>
 </div>
@@ -2445,7 +2445,7 @@ function renderHome(){
     '<div class="left">' + ICON_CLOCK +
       '<div><div class="lbl">الوقت المتبقي لإغلاق التشكيلة</div><div class="val">' + countdown(state.gwInfo.deadline) + '</div></div>' +
     '</div>' +
-    '<button class="cta" data-goto="team">تعديل التشكيلة</button>' +
+    '<button class="cta" data-goto="transfers">تعديل التشكيلة</button>' +
   '</div>' +
 
   '<div class="summary">' +
@@ -3444,7 +3444,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', team:'team', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
