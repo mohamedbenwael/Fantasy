@@ -1469,6 +1469,20 @@ function getPlayerMatchStatus(p) {
 }
 function lastForm(p, n){ return (p.history||[]).slice(-n); }
 
+// المباراة الجاية لنادي معين (الجولة اللي بعد الحالية) — بتتستخدم في عرض مسودة تشكيلة الجولة الجاية
+function nextFixtureText(club){
+  const tf = state.teamFixtures && state.teamFixtures[club];
+  const nextGw = (state.gwInfo && state.gwInfo.current || 1) + 1;
+  if(tf && tf.lookahead && tf.lookahead.length){
+    const nf = tf.lookahead.find(x=>x.event===nextGw) || tf.lookahead.find(x=>x.event > (state.gwInfo.current||1));
+    if(nf){
+      const opp = CLUB_TAG[nf.oppKey] || '؟';
+      return opp + (nf.isHome ? ' (H)' : ' (A)');
+    }
+  }
+  return '-';
+}
+
 function squad(ids){ const list = ids || state.mySquadIds; return list.map(e=>{ const p=findPlayer(e.id); return p?Object.assign({},p,{slot:e.slot}):null; }).filter(Boolean); }
 function starters(ids){ return squad(ids).filter(p=>p.slot==='start'); }
 function benched(ids){ return squad(ids).filter(p=>p.slot==='bench'); }
@@ -2632,27 +2646,35 @@ function renderJersey(p, opts){
   const hasBonus = (p.provisionalBonus||0) > 0;
   const ptsVal = isCap ? currentGwPoints(p)*2 : currentGwPoints(p);
 
-  const status = getPlayerMatchStatus(p);
   let pptsClass = 'ppts';
   let displayBottom = '';
+  let liveDotHtml = '';
 
-  if (status.started) {
-    pptsClass += ' played';
-    if (status.isLive) pptsClass += ' live-playing';
-    if (hasBonus) pptsClass += ' has-bonus';
-    // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
-    const bonusIcon = '<span class="bonus-star">' + ICON_STAR + '</span>';
-    displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal + (hasBonus ? bonusIcon : '');
-  } else {
+  if(opts.planningMode){
+    // ده عرض مسودة تشكيلة الجولة الجاية — منعرضش نقط ولا حالة لايف خالص، بس مباراة كل لاعب الجاية
     pptsClass += ' upcoming';
-    displayBottom = status.fixtureText; // مثال: BOU (H)
+    displayBottom = nextFixtureText(p.club);
+  } else {
+    const status = getPlayerMatchStatus(p);
+    if (status.started) {
+      pptsClass += ' played';
+      if (status.isLive) pptsClass += ' live-playing';
+      if (hasBonus) pptsClass += ' has-bonus';
+      // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
+      const bonusIcon = '<span class="bonus-star">' + ICON_STAR + '</span>';
+      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal + (hasBonus ? bonusIcon : '');
+    } else {
+      pptsClass += ' upcoming';
+      displayBottom = status.fixtureText; // مثال: BOU (H)
+    }
+    liveDotHtml = (p.isPlayingLive ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '');
   }
 
   return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="' + cls + '"' + dataAttr + '>' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
-      (p.isPlayingLive ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
+      liveDotHtml +
     '</div>' +
     '<div class="pname">' + p.name + '</div>' +
     (showPts ? '<div class="' + pptsClass + '">' + displayBottom + '</div>' : '') +
@@ -2670,6 +2692,7 @@ function renderPitchCard(interactive){
   // مش على التشكيلة الحقيقية المقفولة؛ غير كده (أو في وضع العرض بس) بنستخدم التشكيلة الحقيقية
   const ids = interactive ? activeIds() : state.mySquadIds;
   const capId = interactive ? activeCaptainId() : state.captainId;
+  const planning = interactive && isGwLocked(); // بنعرض مسودة الجولة الجاية بدل التشكيلة المقفولة
 
   const gkAll  = starters(ids).filter(p=>p.pos==='GK');
   const defAll = starters(ids).filter(p=>p.pos==='DEF');
@@ -2677,7 +2700,7 @@ function renderPitchCard(interactive){
   const fwdAll = starters(ids).filter(p=>p.pos==='FWD');
   const benchAll = benched(ids);
 
-  const opts = { mode: interactive ? state.teamMode : 'view', captainId: capId };
+  const opts = { mode: interactive ? state.teamMode : 'view', captainId: capId, planningMode: planning };
 
   // دالة مساعدة: تملأ صف بلاعبين حقيقيين + placeholders لو الصف ناقص
   function rowHtml(players, needed, pos){
