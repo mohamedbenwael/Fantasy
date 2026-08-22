@@ -1855,7 +1855,7 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
   }
 
   return '<div class="player" data-viewprofile="' + p.id + '">' +
-    '<div class="jersey jersey-photo' + (isLiveNow ? ' live-now' : '') + '">' +
+    '<div class="jersey jersey-photo">' +
       '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
       (isCap ? '<div class="cap">C</div>' : '') +
       (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
@@ -3824,11 +3824,11 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 // (بنستخدم setTimeout بيعيد جدولة نفسه بدل setInterval، عشان مدة الانتظار تتغيّر لايف
 // حسب state.hasLiveFixtures بدل ما تفضل ثابتة زي ما setInterval بيعمل).
 async function scheduleLiveTick(){
-  if(state.phase==='app' && state.tab==='home'){
+  if(state.phase==='app'){
     if(state.hasLiveFixtures){
       try{ await loadLiveData(); }catch(e){}
     }
-    renderBody();
+    if(state.tab==='home' || state.tab==='fixtures') renderBody();
   }
   setTimeout(scheduleLiveTick, state.hasLiveFixtures ? 45000 : 60000);
 }
