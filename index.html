@@ -1976,7 +1976,7 @@ function renderAiEvaluationCard(){
       if (isLiveNow) pptsClass += ' live-playing';
 
       return '<div class="player" data-viewprofile="' + p.id + '">' +
-        '<div class="jersey jersey-photo' + (isLiveNow ? ' live-now' : '') + '">' +
+        '<div class="jersey jersey-photo">' +
           '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
           (isCap ? '<div class="cap">C</div>' : '') +
           (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
