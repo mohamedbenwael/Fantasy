@@ -703,6 +703,20 @@ const LIVE_CACHE_KEY = 'fpl_cache_v2';
 const LIVE_CACHE_TTL = 5 * 60 * 1000; // 5 دقايق — لما مفيش مباريات شغالة دلوقتي
 const LIVE_CACHE_TTL_ACTIVE = 45 * 1000; // 45 ثانية — لما فيه مباريات شغالة فعليًا (بونص/نقط لحظية)
 
+// ===== تقدير الرتبة العامة (Overall Rank) اللحظي =====
+// فانتازي البريميرليج مبتديش رتبة عامة لحظية حقيقية أثناء المباريات (بترجع بعد قفل
+// البونص الرسمي بس). اللي بنعمله هنا تقدير إحصائي: بنسحب عينة من صفحات دوري الـ
+// "Overall" العام (ID رقم 314 — ده دوري ثابت من فانتازي نفسها بيضم كل اللاعبين)
+// موزّعة على مدى الرتب كلها، ونبني منحنى تقريبي "نقط ↔ رتبة" ونفسّر (interpolate)
+// عليه. الدقة محدودة بطبيعتها خصوصًا في مناطق الازدحام؛ الهدف مؤشر لا رقم مضمون.
+const OVERALL_LEAGUE_ID = 314;
+const RANK_CURVE_KEY = 'overall_rank_curve_v1';
+const RANK_CURVE_LOCK_KEY = 'overall_rank_curve_lock_v1';
+const RANK_CURVE_SAMPLE_POINTS = 34; // عدد الصفحات اللي بنسحبها لبناء المنحنى
+const RANK_CURVE_TTL_ACTIVE = 3 * 60 * 1000; // 3 دقايق وقت المباريات الشغالة
+const RANK_CURVE_TTL_IDLE = 45 * 60 * 1000; // 45 دقيقة برا وقت المباريات
+const RANK_CURVE_LOCK_TTL = 40 * 1000; // مدة القفل عشان مايبقاش أكتر من متصفح بيبني المنحنى مع بعض
+
 // لو صورة جاية من fantasy.premierleague.com/resources.premierleague.com فشلت (لينك اتغيّر، مفيش نت، إلخ)
 // بيستبدلها ببادج بسيط فيه أول حرف من اسم اللاعب، بدل ما يظهر أيقونة صورة مكسورة.
 function imgFallback(img){
@@ -964,6 +978,117 @@ async function fetchLeagueStandings(leagueId, page){
   }catch(e){
     return null;
   }
+}
+
+// ===== منحنى الرتبة العامة التقديري (نقط ↔ رتبة) =====
+// بنسحب صفحات standings لدوري الـ Overall (314) عند رتب موزّعة على كل المدى (من 1
+// لحد إجمالي عدد المديرين)، وبنبني مصفوفة {rank, total} مرتبة تصاعديًا بالنقط.
+// الكاش مشترك بين كل الزوار عبر Supabase (mazareta_kv) عشان محدش يضرب على FPL API
+// لوحده — أي متصفح يلاقي الكاش قديم بياخد قفل مؤقت ويبنيه، والباقي بيقروا من الكاش.
+async function sampleOverallRankCurve(totalManagers){
+  const total = Number(totalManagers) || 9000000;
+  const points = [];
+  for(let i=0;i<RANK_CURVE_SAMPLE_POINTS;i++){
+    // توزيع أكثف قرب القمة (رتب صغيرة) لأن الزحمة والتفاوت هناك أكبر نسبيًا،
+    // وأخف كل ما نزلنا لرتب كبيرة (منحنى تربيعي بسيط بدل توزيع خطي)
+    const frac = Math.pow(i/(RANK_CURVE_SAMPLE_POINTS-1), 2);
+    const rank = Math.max(1, Math.round(1 + frac * (total-1)));
+    const page = Math.max(1, Math.ceil(rank/50));
+    const data = await fetchLeagueStandings(OVERALL_LEAGUE_ID, page);
+    if(data && data.results && data.results.length){
+      const r = data.results[0];
+      if(r && typeof r.total === 'number') points.push({ rank: r.rank || rank, total: r.total });
+    }
+  }
+  points.sort((a,b)=> a.total - b.total);
+  return points;
+}
+
+async function loadOrBuildRankCurve(){
+  try{
+    const raw = await sGet(RANK_CURVE_KEY, true);
+    const cached = raw ? JSON.parse(raw) : null;
+    const ttl = state.hasLiveFixtures ? RANK_CURVE_TTL_ACTIVE : RANK_CURVE_TTL_IDLE;
+    const fresh = cached && cached.points && cached.points.length && (Date.now() - (cached.updatedAt||0) < ttl);
+    if(fresh){ state.rankCurve = cached; return; }
+    if(cached && cached.points && cached.points.length) state.rankCurve = cached; // كاش قديم أحسن من ولا حاجة لحد ما نبني واحد جديد
+
+    // محاولة أخذ قفل بناء — لو حد تاني قافلها من ثواني، منعملش نفس الشغل مرتين
+    const lockRaw = await sGet(RANK_CURVE_LOCK_KEY, true);
+    const lock = lockRaw ? JSON.parse(lockRaw) : null;
+    if(lock && (Date.now() - (lock.at||0) < RANK_CURVE_LOCK_TTL)) return; // حد تاني بيبني دلوقتي
+    await sSet(RANK_CURVE_LOCK_KEY, JSON.stringify({ at: Date.now() }), true);
+
+    const points = await sampleOverallRankCurve(state.totalManagers);
+    if(points.length >= 4){
+      const payload = { points, updatedAt: Date.now(), gw: state.gwInfo && state.gwInfo.current };
+      state.rankCurve = payload;
+      await sSet(RANK_CURVE_KEY, JSON.stringify(payload), true);
+    }
+  }catch(e){ /* تجاهل — التقدير هيفضل يستخدم آخر كاش متاح لو موجود */ }
+}
+
+// تفسير خطي (interpolation) على منحنى النقط↔الرتبة عشان نقدّر رتبة أي مجموع نقط
+function estimateRankForPoints(curve, totalPoints){
+  const pts = curve && curve.points;
+  if(!pts || pts.length < 2) return null;
+  if(totalPoints <= pts[0].total) return pts[0].rank;
+  if(totalPoints >= pts[pts.length-1].total) return pts[pts.length-1].rank;
+  for(let i=0;i<pts.length-1;i++){
+    const a = pts[i], b = pts[i+1];
+    if(totalPoints >= a.total && totalPoints <= b.total){
+      if(b.total === a.total) return a.rank;
+      const frac = (totalPoints - a.total) / (b.total - a.total);
+      return Math.round(a.rank + frac * (b.rank - a.rank));
+    }
+  }
+  return null;
+}
+
+// كام نقطة كمان محتاجها عشان تتحسن رتبتك التقديرية عن رتبتك الرسمية قبل الجولة دي
+// (ده تعريف "السهم الأخضر" — بيقارن رتبتك دلوقتي برتبتك قبل ما الجولة تبدأ)
+function overallRankOutlook(){
+  const curve = state.rankCurve;
+  const baseline = state.overallRank;
+  if(!curve || !baseline) return null;
+  const curTotal = seasonTotal();
+  const estRank = estimateRankForPoints(curve, curTotal);
+  if(estRank == null) return null;
+
+  if(estRank <= baseline){
+    return { estRank, baseline, arrow:'up', marginRanks: baseline - estRank, pointsNeeded: 0 };
+  }
+  // بندور بزيادة نقطة نقطة (لحد سقف معقول) على أول نقطة تخلي التقدير يتحسن عن الأساس
+  for(let add=1; add<=30; add++){
+    const r = estimateRankForPoints(curve, curTotal + add);
+    if(r != null && r <= baseline){
+      return { estRank, baseline, arrow:'down', marginRanks: estRank - baseline, pointsNeeded: add };
+    }
+  }
+  return { estRank, baseline, arrow:'down', marginRanks: estRank - baseline, pointsNeeded: null };
+}
+
+// تأثير كل نقطة إضافية (من أي لاعب أساسي) على رتبتك التقديرية — منحدر محلي بسيط
+// حوالين نقطك الحالية على المنحنى. الكابتن هيدّي ضعف (أو 3 أضعاف لو تريبل كابتن) التأثير.
+function rankSwingPerPoint(){
+  const curve = state.rankCurve;
+  if(!curve) return null;
+  const curTotal = seasonTotal();
+  const r0 = estimateRankForPoints(curve, curTotal);
+  const r1 = estimateRankForPoints(curve, curTotal + 3); // نطاق أوسع من نقطة واحدة عشان يبقى أدق وسط التقريب
+  if(r0 == null || r1 == null) return null;
+  return Math.max(0, Math.round((r0 - r1) / 3));
+}
+
+// أكتر اللاعبين اللي مش في تشكيلتك ونسبة امتلاكهم عالميًا عالية وبيسجلوا نقط لحظيًا —
+// دول اللي على الأغلب "هيقصروا عليك" في الرتبة العامة لأن غالبية اللي حواليك فيها عندهم
+// نفس اللاعبين دول. (مفهوم "مين حواليّ بالظبط" مش قابل للتطبيق على 10+ مليون مدير)
+function overallThreats(limit){
+  const owned = new Set((state.mySquadIds||[]).map(e=>e.id));
+  return state.players
+    .filter(p => !owned.has(p.id) && (p.ownership||0) >= 5 && currentGwPoints(p) > 0)
+    .sort((a,b)=> (b.ownership*currentGwPoints(b)) - (a.ownership*currentGwPoints(a)))
+    .slice(0, limit || 5);
 }
 
 // نتأكد إن ترتيب الدوري محمّل (أو بنجيبه أول مرة) — بيتخزن في كاش عشان منجيبوش من الأول كل مرة
@@ -1431,6 +1556,7 @@ let state = {
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
   liveEventNotifs: [],  // [{id, kind, color, icon, title, sub, ts}] — أحدث حدث أولاً
+  rankCurve: null,      // منحنى تقدير الرتبة العامة {points:[{rank,total}], updatedAt, gw} — شوف loadOrBuildRankCurve
 };
 
 function jerseyClass(p){ return p.pos==='GK' ? 'gk' : p.club; }
@@ -2139,6 +2265,7 @@ async function boot(){
     await loadSquadOrDraft();
     state.phase = 'app';
     render();
+    loadOrBuildRankCurve().then(()=>{ if(state.tab==='home' || state.tab==='team') renderBody(); }); // مش بنستنى — أول تحميل ممكن ياخد شوية ثواني (سحب عينة صفحات)
   } catch(e){
     state.bootError = 'حصل خطأ في تحميل البيانات. حاول تاني.';
     render();
@@ -2545,6 +2672,8 @@ function renderHome(){
     '</div>' +
   '</div>' +
 
+  renderRankOutlookCard() +
+
   '<div class="section-title"><h2>التشكيلة الأساسية — الجولة ' + state.gwInfo.current + '</h2><a data-goto="team">عرض التفاصيل ' + ICON_CHEV + '</a></div>' +
 
   renderPitchCard(false) +
@@ -2566,6 +2695,46 @@ function renderEventRankLine(){
     return '<div class="k" style="margin-top:5px;opacity:.8;">ترتيب الجولة: #' + state.eventRank.toLocaleString() + '</div>';
   }
   return '<div class="k" style="margin-top:5px;opacity:.5;">ترتيب الجولة: قيد الاحتساب الرسمي من FPL</div>';
+}
+
+// كارت تقدير الرتبة العامة اللحظية — "سهم أخضر" لو الرتبة التقديرية دلوقتي أحسن من
+// رتبتك الرسمية قبل الجولة، وإلا بيقولك تقريبًا كام نقطة باقية. تقدير غير رسمي دايمًا.
+function renderRankOutlookCard(){
+  const o = overallRankOutlook();
+  if(!o) return ''; // لسه المنحنى بيتحمّل أو الداتا مش كفاية
+  const swing = rankSwingPerPoint();
+  let statusHtml;
+  if(o.arrow==='up'){
+    statusHtml = '<div class="t1" style="color:var(--primary-soft)">' + ICON_UP + ' سهم أخضر تقريبًا — متقدم بحوالي ' + o.marginRanks.toLocaleString() + ' رتبة عن رتبتك قبل الجولة</div>';
+  } else if(o.pointsNeeded){
+    statusHtml = '<div class="t1">' + ICON_DOWN + ' محتاج تقريبًا ' + o.pointsNeeded + ' نقطة كمان عشان يبقى سهم أخضر</div>';
+  } else {
+    statusHtml = '<div class="t1">' + ICON_DOWN + ' لسه محتاج نقط أكتر عشان يبقى سهم أخضر</div>';
+  }
+  return '<div class="nudge" style="margin-bottom:20px;">' +
+    '<div class="ic">' + ICON_BULB + '</div>' +
+    '<div class="txt">' + statusHtml +
+      '<div class="t2">رتبتك العامة التقديرية الآن: #' + o.estRank.toLocaleString() + ' (تقدير غير رسمي مبني على عينة إحصائية، مش رقم فانتازي الرسمي)' +
+      (swing ? ' — كل نقطة من لاعب أساسي بتحسّنها بحوالي ' + swing.toLocaleString() + ' رتبة (والكابتن ضعف كده)' : '') +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// لاعيبه عاليين الملكية عالميًا ومش عندك وبيسجلوا نقط لحظيًا الآن — دول اللي على الأغلب
+// "هيقصروا عليك" في الرتبة العامة (مفيش طريقة تعرف مين حواليك بالظبط في 10+ مليون مدير)
+function renderOverallThreatsCard(){
+  const list = overallThreats(5);
+  if(!list.length) return '';
+  return '<div class="section-title"><h2>لاعيبه ممكن يقصروا عليك</h2></div>' +
+    '<div class="pitch-card" style="padding:6px 12px;margin-bottom:20px;">' +
+    list.map(p =>
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid rgba(255,255,255,.06);">' +
+        '<div>' + p.name + ' <span style="opacity:.6;font-size:.85em;">(' + p.ownership + '% ملكية)</span></div>' +
+        '<div style="color:var(--coral,#e25555);font-weight:600;">+' + currentGwPoints(p) + '</div>' +
+      '</div>'
+    ).join('') +
+    '</div>';
 }
 
 function leagueRankChange(lg){
@@ -2794,7 +2963,9 @@ function renderTeam(){
     '<button data-mode="bench" class="' + (state.teamMode==='bench'?'on':'') + '">تبديل الاحتياطي</button>' +
   '</div>' +
   '<div class="hint">' + modeHint + '</div>' +
-  renderPitchCard(true);
+  renderPitchCard(true) +
+  renderRankOutlookCard() +
+  renderOverallThreatsCard();
 }
 
 // ===== TRANSFERS TAB =====
@@ -3946,7 +4117,8 @@ async function scheduleLiveTick(){
     if(state.hasLiveFixtures){
       try{ await loadLiveData(); }catch(e){}
     }
-    if(state.tab==='home' || state.tab==='fixtures') renderBody();
+    try{ await loadOrBuildRankCurve(); }catch(e){}
+    if(state.tab==='home' || state.tab==='fixtures' || state.tab==='team') renderBody();
   }
   setTimeout(scheduleLiveTick, state.hasLiveFixtures ? 45000 : 60000);
 }
