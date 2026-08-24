@@ -1189,16 +1189,10 @@ async function buildLiveDataset(){
         rankIdx += tied.length;
       });
     });
-    // نضيف البونص الافتراضي لإجمالي نقاط اللاعب في الجولة الحالية جوه الـ history
-    Object.keys(provisionalBonusByElement).forEach(function(elIdStr){
-      var elId = Number(elIdStr);
-      var bonus = provisionalBonusByElement[elId];
-      var hist = historyByElement[elId];
-      if(hist){
-        var cur = hist.find(function(h){ return h.gw===gwId; });
-        if(cur) cur.pts += bonus;
-      }
-    });
+    // ملاحظة: مش بنضيف provisionalBonusByElement فوق cur.pts هنا —
+    // total_points الجاي من live/ API أصلاً شامل البونص اللحظي المحسوب رسميًا،
+    // فلو ضفناه تاني هنا هيبقى بونص مكرر (مضروب ×2). provisionalBonusByElement
+    // فضل موجود بس عشان شارة النجمة (badge) في الواجهة تدي المستخدم إشارة بصرية.
 
     // نظرة قدام: أقرب 3 مباريات لسه ما اتلعبتش لكل نادي (بتاخد بعضها لو فيه جولة مزدوجة)
     // استخدمنا !f.started بدل !f.finished عشان الماتش يتشال من "القادمة" فور انطلاقه، مش لما يخلص رسميًا
