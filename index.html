@@ -639,6 +639,40 @@
   .bonus-star { display: inline-block; width: 10px; color: var(--gold); vertical-align: text-top; margin-inline-start: 2px; }
   .bonus-star svg { width: 10px; height: 10px; stroke-width: 2px; }
   .swap-tag { display: flex; align-items: center; justify-content: center; gap: 4px; font-family: 'Cairo'; font-weight: 800; font-size: 9.5px; margin-bottom: 6px; }
+  /* ===== ستايلات بروفايل اللاعب الجديدة وتفاصيل النقاط ===== */
+  .pp-next-fix { flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px 6px; text-align:center; position:relative; overflow:hidden; border-top: 3px solid transparent; }
+  .pp-next-fix.easy { border-top-color: #3DD68C; }
+  .pp-next-fix.mid { border-top-color: #AFA9B8; }
+  .pp-next-fix.hard { border-top-color: var(--coral); }
+  .pp-next-fix .opp-logo { width: 32px; height: 32px; object-fit: contain; margin: 0 auto 6px; display: block; }
+  .pp-next-fix .opp-name { font-family: 'Cairo'; font-weight: 800; font-size: 11px; color: var(--text); }
+  .pp-next-fix .venue { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .pp-next-fix .fdr-box { display: inline-block; min-width: 22px; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 900; font-family: 'Cairo'; margin-top: 8px; background: rgba(255,255,255,0.08); color: var(--muted); }
+
+  .hist-row.clickable { cursor: pointer; transition: 0.2s; }
+  .hist-row.clickable:active { background: rgba(255,255,255,0.08); }
+  .hist-match-info { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
+  .score-badge { font-family: 'Cairo'; font-weight: 800; font-size: 11px; background: #2ed573; color: #04321B; padding: 2px 8px; border-radius: 4px; direction: ltr; }
+  .score-badge.no-score { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  /* مودال تفاصيل النقاط */
+  .brk-handle { width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 0 auto 16px; }
+  .brk-player-name { font-family: 'Cairo'; font-weight: 900; font-size: 18px; color: var(--text); text-align: center; }
+  .brk-gw-title { font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 16px; }
+  .brk-match { display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.04); padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; }
+  .brk-match .tm { display: flex; align-items: center; gap: 8px; font-family: 'Cairo'; font-weight: 700; font-size: 12px; color: var(--text); }
+  .brk-match .tm img { width: 28px; height: 28px; object-fit: contain; }
+  .brk-details-box { padding: 0 16px; }
+  .brk-head { display: flex; font-size: 10px; color: var(--muted); margin-bottom: 12px; font-weight: 700; }
+  .brk-head > div:nth-child(1) { flex: 2; }
+  .brk-head > div:nth-child(2) { flex: 1; text-align: center; }
+  .brk-head > div:nth-child(3) { flex: 1; text-align: left; }
+  .brk-row { display: flex; align-items: center; font-size: 12px; color: var(--text); padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .brk-row:last-child { border-bottom: none; }
+  .brk-row > div:nth-child(1) { flex: 2; font-weight: 700; }
+  .brk-row > div:nth-child(2) { flex: 1; text-align: center; font-family: 'Cairo'; font-weight: 800; }
+  .brk-row > div:nth-child(3) { flex: 1; text-align: left; font-family: 'Cairo'; font-weight: 800; }
+  .brk-total-row { display: flex; align-items: center; justify-content: space-between; font-size: 14.5px; font-family: 'Cairo'; font-weight: 900; color: var(--text); padding-top: 14px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); }
 </style>
 </head>
 <body>
@@ -1048,6 +1082,7 @@ async function buildLiveDataset(){
   const currentGwAssists = {};
   const currentGwYellow = {};
   const currentGwRed = {};
+  const currentGwExplain = {};
   for(const evId of liveIds){
     try{
       const live = await fplFetch('live', evId);
@@ -1061,6 +1096,7 @@ async function buildLiveDataset(){
           currentGwBps[row.id] = { bps: bps, fixtureId: fx };
           currentGwMinutes[row.id] = row.stats ? (row.stats.minutes || 0) : 0;
           currentGwStarted[row.id] = !!(row.stats && row.stats.starts);
+          currentGwExplain[row.id] = row.explain || [];
           currentGwGoals[row.id] = row.stats ? (row.stats.goals_scored || 0) : 0;
           currentGwAssists[row.id] = row.stats ? (row.stats.assists || 0) : 0;
           currentGwYellow[row.id] = row.stats ? (row.stats.yellow_cards || 0) : 0;
@@ -1165,8 +1201,9 @@ async function buildLiveDataset(){
     });
 
     // نظرة قدام: أقرب 3 مباريات لسه ما اتلعبتش لكل نادي (بتاخد بعضها لو فيه جولة مزدوجة)
+    // استخدمنا !f.started بدل !f.finished عشان الماتش يتشال من "القادمة" فور انطلاقه، مش لما يخلص رسميًا
     const upcoming = (allFx || [])
-      .filter(f=>!f.finished && f.event!=null && f.event>=gwId)
+      .filter(f=>!f.started && f.event!=null && f.event>=gwId)
       .sort((a,b)=>a.event-b.event);
     const lookaheadByTeam = {};
     upcoming.forEach(f=>{
@@ -1244,6 +1281,7 @@ async function buildLiveDataset(){
       gwAssists: currentGwAssists[el.id] || 0,
       gwYellow: currentGwYellow[el.id] || 0,
       gwRed: currentGwRed[el.id] || 0,
+      gwExplain: currentGwExplain[el.id] || [],
     };
   });
 
@@ -1429,7 +1467,7 @@ let state = {
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
   flash:null,
-  viewPlayerId:null, profileBack:'home', viewMatchId:null,
+  viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null,
   adminUnlocked:false, adminPinInput:'', adminSavedBanner:false,
   refreshing:false,
   liveSyncedAt:null, liveDataError:false, liveDataStale:false, hasLiveFixtures:false,
@@ -1614,20 +1652,32 @@ function cleanSheetProbability(p){
   return prob;
 }
 
-// نموذج إحصائي: نبني توقع نقط اللاعب من "استحقاقه" الفعلي (xG/xA/كلين شيت/بونص)
-// مش بس النتايج القديمة — ده بيقلل أثر الحظ (تسديدة اترد من القايم، أو أهداف من تسديدات ضعيفة)
+// نموذج إحصائي: تم وضع سقف للأرقام (Cap) لمنع خداع الدقائق القليلة للاعبين المجهولين
 function statModelPoints(p){
   const posGoalPts = {GK:6,DEF:6,MID:5,FWD:4}[p.pos] || 4;
   const posCSPts   = {GK:4,DEF:4,MID:1,FWD:0}[p.pos] || 0;
   const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : (p.minutes>0 ? 0.5 : 0);
   if(minFactor<=0) return 0;
-  const appearancePts = minFactor * 2; // تقدير نقط الظهور (60+ دقيقة)
-  const goalPts   = (p.xG90||0) * minFactor * posGoalPts;
-  const assistPts = (p.xA90||0) * minFactor * 3;
-  const csPts     = cleanSheetProbability(p) * posCSPts * minFactor;
+  
+  const appearancePts = minFactor * 2; 
+  
+  // السحر هنا: حد أقصى للـ xG عشان نعالج أخطاء الفانتازي في أول الموسم للاحتياطيين
+  const safeXG90 = Math.min(p.xG90 || 0, 1.1); 
+  const safeXA90 = Math.min(p.xA90 || 0, 0.7);
+  
+  const goalPts   = safeXG90 * minFactor * posGoalPts;
+  const assistPts = safeXA90 * minFactor * 3;
+  
+  let csProb = 0.25;
+  const fxInfo = state.teamFixtures[p.club];
+  if (fxInfo && fxInfo.lookahead && fxInfo.lookahead[0]) {
+      const fdr = fxInfo.lookahead[0].fdr;
+      csProb = fdr <= 2 ? 0.35 : (fdr >= 4 ? 0.10 : 0.25);
+  }
+  const csPts = csProb * posCSPts * minFactor;
+  
   const bonusPts  = (p.bonusPerMatch||0) * minFactor;
-  const savePts   = p.pos==='GK' ? ((p.savesPer90||0)/3) * minFactor : 0;
-  return appearancePts + goalPts + assistPts + csPts + bonusPts + savePts;
+  return appearancePts + goalPts + assistPts + csPts + bonusPts;
 }
 
 // خوارزمية الجولة الأولى: من غير أي مباريات لعبت فعلاً في الموسم ده، أي إحصائية جاية من الـ API
@@ -1651,30 +1701,145 @@ function gw1BaseEstimate(p){
 // - من الجولة التانية: بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
 //   وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي.
 // وبعدين بنضرب في صعوبة المباراة (FDR) واحتمال المشاركة.
+// توقعات النقاط: دمج ذكي يعتمد بقوة على فئة اللاعب (سعره) لتجاهل طفرات الجولة الواحدة
 function predictedPoints(p){
   const avail = availabilityMultiplier(p);
-  if(avail===0) return 0;
+  if(avail === 0) return 0;
+  
   const fx = teamFixtureInfo(p.club);
-  const fdrMul = fx ? fdrMultiplier(fx.fdr) : 1;
-  let base;
-  if(state.gwInfo.current<=1){
-    base = gw1BaseEstimate(p); // ما فيهاش أي استدعاء لـ statModelPoints في الجولة الأولى، خالص
+  const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
+  const fdrMul = nextFix ? fdrMultiplier(nextFix.fdr) : 1;
+  
+  // قوة اللاعب الأساسية مبنية على سعره في السوق
+  const posFloor = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
+  const classScore = 1.5 + (Math.max(0, p.price - posFloor) * 0.8) + (Math.min(p.ownership, 40) * 0.05);
+  
+  let base = classScore;
+  const isEarlySeason = state.gwInfo && state.gwInfo.current <= 3;
+  const stat = statModelPoints(p);
+  
+  // حساب الأساس الفني
+  if (isEarlySeason) {
+    if(p.epNext && p.epNext > 0) {
+        base = (classScore * 0.4) + (p.epNext * 0.6);
+    } else {
+        base = classScore;
+    }
+  } else {
+    if(p.epNext && p.epNext > 0 && p.formWeighted > 0){ 
+        base = (p.epNext * 0.4) + (stat * 0.3) + (p.formWeighted * 0.3); 
+    }
+    else if(p.epNext && p.epNext > 0){ base = (p.epNext * 0.5) + (stat * 0.5); }
+    else if(p.formWeighted > 0){ base = (p.formWeighted * 0.6) + (stat * 0.4); }
+    else if(stat > 0){ base = stat; }
   }
-  else {
-    const stat = statModelPoints(p);
-    // لو معانا فورم موزون فعلي (نقط آخر جولات، الأقرب أهم) بندمجه هنا كمان حتى لو
-    // ep_next الرسمي متاح — قبل كده كان ep_next لوحده بيلغي أي تأثير للفورم الفعلي،
-    // فلاعب غالي بياخد ep_next عالي بناءً على سعره/بياناته الأساسية كان بيفضل في القمة
-    // حتى لو مقدمش أي حاجة في آخر الجولات، وده اللي كان بيخلي ترشيحات "الأعلى توقعاً"
-    // بتفضل نفس الأسماء الكبيرة تقريبًا بغض النظر عن أدائهم الفعلي.
-    if(p.epNext && p.epNext>0 && p.formWeighted && p.formWeighted>0){ base = p.epNext*0.4 + stat*0.35 + p.formWeighted*0.25; }
-    else if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
-    else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
-    else if(stat>0){ base = stat; }
-    else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
+  
+  // 🔥 السحر الجديد: "تأثير السوق" (حكمة الجمهور) 🔥
+  const netTransfers = (p.transfersInEvent || 0) - (p.transfersOutEvent || 0);
+  let marketBonus = 0;
+
+  if (netTransfers > 0) {
+      // شراء مكثف = تألق ملحوظ (يرفع التوقع بقوة)
+      // كل 20 ألف شراء بيدي ربع نقطة، بحد أقصى +2.5
+      marketBonus = Math.min(2.5, (netTransfers / 20000) * 0.25);
+  } else if (netTransfers < 0) {
+      // بيع مكثف = أداء باهت أو مشكلة (يخفض التوقع)
+      marketBonus = Math.max(-2.5, (netTransfers / 20000) * 0.25);
   }
+
+  // في أول 3 جولات الإحصائيات بتكون مضللة، فبنضاعف تأثير السوق بنسبة 50%
+  if (isEarlySeason && marketBonus !== 0) {
+      marketBonus *= 1.5;
+  }
+
+  base += marketBonus;
+  base = Math.max(0.5, base); // مينفعش التوقع المبدئي ينزل للصفر لو هو لاعب متاح وأساسي
+  
   const pts = base * fdrMul * avail;
-  return Math.max(0, Math.round(pts*10)/10);
+  return Math.max(0, Math.round(pts * 10) / 10);
+}
+
+// الكلين شيت: حسابات واقعية وقوية جداً تعتمد على الـ FDR بشكل دقيق
+function cleanSheetRanking(){
+  return Object.keys(CLUB_TAG).map(key=>{
+    const fxInfo = state.teamFixtures[key];
+    if(!fxInfo || !fxInfo.lookahead || !fxInfo.lookahead.length) return null;
+    const nextFix = fxInfo.lookahead[0]; 
+    
+    let prob = 0.25;
+    if(nextFix.ownDefHome && nextFix.oppAtkAway) {
+        const defStrength = nextFix.isHome ? nextFix.ownDefHome : nextFix.ownDefAway;
+        const oppAtk = nextFix.isHome ? nextFix.oppAtkAway : nextFix.oppAtkHome;
+        prob = Math.max(0.05, Math.min(0.55, 0.25 + ((defStrength - oppAtk) / 1000)));
+    } else {
+        prob = nextFix.fdr <= 2 ? 0.35 : (nextFix.fdr >= 4 ? 0.12 : 0.25);
+    }
+    
+    if (nextFix.isHome) prob += 0.05; // دفعة الأرض
+    
+    // جلب الحارس الأساسي (الأغلى سعراً) مش الاحتياطي
+    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key && availabilityMultiplier(p)>0);
+    if(!keepers.length) return null;
+    keepers.sort((a,b)=> b.price - a.price || b.ownership - a.ownership);
+    const firstKeeper = keepers[0];
+    
+    if(firstKeeper.minutes > 90 && firstKeeper.xGC90 > 1.5){ prob = Math.max(0.02, prob - 0.05); }
+    
+    return { club:key, prob: Math.max(2, Math.min(65, Math.round(prob*100))), fx: nextFix, p: firstKeeper };
+  }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+}
+
+// اللاعبون الأعلى توقعاً (منع ظهور المدافعين الرخاص اللي تألقوا صدفة)
+function inFormRanking(limit){
+  return state.players.filter(p => availabilityMultiplier(p) > 0 && p.price >= 5.0) 
+    .map(p => ({ p, score: predictedPoints(p) }))
+    .filter(x => x.score > 3.0) 
+    .sort((a,b) => b.score - a.score)
+    .slice(0, limit || 10);
+}
+
+// نصايح البيع: لو لاعب غالي ومتوقع يجيب نقط قليلة هيرشحلك تبيعه فوراً
+function sellAdvice(){
+  return squad().map(p=>{
+    const reasons = [];
+    let score = predictedPoints(p);
+    
+    if(p.status==='i'){ reasons.push('مصاب'); score -= 5; }
+    else if(p.status==='s'){ reasons.push('موقوف'); score -= 5; }
+    else if(p.status==='d'){ reasons.push('مشكوك في مشاركته'); score -= 1.5; }
+    
+    const fx = teamFixtureInfo(p.club);
+    const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
+    if(nextFix && nextFix.fdr >= 4){ reasons.push('مباراة صعبة الجولة القادمة'); score -= 0.8; }
+    
+    if(score < 3.5 && p.price >= 5.5){ reasons.push('توقع نقاط ضعيف مقارنة بسعره'); score -= 1.5; }
+    if(p.priceChange < 0){ reasons.push('مؤشر هبوط سعره'); }
+    
+    return { p, score, reasons };
+  }).filter(x=>x.reasons.length>0).sort((a,b)=>a.score-b.score).slice(0,5);
+}
+
+// نصايح الشراء: متجاوبة مع التريندات
+function buyAdvice(){
+  return pool().filter(p=>availabilityMultiplier(p)>0)
+    .map(p=>{
+      const reasons = [];
+      const pred = predictedPoints(p);
+      const fx = teamFixtureInfo(p.club);
+      const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
+      
+      if(nextFix && nextFix.fdr <= 2) reasons.push('مباراة سهلة الجولة القادمة');
+      if(pred >= 4.8) reasons.push('توقع نقاط ممتاز الجولة القادمة');
+      if(p.priceChange > 0) reasons.push('مؤشر صعود سعره');
+      
+      const netTransfers = (p.transfersInEvent || 0) - (p.transfersOutEvent || 0);
+      if(netTransfers > 30000) reasons.push('الأكثر شراءً حالياً (تريند السوق)');
+      
+      return { p, pred, reasons };
+    })
+    .filter(x=>x.reasons.length >= 2) // لازم سببين عشان يبقى ترشيح قوي
+    .sort((a,b)=>b.pred-a.pred)
+    .slice(0,8);
 }
 
 // توقع مجموع نقاط التشكيلة الأساسية (بمضاعفة الكابتن)
@@ -1693,65 +1858,9 @@ function squadOwnershipAvg(){
   return Math.round((s.reduce((sum,p)=>sum+p.ownership,0)/s.length)*10)/10;
 }
 
-// ترتيب الأندية حسب احتمال الكلين شيت في مباراتهم القادمة اللي لسه ما اتلعبتش
-// (بنعتمد على lookahead[0] بدل مباراة الجولة الحالية، عشان لو مباراة النادي خلصت
-// بالفعل في الجولة الجارية، القسم ده يتحول تلقائيًا لمباراته الجاية مش يفضل واقف عليها)
-function cleanSheetRanking(){
-  return Object.keys(CLUB_TAG).map(key=>{
-    const fxInfo = state.teamFixtures[key];
-    if(!fxInfo || !fxInfo.lookahead || !fxInfo.lookahead.length) return null;
-    const nextFix = fxInfo.lookahead[0];
-    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key);
-    const refPlayer = { pos:'GK', club:key, xGC90: keepers.length ? keepers[0].xGC90 : 0 };
-    // نفس المعادلة المستمرة اللي بتستخدمها cleanSheetProbability() لمباراة الجولة الحالية،
-    // بدل تصنيف خشن على 3 مستويات (سهلة/متوسطة/صعبة) كان بيدي نفس النسبة بالظبط لكل الأندية
-    // في نفس الفئة (مثلاً كل الأندية اللي مباراتها الجاية fdr<=2 كانت بتاخد 38% بالظبط،
-    // حتى لو فرق قوة الدفاع بينهم كبير أو لاعب برا أرضه).
-    let prob = 0.28;
-    const defStrength = nextFix.isHome ? nextFix.ownDefHome : nextFix.ownDefAway;
-    const oppAtk = nextFix.isHome ? nextFix.oppAtkAway : nextFix.oppAtkHome;
-    if(defStrength!=null && oppAtk!=null){
-      prob = Math.max(0.03, Math.min(0.65, 0.32 + (defStrength-oppAtk)/220));
-    } else {
-      // فولباك لو بيانات القوة مش متاحة للمباراة دي لأي سبب
-      prob = nextFix.fdr <= 2 ? 0.38 : (nextFix.fdr >= 4 ? 0.18 : 0.28);
-    }
-    if(refPlayer.xGC90>1.1){ prob = Math.max(0.02, prob - (refPlayer.xGC90-1.1)*0.12); }
-    return { club:key, prob: Math.max(3, Math.min(72, Math.round(prob*100))), fx: nextFix };
-  }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
-}
-
 // أفضل حراس مرمى مرشحين لكلين شيت (أول حارس أساسي في كل نادي من أعلى الترتيب)
 function topCleanSheetKeepers(limit){
-  return cleanSheetRanking().map(r=>{
-    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===r.club && availabilityMultiplier(p)>0);
-    if(!keepers.length) return null;
-    keepers.sort((a,b)=> b.minutes-a.minutes || b.ownership-a.ownership);
-    return { p:keepers[0], prob:r.prob, fx:r.fx };
-  }).filter(Boolean).slice(0, limit||8);
-}
-
-// اللاعبون الأعلى توقعاً للمباراة القادمة (فورم + مباراة سهلة، من كل اللاعبين المتاحين فعلاً)
-// بنشيل تأثير fdr مباراة الجولة الحالية من predictedPoints ونحطله بدالها fdr المباراة
-// القادمة اللي لسه ما اتلعبتش، عشان لاعب مباراته خلصت بالفعل ميفضلش ظاهر بتوقع قديم.
-// ملحوظة مهمة: بنفلتر بـ availabilityMultiplier بس (مش p.minutes>0) — لأن p.minutes هي
-// دقايق الموسم المتراكمة، وأول ما جولة تبدأ (أو أول جولة في الموسم) بتكون صفر لكل لاعبي
-// الفرق اللي لسه ما لعبتش، فلو فلترنا بيها هتستبعد كل اللاعبين إلا لاعبي الفريق الوحيد
-// اللي خلص ماتشه فعلاً — وده بالظبط اللي كان بيحصل.
-function inFormRanking(limit){
-  return state.players.filter(p=>availabilityMultiplier(p)>0)
-    .map(p=>{
-      const curFx = teamFixtureInfo(p.club);
-      const curMul = curFx ? fdrMultiplier(curFx.fdr) : 1;
-      const fxInfo = state.teamFixtures[p.club];
-      const nextFix = (fxInfo && fxInfo.lookahead && fxInfo.lookahead[0]) ? fxInfo.lookahead[0] : null;
-      const nextMul = nextFix ? fdrMultiplier(nextFix.fdr) : curMul;
-      const base = predictedPoints(p) / (curMul || 1);
-      const score = Math.max(0, Math.round(base * nextMul * 10) / 10);
-      return { p, score, fx: nextFix };
-    })
-    .sort((a,b)=>b.score-a.score)
-    .slice(0, limit||10);
+  return cleanSheetRanking().map(r=> ({ p:r.p, prob:r.prob, fx:r.fx }) ).slice(0, limit||8);
 }
 
 // الأعلى نسبة ملكية بين كل المديرين
@@ -1803,46 +1912,6 @@ function topTransfersOut(limit){
     .slice()
     .sort((a,b)=>(b.transfersOutEvent||0) - (a.transfersOutEvent||0))
     .slice(0, limit||3);
-}
-
-// نصايح: مين تبيع من فريقك الحالي
-function sellAdvice(){
-  return squad().map(p=>{
-    const reasons = [];
-    let score = predictedPoints(p);
-    if(p.status==='i'){ reasons.push('مصاب'); score -= 5; }
-    else if(p.status==='s'){ reasons.push('موقوف'); score -= 5; }
-    else if(p.status==='d'){ reasons.push('مشكوك في مشاركته'); score -= 1.5; }
-    const fx = teamFixtureInfo(p.club);
-    if(fx && fx.fdr>=4){ reasons.push('مباراة صعبة الجولة الجاية'); score -= 0.8; }
-    if(fx && fx.avgFdrNext3 && fx.avgFdrNext3>=3.6){ reasons.push('سلسلة مباريات صعبة قدامه'); score -= 0.6; }
-    if(p.minutes>0 && (p.formWeighted||p.form||0) < 2){ reasons.push('فورم ضعيف'); score -= 0.6; }
-    if((p.startsFactor!=null) && p.startsFactor<0.5 && p.minutes>0){ reasons.push('خطر دوران (مش أساسي ثابت)'); score -= 0.7; }
-    if(p.pos!=='GK' && (p.form||0) > (p.xG90+p.xA90)*4 + 1.5){ reasons.push('نتايجه أحسن من مستواه الفعلي (ممكن ترجع لطبيعتها)'); score -= 0.4; }
-    if(p.priceChange < 0){ reasons.push('سعره بينزل'); }
-    return { p, score, reasons };
-  }).filter(x=>x.reasons.length>0).sort((a,b)=>a.score-b.score).slice(0,5);
-}
-
-// نصايح: مين تشتري (من برا فريقك)
-function buyAdvice(){
-  return pool().filter(p=>availabilityMultiplier(p)>0)
-    .map(p=>{
-      const reasons = [];
-      const pred = predictedPoints(p);
-      const fx = teamFixtureInfo(p.club);
-      if(fx && fx.fdr<=2) reasons.push('مباراة سهلة الجولة الجاية');
-      if(fx && fx.avgFdrNext3 && fx.avgFdrNext3<=2.4) reasons.push('سلسلة مباريات سهلة قدامه');
-      if((p.formWeighted||p.form||0) >= 4) reasons.push('فورم ممتاز');
-      if(p.pos!=='GK' && (p.xG90+p.xA90) >= 0.5) reasons.push('معدل مشاركة عالي في الأهداف (xG/xA)');
-      if(p.setPiece) reasons.push(p.setPiece);
-      if((p.startsFactor||0) >= 0.85) reasons.push('أساسي ثابت');
-      if(p.priceChange > 0) reasons.push('سعره بيطلع');
-      if(p.ownership < 8 && pred>=4) reasons.push('لاعب مميز (differential)');
-      return { p, pred, reasons };
-    })
-    .sort((a,b)=>b.pred-a.pred)
-    .slice(0,8);
 }
 
 // ===== الدريم تيم: أفضل 11 لاعب ممكنين للجولة الجاية من كل قاعدة اللاعبين =====
@@ -3013,14 +3082,10 @@ function renderMore(){
 
     '<div class="more-section">' +
       '<div class="more-group-label">المميزات</div>' +
-      '<div class="tile-grid">' +
+      '<div class="tile-grid" style="grid-template-columns: 1fr;">' +
         '<button class="feature-tile" data-goto="predictions">' +
           '<div class="ft-icon">' + ICON_PREDICT + '</div>' +
-          '<div><div class="ft-title">التوقعات والنصائح</div><div class="ft-sub">توقع نقاط تشكيلتك ونصائح البيع والشراء</div></div>' +
-        '</button>' +
-        '<button class="feature-tile alt" data-goto="prices">' +
-          '<div class="ft-icon">' + ICON_PRICE + '</div>' +
-          '<div><div class="ft-title">توقع تغيير الأسعار</div><div class="ft-sub">مؤشر احتمالية صعود وهبوط أسعار اللاعبين.</div></div>' +
+          '<div><div class="ft-title">التوقعات والنصائح</div><div class="ft-sub">توقع نقاط تشكيلتك، الكلين شيت، ونصائح الانتقالات</div></div>' +
         '</button>' +
       '</div>' +
     '</div>' +
@@ -3121,10 +3186,39 @@ function renderPlayerProfile(){
   const lookahead = (state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || [];
   const fixturesHtml = lookahead.length ? lookahead.map(f=>{
     const fdrCls = f.fdr<=2 ? 'easy' : (f.fdr>=4 ? 'hard' : 'mid');
-    return '<div class="pp-fixcard ' + fdrCls + '"><div class="opp">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+    const oppCode = CLUB_CODE[f.oppKey] || '';
+    const logoSrc = oppCode ? `https://resources.premierleague.com/premierleague/badges/t${oppCode}.png` : '';
+    return '<div class="pp-next-fix ' + fdrCls + '">' +
+      '<img src="' + logoSrc + '" class="opp-logo" onerror="this.style.display=\'none\'">' +
+      '<div class="opp-name">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
       '<div class="venue">' + (f.isHome?'أرض':'خارج') + '</div>' +
-      '<div class="fdr ' + fdrCls + '">' + f.fdr + '</div></div>';
+      '<div class="fdr-box">' + f.fdr + '</div></div>';
   }).join('') : '<div class="hint">لا توجد بيانات مباريات قادمة حاليًا</div>';
+
+  // صف مباراة الجولة الحالية (لو متوفرة) — بيفتح مودال تفاصيل النقاط عند الضغط
+  const currentGw = state.gwInfo.current;
+  const currentFx = state.fixturesList.find(fx => fx.team_h === p.club || fx.team_a === p.club);
+  let currentGwHtml = '';
+  if (currentFx && currentFx.started) {
+      const isHome = currentFx.team_h === p.club;
+      const oppKey = isHome ? currentFx.team_a : currentFx.team_h;
+      const oppCode = CLUB_CODE[oppKey] || '';
+      const logoSrc = oppCode ? `https://resources.premierleague.com/premierleague/badges/t${oppCode}.png` : '';
+      const oppTag = (CLUB_TAG[oppKey]||'؟') + (isHome ? ' (H)' : ' (A)');
+      const scoreText = (currentFx.score_h != null && currentFx.score_a != null)
+          ? `<div class="score-badge">${currentFx.score_h} - ${currentFx.score_a}</div>`
+          : '<div class="score-badge no-score">- : -</div>';
+      currentGwHtml = `
+      <div class="hist-row clickable" data-breakdown="${p.id}" style="margin-bottom:8px;">
+          <div class="g" style="width:40px;">GW ${currentGw}</div>
+          <div class="hist-match-info">
+             <div style="font-size:10.5px; color:var(--muted);">${oppTag}</div>
+             <img src="${logoSrc}" style="width:20px;height:20px;object-fit:contain;" onerror="this.style.display='none'">
+             ${scoreText}
+          </div>
+          <div class="p" style="font-size:14px;">${currentGwPoints(p)} نقطة</div>
+      </div>`;
+  }
 
   return '' +
   '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1><div class="spacer"></div></div>' +
@@ -3141,9 +3235,11 @@ function renderPlayerProfile(){
   '</div>' +
   '<div class="own-bar"><div class="row1"><span>نسبة الملكية بين المديرين</span><span>' + p.ownership + '%</span></div>' +
     '<div class="track"><div class="fill" style="width:' + Math.min(100,p.ownership) + '%;"></div></div></div>' +
-  '<div class="fix-row"><div class="k">المباراة القادمة</div><div class="v">' + (state.gwInfo.fixtures[p.club]||'-') + '</div></div>' +
-  '<div class="section-title"><h2>جدول المباريات</h2></div>' +
+  '<div class="section-title"><h2>جدول المباريات القادمة</h2></div>' +
   '<div class="pp-fixtures">' + fixturesHtml + '</div>' +
+  '<div class="section-title"><h2>النتائج (الجولة الحالية)</h2></div>' +
+  '<div style="margin:0 20px;">' + currentGwHtml +
+  (currentGwHtml ? '<div class="hint" style="text-align:right; font-size:9.5px; margin-top:4px;">اضغط على المباراة لعرض تفاصيل النقاط</div>' : '<div class="hint">لا توجد مباراة لهذا اللاعب في الجولة الحالية</div>') + '</div>' +
   '<div class="section-title"><h2>الفورم (آخر جولات)</h2></div>' +
   '<div class="form-card"><div class="form-bars">' + last4.map(h=>{
     const hpct = Math.max(8,(h.pts/maxPts)*100);
@@ -3154,6 +3250,88 @@ function renderPlayerProfile(){
     '<div class="hist-row"><div class="g">الجولة '+h.gw+'</div><div class="p">'+h.pts+' نقطة</div></div>'
   ).join('') + '</div>' +
   adminBlock;
+}
+
+// ===== مودال تفاصيل النقاط (Breakdown) =====
+function renderPlayerBreakdownModal() {
+    if(!state.viewBreakdownPlayerId) return '';
+    const p = findPlayer(state.viewBreakdownPlayerId);
+    if(!p) return '';
+
+    const explains = p.gwExplain || [];
+    const currentFx = state.fixturesList.find(fx => fx.team_h === p.club || fx.team_a === p.club);
+
+    const statLabels = {
+        minutes: 'عدد الدقائق التي لعبها',
+        goals_scored: 'الأهداف',
+        assists: 'التمريرات الحاسمة',
+        clean_sheets: 'شباك نظيفة',
+        goals_conceded: 'أهداف مستقبلة',
+        own_goals: 'أهداف عكسية',
+        penalties_saved: 'تصدي لركلات جزاء',
+        penalties_missed: 'إهدار ركلات جزاء',
+        yellow_cards: 'بطاقات صفراء',
+        red_cards: 'بطاقات حمراء',
+        saves: 'تصديات',
+        bonus: 'النقاط الإضافية (بونص)',
+        bps: 'نظام نقاط المكافأة'
+    };
+
+    let explainRows = '';
+    let totalPts = 0;
+    explains.forEach(exp => {
+        (exp.stats || []).forEach(st => {
+            if (st.points === 0 && st.identifier !== 'minutes') return; // إخفاء الأصفار ما عدا الدقائق
+            explainRows += `
+            <div class="brk-row">
+                <div>${statLabels[st.identifier] || st.identifier}</div>
+                <div>${st.value}</div>
+                <div>${st.points} نقطة</div>
+            </div>`;
+            totalPts += st.points;
+        });
+    });
+
+    if(!explainRows) explainRows = '<div class="hint" style="margin-top:10px;">لم يحصد اللاعب نقاط في هذه المباراة حتى الآن.</div>';
+
+    let fixHeader = '';
+    if (currentFx) {
+       const hName = CLUB_NAME[currentFx.team_h] || CLUB_TAG[currentFx.team_h];
+       const aName = CLUB_NAME[currentFx.team_a] || CLUB_TAG[currentFx.team_a];
+       const hLogo = `https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[currentFx.team_h]}.png`;
+       const aLogo = `https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[currentFx.team_a]}.png`;
+       const score = currentFx.score_h != null ? `<span dir="ltr">${currentFx.score_h} - ${currentFx.score_a}</span>` : '- : -';
+
+       fixHeader = `
+       <div class="brk-match">
+         <div class="tm">${hName} <img src="${hLogo}" onerror="this.style.display='none'"></div>
+         <div class="score-badge" style="font-size:16px;">${score}</div>
+         <div class="tm"><img src="${aLogo}" onerror="this.style.display='none'"> ${aName}</div>
+       </div>`;
+    }
+
+    return `
+    <div class="modal-overlay open" id="breakdownOverlay">
+        <div class="modal-content brk-content" id="breakdownContent" onclick="event.stopPropagation()">
+            <div class="brk-handle"></div>
+            <button class="modal-close" id="closeBreakdown">${ICON_CLOSE}</button>
+            <div class="brk-player-name">${p.name}</div>
+            <div class="brk-gw-title">الجولة ${state.gwInfo.current}</div>
+            ${fixHeader}
+            <div class="brk-details-box">
+                <div class="brk-head">
+                    <div>النوع</div>
+                    <div style="text-align:center;">القيمة</div>
+                    <div style="text-align:left;">النقاط</div>
+                </div>
+                ${explainRows}
+                <div class="brk-total-row">
+                    <div>إجمالي النقاط</div>
+                    <div style="text-align:left; color:var(--primary-soft);">${totalPts} نقطة</div>
+                </div>
+            </div>
+        </div>
+    </div>`;
 }
 
 // ===== PREDICTIONS & ADVICE =====
@@ -3258,7 +3436,6 @@ function suggestedLineupSwaps(){
 }
 
 function renderPredictions(){
-  // التحقق هل الجولة بدأت وفي نقط لايف؟
   const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
   const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
   const isLive = isStarted && hasLivePoints;
@@ -3266,13 +3443,10 @@ function renderPredictions(){
   const ownAvg = squadOwnershipAvg();
   const c = captain();
 
-  // نقاط التشكيلة (لايف أو متوقع)
   const squadScore = isLive ? roundPoints() : predictedSquadPoints();
   const bannerLabel = isLive ? 'نقاط تشكيلتك اللايف — الجولة ' + state.gwInfo.current : 'توقع نقاط تشكيلتك — الجولة ' + state.gwInfo.current;
   const bannerScoreText = isLive ? squadScore + ' نقطة فعلية' : fmt(squadScore) + ' نقطة متوقعة';
 
-  // ===== كارت ترشيح الكابتن =====
-  // ملوش لازمة نظهره لو الجولة بدأت والتشكيلة اتقفلت
   const suggCap = suggestedCaptain();
   const captainCardHtml = (!isStarted && suggCap) ? ('' +
     '<div class="section-title"><h2 class="h2-icon" style="color:var(--gold);">' + ICON_CROWN + ' كابتن الجولة المقترح من فريقك</h2></div>' +
@@ -3286,8 +3460,6 @@ function renderPredictions(){
     '</div>'
   ) : '';
 
-  // ===== كارت تبديلات التشكيل المقترحة (أساسي/احتياطي) =====
-  // ملوش لازمة برضه لو الديدلاين قفل خلاص
   const lineupSwaps = suggestedLineupSwaps();
   const lineupSwapsHtml = (!isStarted && lineupSwaps.length) ? ('' +
     '<div class="section-title"><h2 class="h2-icon" style="color:var(--primary-soft);">' + ICON_SWAP_ALT + ' تبديلات مقترحة في التشكيل</h2></div>' +
@@ -3298,7 +3470,6 @@ function renderPredictions(){
     '</div>'
   ) : '';
 
-  // ===== قائمة لاعبي تشكيلتك (بالترتيب بناءً على النقط أو التوقع) =====
   const squadRowsArr = starters().slice().sort((a,b) => {
     const scoreA = isLive ? currentGwPoints(a) : predictedPoints(a);
     const scoreB = isLive ? currentGwPoints(b) : predictedPoints(b);
@@ -3310,11 +3481,9 @@ function renderPredictions(){
     return predRow(p, ptsText + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
   });
 
-  // ===== مقترحات الانتقال الذكية (بنسيبها عشان الناس بتخطط للجولة الجاية) =====
   const sells = sellAdvice();
   const buys = buyAdvice();
   const ownedIds = new Set(state.mySquadIds.map(e=>e.id));
-
   const swapSuggestions = [];
   sells.forEach(s=>{
     const budget = state.bank + s.p.price;
@@ -3369,11 +3538,15 @@ function renderPredictions(){
 
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة', null, null, false) );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
-  const nextGwNum = (state.gwInfo.current||1) + 1;
+  
+  // دمج التريندات الحقيقية فقط (الأكثر شراءً وبيعاً) وإزالة توقع الأسعار
+  const topIn = topTransfersIn(5).map(x => predRow(x, '+' + fmtCount(x.transfersInEvent), 'mkt-in', 'شراء', false));
+  const topOut = topTransfersOut(5).map(x => predRow(x, '-' + fmtCount(x.transfersOutEvent), 'mkt-out', 'بيع', false));
 
+  const nextGwNum = (state.gwInfo.current||1) + 1;
   const noteText = isLive 
     ? 'النقاط الفعلية المحققة لتشكيلتك حتى الآن في هذه الجولة.' 
-    : 'ملاحظة: هذه التوقعات إحصائية ومبنية على نماذج أداء معتمدة (xG/xA, FDR) وتوقعات FPL الرسمية، ولا تعتبر نتائج مؤكدة.';
+    : 'ملاحظة: هذه التوقعات إحصائية ومبنية على نماذج أداء معتمدة (xG/xA, FDR) وتوقعات FPL الرسمية.';
 
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>التوقعات والنصائح</h1><div class="spacer"></div></div>' +
@@ -3392,6 +3565,12 @@ function renderPredictions(){
 
   '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
   '<div style="margin:0 20px;">' + suggestionsHtml + '</div>' +
+
+  '<div class="section-title"><h2><span class="h2-icon" style="color:var(--gold);">' + ICON_STAR + ' الأكثر شراءً هذه الجولة</span></h2></div>' +
+  limitedListHtml(topIn, 'predTopIn', 'league-list', 'gap:8px;') +
+
+  '<div class="section-title"><h2><span class="h2-icon" style="color:var(--muted);">' + ICON_CLOSE + ' الأكثر بيعاً هذه الجولة</span></h2></div>' +
+  limitedListHtml(topOut, 'predTopOut', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ')</h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
@@ -3570,6 +3749,7 @@ function renderBody(){
   el.innerHTML = html;
   document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
   if(state.viewMatchId) el.innerHTML += renderMatchModal();
+  if(state.viewBreakdownPlayerId) el.innerHTML += renderPlayerBreakdownModal();
   bindBody();
 }
 function updateNav(){
@@ -3679,6 +3859,21 @@ function bindBody(){
   const matchOverlay = el.querySelector('#matchModalOverlay');
   if(closeMatchBtn) closeMatchBtn.addEventListener('click', ()=>{ state.viewMatchId = null; renderBody(); });
   if(matchOverlay) matchOverlay.addEventListener('click', ()=>{ state.viewMatchId = null; renderBody(); });
+
+  // فتح تفاصيل نقط اللاعب
+  el.querySelectorAll('[data-breakdown]').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      state.viewBreakdownPlayerId = parseInt(b.getAttribute('data-breakdown'));
+      renderBody();
+    });
+  });
+
+  // قفل تفاصيل نقط اللاعب
+  const closeBrkBtn = el.querySelector('#closeBreakdown');
+  const brkOverlay = el.querySelector('#breakdownOverlay');
+  if(closeBrkBtn) closeBrkBtn.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; renderBody(); });
+  if(brkOverlay) brkOverlay.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; renderBody(); });
 
   // boot retry
   const retry = el.querySelector('#retryBoot');
