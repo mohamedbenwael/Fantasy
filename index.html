@@ -1171,8 +1171,16 @@ async function buildLiveDataset(){
     const lookaheadByTeam = {};
     upcoming.forEach(f=>{
       const hKey = teamIdToKey[f.team_h], aKey = teamIdToKey[f.team_a];
-      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, isHome:true, oppKey:aKey }); }
-      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, isHome:false, oppKey:hKey }); }
+      const hTeam = teamsById[f.team_h], aTeam = teamsById[f.team_a];
+      // بنسجل قوة الهجوم/الدفاع الفعلية لكل نادي وخصمه مع كل مباراة قادمة (مش بس رقم الـ FDR)
+      // عشان احتمال الكلين شيت للمباريات الجاية يتحسب بنفس الدقة اللي بيتحسب بيها لمباراة الجولة الحالية،
+      // بدل ما يتحول لتصنيف خشن (سهلة/متوسطة/صعبة) بيدي نفس النسبة لكل الأندية في نفس الفئة.
+      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, isHome:true, oppKey:aKey,
+        ownDefHome: hTeam?hTeam.strength_defence_home:null, ownDefAway: hTeam?hTeam.strength_defence_away:null,
+        oppAtkHome: aTeam?aTeam.strength_attack_home:null, oppAtkAway: aTeam?aTeam.strength_attack_away:null }); }
+      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, isHome:false, oppKey:hKey,
+        ownDefHome: aTeam?aTeam.strength_defence_home:null, ownDefAway: aTeam?aTeam.strength_defence_away:null,
+        oppAtkHome: hTeam?hTeam.strength_attack_home:null, oppAtkAway: hTeam?hTeam.strength_attack_away:null }); }
     });
     Object.keys(lookaheadByTeam).forEach(key=>{
       const list = lookaheadByTeam[key].slice(0,3);
@@ -1654,7 +1662,13 @@ function predictedPoints(p){
   }
   else {
     const stat = statModelPoints(p);
-    if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
+    // لو معانا فورم موزون فعلي (نقط آخر جولات، الأقرب أهم) بندمجه هنا كمان حتى لو
+    // ep_next الرسمي متاح — قبل كده كان ep_next لوحده بيلغي أي تأثير للفورم الفعلي،
+    // فلاعب غالي بياخد ep_next عالي بناءً على سعره/بياناته الأساسية كان بيفضل في القمة
+    // حتى لو مقدمش أي حاجة في آخر الجولات، وده اللي كان بيخلي ترشيحات "الأعلى توقعاً"
+    // بتفضل نفس الأسماء الكبيرة تقريبًا بغض النظر عن أدائهم الفعلي.
+    if(p.epNext && p.epNext>0 && p.formWeighted && p.formWeighted>0){ base = p.epNext*0.4 + stat*0.35 + p.formWeighted*0.25; }
+    else if(p.epNext && p.epNext>0){ base = p.epNext*0.5 + stat*0.5; }
     else if(p.formWeighted && p.formWeighted>0){ base = p.formWeighted*0.6 + stat*0.4; }
     else if(stat>0){ base = stat; }
     else { base = state.gwInfo.current>0 ? totalPoints(p)/state.gwInfo.current : 2; }
@@ -1689,7 +1703,19 @@ function cleanSheetRanking(){
     const nextFix = fxInfo.lookahead[0];
     const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key);
     const refPlayer = { pos:'GK', club:key, xGC90: keepers.length ? keepers[0].xGC90 : 0 };
-    let prob = nextFix.fdr <= 2 ? 0.38 : (nextFix.fdr >= 4 ? 0.18 : 0.28);
+    // نفس المعادلة المستمرة اللي بتستخدمها cleanSheetProbability() لمباراة الجولة الحالية،
+    // بدل تصنيف خشن على 3 مستويات (سهلة/متوسطة/صعبة) كان بيدي نفس النسبة بالظبط لكل الأندية
+    // في نفس الفئة (مثلاً كل الأندية اللي مباراتها الجاية fdr<=2 كانت بتاخد 38% بالظبط،
+    // حتى لو فرق قوة الدفاع بينهم كبير أو لاعب برا أرضه).
+    let prob = 0.28;
+    const defStrength = nextFix.isHome ? nextFix.ownDefHome : nextFix.ownDefAway;
+    const oppAtk = nextFix.isHome ? nextFix.oppAtkAway : nextFix.oppAtkHome;
+    if(defStrength!=null && oppAtk!=null){
+      prob = Math.max(0.03, Math.min(0.65, 0.32 + (defStrength-oppAtk)/220));
+    } else {
+      // فولباك لو بيانات القوة مش متاحة للمباراة دي لأي سبب
+      prob = nextFix.fdr <= 2 ? 0.38 : (nextFix.fdr >= 4 ? 0.18 : 0.28);
+    }
     if(refPlayer.xGC90>1.1){ prob = Math.max(0.02, prob - (refPlayer.xGC90-1.1)*0.12); }
     return { club:key, prob: Math.max(3, Math.min(72, Math.round(prob*100))), fx: nextFix };
   }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
