@@ -1759,7 +1759,7 @@ function predictedPoints(p){
   return Math.max(0, Math.round(pts * 10) / 10);
 }
 
-// الكلين شيت: حسابات واقعية وقوية جداً تعتمد على الـ FDR بشكل دقيق
+// الكلين شيت: حسابات واقعية تعتمد على الأداء الفعلي للدفاع
 function cleanSheetRanking(){
   return Object.keys(CLUB_TAG).map(key=>{
     const fxInfo = state.teamFixtures[key];
@@ -1777,16 +1777,22 @@ function cleanSheetRanking(){
     
     if (nextFix.isHome) prob += 0.05; // دفعة الأرض
     
-    // جلب الحارس الأساسي (الأغلى سعراً) مش الاحتياطي
-    const keepers = state.players.filter(p=>p.pos==='GK' && p.club===key && availabilityMultiplier(p)>0);
-    if(!keepers.length) return null;
-    keepers.sort((a,b)=> b.price - a.price || b.ownership - a.ownership);
-    const firstKeeper = keepers[0];
+    // 🟢 عقاب شديد للفرق اللي استقبلت فرص كتير (xGC90 عالي) زي مانشستر وتوتنهام
+    const teamDefenders = state.players.filter(p=>p.club===key && (p.pos==='DEF'||p.pos==='GK') && p.minutes > 0);
+    if (teamDefenders.length > 0) {
+        const avgXGC = teamDefenders.reduce((sum, p) => sum + p.xGC90, 0) / teamDefenders.length;
+        if (avgXGC > 1.2) {
+            prob -= (avgXGC - 1.0) * 0.15; // تقليل النسبة لو الدفاع مخترق
+        }
+    }
     
-    if(firstKeeper.minutes > 90 && firstKeeper.xGC90 > 1.5){ prob = Math.max(0.02, prob - 0.05); }
-    
-    return { club:key, prob: Math.max(2, Math.min(65, Math.round(prob*100))), fx: nextFix, p: firstKeeper };
+    return { club:key, prob: Math.max(2, Math.min(75, Math.round(prob*100))), fx: nextFix };
   }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+}
+
+// 🟢 دالة جديدة بترجع الفرقة بدل الحارس
+function topCleanSheetTeams(limit){
+  return cleanSheetRanking().slice(0, limit||8);
 }
 
 // اللاعبون الأعلى توقعاً (منع ظهور المدافعين الرخاص اللي تألقوا صدفة)
@@ -1856,11 +1862,6 @@ function squadOwnershipAvg(){
   const s = squad();
   if(!s.length) return 0;
   return Math.round((s.reduce((sum,p)=>sum+p.ownership,0)/s.length)*10)/10;
-}
-
-// أفضل حراس مرمى مرشحين لكلين شيت (أول حارس أساسي في كل نادي من أعلى الترتيب)
-function topCleanSheetKeepers(limit){
-  return cleanSheetRanking().map(r=> ({ p:r.p, prob:r.prob, fx:r.fx }) ).slice(0, limit||8);
 }
 
 // الأعلى نسبة ملكية بين كل المديرين
@@ -3528,13 +3529,14 @@ function renderPredictions(){
     '</div>'
   ).join('') : '<div class="hint">لا توجد ترشيحات انتقال ملحة حالياً.</div>';
 
-  const csRowsArr = topCleanSheetKeepers(8).map(x=>
-    '<div class="cs-row"><div class="p-left" data-viewprofile="' + x.p.id + '">' +
-      '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + x.p.teamCode + (x.p.pos==='GK'?'_1':'') + '-66.webp" alt="' + x.p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-      '<div class="p-info"><div class="p-name">' + x.p.name + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[x.p.club]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
-      '<div class="cs-prob">' + x.prob + '%</div></div>'
-  );
+  const csRowsArr = topCleanSheetTeams(8).map(x=>{
+    const logoSrc = CLUB_CODE[x.club] ? `https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[x.club]}.png` : '';
+    return '<div class="cs-row"><div class="p-left" style="cursor:default;">' +
+      '<img src="' + logoSrc + '" alt="' + CLUB_NAME[x.club] + '" onerror="this.style.display=\'none\'" style="width:34px;height:34px;object-fit:contain;margin-left:10px;">' +
+      '<div class="p-info"><div class="p-name" style="font-size:13px;">' + CLUB_NAME[x.club] + '</div>' +
+      '<div class="p-meta">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
+      '<div class="cs-prob">' + x.prob + '%</div></div>';
+  });
 
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة', null, null, false) );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
