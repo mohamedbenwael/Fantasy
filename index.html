@@ -1238,14 +1238,16 @@ async function buildLiveDataset(){
     // بونص لحظي (Provisional Bonus): بنجمع لاعبين كل مباراة لسه شغالة (بدأت ولسه ما خلصتش)
     // ونرتبهم حسب الـ bps تنازلي، ونديهم 3/2/1 زي قاعدة الفانتازي الرسمية —
     // لو فيه تعادل في الـ bps بين لاعبين أو أكتر بياخدوا نفس البونص وبيتخطى الترتيب اللي بعدهم
-    // بنبني نسخة مبسّطة من مباريات كل الجولات (للتصفّح بين الجولات في تبويب المباريات)
+    // بنبني نسخة خفيفة جدًا من مباريات كل الجولات (للتصفّح بين الجولات في تبويب المباريات).
+    // مهم: من غير مصفوفة stats التفصيلية عشان الكاش يفضل صغير وسريع (الإحصائيات التفصيلية
+    // بتفضل متاحة للجولة الحالية عبر state.fixturesList، والجولات القديمة بتوري النتيجة والحالة).
     (allFx || []).forEach(f=>{
       const hK = teamIdToKey[f.team_h], aK = teamIdToKey[f.team_a];
       (fixturesByGw[f.event] = fixturesByGw[f.event] || []).push({
         id: f.id, team_h: hK, team_a: aK,
         score_h: f.team_h_score, score_a: f.team_a_score,
         started: f.started, finished: f.finished_provisional || f.finished,
-        minutes: f.minutes, kickoff: f.kickoff_time, stats: f.stats
+        minutes: f.minutes, kickoff: f.kickoff_time
       });
     });
 
@@ -4513,12 +4515,17 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
 // حسب state.hasLiveFixtures بدل ما تفضل ثابتة زي ما setInterval بيعمل).
 async function scheduleLiveTick(){
   if(state.phase==='app'){
-    if(state.hasLiveFixtures){
-      try{ await loadLiveData(); }catch(e){}
+    // بنحدّث لو فيه ماتشات شغّالة (نقط لايف)، أو لو آخر تحديث فشل/اتأخر — عشان الرسالة
+    // "تأخر التحديث" تختفي لوحدها أول ما الاتصال يرجع، بدل ما تفضل ثابتة لحد التحديث اليدوي.
+    const needsRetry = state.liveDataStale || state.liveDataError;
+    if(state.hasLiveFixtures || needsRetry){
+      const wasStale = needsRetry;
+      try{ await loadLiveData(needsRetry); }catch(e){} // force=true وقت إعادة المحاولة عشان يتخطى الكاش
+      if(wasStale && !state.liveDataStale && !state.liveDataError) renderBody(); // نجح التحديث — نحدّث الشاشة
     }
     if(state.tab==='home' || state.tab==='fixtures') renderBody();
   }
-  setTimeout(scheduleLiveTick, state.hasLiveFixtures ? 45000 : 60000);
+  setTimeout(scheduleLiveTick, (state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 45000 : 60000);
 }
 setTimeout(scheduleLiveTick, state.hasLiveFixtures ? 45000 : 60000);
 
