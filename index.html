@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>المزاريطة فانتازي</title>
+<meta name="description" content="المزاريطة فانتازي — تابع فريقك في فانتازي البريميرليج لايف: النقاط، الأسعار، التوقعات، ترتيب الدوريات، ونصائح الانتقالات، كله في مكان واحد.">
+<!-- Open Graph / وسوم المشاركة على السوشيال (فيسبوك/واتساب) — عشان لما يتبعت اللينك يبان بعنوان وصورة -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="المزاريطة فانتازي">
+<meta property="og:description" content="تابع فريقك في فانتازي البريميرليج لايف: النقاط، الأسعار، التوقعات، وترتيب الدوريات.">
+<meta property="og:image" content="/icon-192.png">
+<meta property="og:locale" content="ar_EG">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="المزاريطة فانتازي">
+<meta name="twitter:description" content="تابع فريقك في فانتازي البريميرليج لايف: النقاط، الأسعار، التوقعات، وترتيب الدوريات.">
+<meta name="twitter:image" content="/icon-192.png">
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#4A0024">
 <link rel="apple-touch-icon" href="/icon-192.png">
@@ -27,6 +38,16 @@
     font-family:'Tajawal', sans-serif;
   }
   button{ font-family:inherit; border:none; background:none; cursor:pointer; }
+  /* إطار تركيز واضح لمستخدمي الكيبورد وقارئ الشاشة (إتاحة) — بيظهر بس مع التنقّل بالكيبورد */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--primary-soft); outline-offset:2px; border-radius:8px;
+  }
+  /* شارة الشيب المُفعّل (تريبل كابتن/بنش بوست/وايلد كارد/فري هيت) */
+  .chip-badge{ display:inline-flex; align-items:center; gap:6px; margin:0 20px 4px; padding:7px 13px;
+    background:linear-gradient(135deg, rgba(216,27,96,0.18), rgba(216,27,96,0.06));
+    border:1px solid rgba(216,27,96,0.35); border-radius:999px; font-family:'Cairo'; font-weight:800;
+    font-size:12px; color:var(--primary-soft); }
+  .chip-badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--primary-soft); }
   input{ font-family:inherit; }
 
   :root{
@@ -977,7 +998,11 @@ async function fetchFplPicks(fplId, gw){
       ? data.entry_history.bank / 10
       : 0;
 
-    return { squadIds, captainId, bank };
+    // الشيب المُفعّل في الجولة دي كما هو من فانتازي البريميرليج:
+    // '3xc' = تريبل كابتن، 'bboost' = بنش بوست، 'wildcard' = وايلد كارد، 'freehit' = فري هيت
+    const activeChip = data.active_chip || null;
+
+    return { squadIds, captainId, bank, activeChip };
   }catch(e){
     return null;
   }
@@ -1014,8 +1039,30 @@ async function ensureLeagueStandings(leagueId){
   state.leagueStandingsCache[leagueId] = { loading:true, results:[] };
   const data = await fetchLeagueStandings(leagueId, 1);
   state.leagueStandingsCache[leagueId] = data
-    ? { loading:false, results:data.results, leagueName:data.leagueName }
+    ? { loading:false, results:data.results, leagueName:data.leagueName, hasNext:data.hasNext, page:1 }
     : { loading:false, error:true, results:[] };
+  if(state.tab==='leagues' && String(state.activeLeagueId)===String(leagueId) && !state.viewMemberId) renderBody();
+}
+
+// بنجيب الصفحة اللي بعدها من ترتيب الدوري ونضيفها للموجود (زرار "تحميل المزيد")،
+// عشان نقدر نتصفّح أبعد من أول 50 مدير ونلاقي نفسنا لو ترتيبنا بعيد.
+async function loadMoreLeagueStandings(leagueId){
+  const cache = state.leagueStandingsCache[leagueId];
+  if(!cache || cache.loadingMore || !cache.hasNext) return;
+  cache.loadingMore = true;
+  renderBody();
+  const nextPage = (cache.page || 1) + 1;
+  const data = await fetchLeagueStandings(leagueId, nextPage);
+  if(data && data.results){
+    // نتجنّب تكرار أي صف اتحمّل قبل كده
+    const seen = new Set(cache.results.map(r=>String(r.entryId)));
+    cache.results = cache.results.concat(data.results.filter(r=>!seen.has(String(r.entryId))));
+    cache.hasNext = data.hasNext;
+    cache.page = nextPage;
+  } else {
+    cache.hasNext = false; // فشل التحميل — نوقف الزرار بدل ما نفضل نحاول
+  }
+  cache.loadingMore = false;
   if(state.tab==='leagues' && String(state.activeLeagueId)===String(leagueId) && !state.viewMemberId) renderBody();
 }
 
@@ -1477,6 +1524,8 @@ let state = {
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
   flash:null,
   viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null,
+  activeChip:null,      // الشيب المُفعّل في الجولة الحالية (من الفانتازي): 3xc/bboost/wildcard/freehit
+
   adminUnlocked:false, adminPinInput:'', adminSavedBanner:false,
   refreshing:false,
   liveSyncedAt:null, liveDataError:false, liveDataStale:false, hasLiveFixtures:false,
@@ -2258,11 +2307,24 @@ function renderAiEvaluationCard(){
   '<div class="hint" style="margin:6px 20px 16px;">' + descText + '</div>';
 }
 
+// اسم الشيب بالعربي (أو null لو مفيش شيب مُفعّل)
+function chipLabel(chip){
+  return { '3xc':'تريبل كابتن', 'bboost':'بنش بوست', 'wildcard':'وايلد كارد', 'freehit':'فري هيت', 'manager':'المدير المساعد' }[chip] || null;
+}
+function chipBadgeHtml(){
+  const lbl = chipLabel(state.activeChip);
+  return lbl ? '<div class="chip-badge"><span class="dot"></span>شيب مُفعّل هذه الجولة: ' + lbl + '</div>' : '';
+}
 function roundPoints(){
-  const base = starters().reduce((s,p)=>s+currentGwPoints(p),0);
+  const tripleCap  = state.activeChip === '3xc';    // الكابتن ×3 بدل ×2
+  const benchBoost = state.activeChip === 'bboost';  // نقط الاحتياطي بتتحسب كمان
+  // بنش بوست: كل الـ15 لاعب بيحتسبوا؛ غير كده الأساسيين بس
+  const scoring = benchBoost ? squad() : starters();
+  const base = scoring.reduce((s,p)=>s+currentGwPoints(p),0);
   const c = captain();
   const isCapStarting = c && state.mySquadIds.find(e=>e.id===c.id && e.slot==='start');
-  const extra = isCapStarting ? currentGwPoints(c) : 0;
+  // الكابتن أصلاً محتسب مرة في base؛ بنضيفله مرة (×2 عادي) أو مرتين (×3 تريبل كابتن)
+  const extra = isCapStarting ? currentGwPoints(c) * (tripleCap ? 2 : 1) : 0;
   return base + extra;
 }
 function squadValue(ids){ return squad(ids).reduce((s,p)=>s+p.price,0); }
@@ -2386,6 +2448,7 @@ async function loadSquadOrDraft(){
       state.mySquadIds = picks.squadIds;
       state.captainId = picks.captainId;
       state.bank = picks.bank;
+      state.activeChip = picks.activeChip || null; // الشيب اللي المدير لعبه الجولة دي
 
       // تحديد التبديلات بذكاء (غير محدود قبل بداية الموسم، و 1 بعد البداية)
       state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
@@ -2410,6 +2473,7 @@ async function loadSquadOrDraft(){
         state.mySquadIds = saved.mySquadIds;
         state.captainId = saved.captainId;
         state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
+        state.activeChip = null; // التشكيلة التجريبية مفيهاش شيب رسمي
 
         state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
 
@@ -2424,6 +2488,7 @@ async function loadSquadOrDraft(){
   state.mySquadIds = [];
   state.captainId = null;
   state.bank = 100;
+  state.activeChip = null;
   state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
   state.seasonBaseline = 0;
   await savePersonal();
@@ -2990,6 +3055,7 @@ function renderTeam(){
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>' +
   flash +
+  chipBadgeHtml() +
   '<div class="segment">' +
     '<button data-mode="captain" class="' + (state.teamMode==='captain'?'on':'') + '">تعيين الكابتن</button>' +
     '<button data-mode="bench" class="' + (state.teamMode==='bench'?'on':'') + '">تبديل الاحتياطي</button>' +
@@ -3162,7 +3228,16 @@ function renderLeagues(){
         '<div class="s-pts">' + r.total + '</div>' +
       '</button>';
     }).join('');
-    return header + '<div class="league-list">' + rows + '</div>';
+    // لو ترتيبي بعيد ولسه ما ظهرش في الصفوف المحمّلة، نوريه من بيانات الدوري نفسها
+    const meLoaded = state.deviceId && cache.results.some(r=>String(r.entryId)===String(state.deviceId));
+    const myRankHint = (!meLoaded && lg && lg.entry_rank!=null)
+      ? '<div class="hint" style="margin:2px 20px 10px;">ترتيبك في هذا الدوري: <strong style="color:var(--primary-soft);">#' + lg.entry_rank.toLocaleString() + '</strong> — اضغط "تحميل المزيد" للوصول إليه</div>'
+      : '';
+    const loadMoreBtn = cache.hasNext
+      ? '<button class="btn-ghost" id="leagueLoadMore" style="margin:14px auto 4px;display:block;"' + (cache.loadingMore ? ' disabled' : '') + '>' +
+          (cache.loadingMore ? 'جاري التحميل...' : 'تحميل المزيد') + '</button>'
+      : '';
+    return header + myRankHint + '<div class="league-list">' + rows + '</div>' + loadMoreBtn;
   }
 
   // ===== كل الدوريات الخاصة بيا =====
@@ -3933,6 +4008,12 @@ function bindMarketListItems(container){
 function bindBody(){
   const el = document.getElementById('app-body');
 
+  // ===== تحسينات إتاحة (Accessibility) — بتتطبّق مركزيًا بعد كل رسم =====
+  // 1) أزرار الرجوع أيقونة بس من غير نص — نديها اسم يقراه قارئ الشاشة
+  el.querySelectorAll('.back').forEach(b=>{ if(!b.getAttribute('aria-label')) b.setAttribute('aria-label','رجوع'); });
+  // 2) أيقونات SVG الزخرفية — نخفيها عن قارئ الشاشة عشان ميقراهاش كلام مبهم
+  el.querySelectorAll('button svg, a svg').forEach(s=>{ s.setAttribute('aria-hidden','true'); s.setAttribute('focusable','false'); });
+
   // فتح تفاصيل الماتش
   el.querySelectorAll('[data-match]').forEach(b=>{
     b.addEventListener('click', ()=>{
@@ -4000,6 +4081,9 @@ function bindBody(){
   });
   const leagueBack = el.querySelector('#leagueBack');
   if(leagueBack) leagueBack.addEventListener('click', ()=>{ state.activeLeagueId = null; renderBody(); });
+
+  const leagueLoadMore = el.querySelector('#leagueLoadMore');
+  if(leagueLoadMore) leagueLoadMore.addEventListener('click', ()=>{ loadMoreLeagueStandings(state.activeLeagueId); });
 
   // member rows inside a league's standings -> open their squad
   el.querySelectorAll('[data-member]').forEach(b=>{
