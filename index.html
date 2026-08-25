@@ -985,6 +985,8 @@ async function fetchFplEntry(fplId){
       // ترتيب الجولة الحالية الرسمي — فانتازي البريميرليج نفسها بترجّعه null/فاضي لحد ما
       // تخلّص معالجة البونص الرسمية للجولة، يعني مش هيبان لايف أثناء المباريات (حد من فانتازي نفسها مش منّا)
       eventRank: data.summary_event_rank || null,
+      eventPoints: (data.summary_event_points != null) ? data.summary_event_points : null, // نقاط آخر جولة اتلعبت (رسمي)
+      overallPoints: (data.summary_overall_points != null) ? data.summary_overall_points : null, // إجمالي نقاط الموسم (رسمي)
       leagues: data.leagues?.classic || [],
     };
   }catch(e){
@@ -1132,7 +1134,30 @@ async function buildLiveDataset(){
   let liveTeams = new Set();
 
   // الجولة الحالية: لو الموسم شغال ناخد الجولة الجارية، لو لسه مبدأش ناخد أول جولة قادمة
-  const currentEvent = events.find(e=>e.is_current) || events.find(e=>e.is_next) || events[events.length-1];
+  let currentEvent = events.find(e=>e.is_current) || events.find(e=>e.is_next) || events[events.length-1];
+
+  // آخر جولة اتلعبت فعليًا (أعلى جولة خلصت) — للتشكيلة المُرحّلة ونقاط "آخر جولة"
+  const finishedEvents = events.filter(e=>e.finished);
+  const lastPlayedGw = finishedEvents.length ? finishedEvents[finishedEvents.length-1].id : null;
+
+  // بنجيب المباريات بدري عشان نقرر: هل نتقدّم للجولة الجاية؟
+  // القاعدة (حسب طلب المستخدم): لو كل ماتشات الجولة الحالية خلصت وعدّى 12 ساعة على آخر ماتش،
+  // نتقدّم تلقائيًا للجولة الجاية — من غير ما نستنى الفانتازي تقفلها رسميًا (لأنها بتتأخر ساعات كتير).
+  let allFxEarly = [];
+  try{ allFxEarly = (await fplFetch('fixtures')) || []; }catch(e){ allFxEarly = []; }
+  if(currentEvent){
+    const curFx = allFxEarly.filter(f=>f.event === currentEvent.id);
+    const allDone = curFx.length && curFx.every(f=>f.finished || f.finished_provisional);
+    if(allDone){
+      const kicks = curFx.map(f=>new Date(f.kickoff_time).getTime()).filter(t=>!isNaN(t));
+      const lastKick = kicks.length ? Math.max.apply(null, kicks) : 0;
+      const approxFinish = lastKick + 2*3600000; // نهاية آخر ماتش تقريبًا (الماتش ~ساعتين)
+      if(lastKick && Date.now() > approxFinish + 12*3600000){
+        const nxt = events.find(e=>e.is_next) || events.find(e=>e.id === currentEvent.id + 1);
+        if(nxt) currentEvent = nxt; // اتقدّمنا للجولة الجاية
+      }
+    }
+  }
   const gwId = currentEvent ? currentEvent.id : 1;
 
   // نجيب نقط لحظية لآخر 5 جولات متخلصة + الجولة الحالية عشان نبني "فورم موزون"
@@ -1192,7 +1217,7 @@ async function buildLiveDataset(){
     // بنجيب كل مباريات الموسم مرة واحدة (فيها cache في البروكسي)، ومنها بنستخرج
     // مباريات الجولة الحالية + "نظرة قدام" على أقرب 3 مباريات جاية لكل نادي —
     // ده بيخلي نصايح البيع والشراء أدق من الاعتماد على مباراة واحدة بس.
-    const allFx = await fplFetch('fixtures');
+    const allFx = (allFxEarly && allFxEarly.length) ? allFxEarly : (await fplFetch('fixtures'));
     const gwFx = (allFx || []).filter(f=>f.event===gwId);
 
     // بناء بيانات مركز المباريات وتحديد الأندية اللي بتلعب لايف دلوقتي
@@ -1384,6 +1409,7 @@ async function buildLiveDataset(){
     nextGw: upcoming ? upcoming.id : (gwId + 1),
     nextDeadline: upcoming ? upcoming.deadline_time : null,
     currentFinished: currentEvent ? !!currentEvent.finished : false,
+    lastPlayedGw: lastPlayedGw,   // آخر جولة اتلعبت (للتشكيلة المُرحّلة ونقاط آخر جولة)
     fixtures: fixturesMap,
   };
 
@@ -1559,6 +1585,7 @@ let state = {
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
   realLeagues: [], overallRank: 0, eventRank: null,
+  eventPoints: null, overallPoints: null, // نقاط آخر جولة + إجمالي الموسم (من الفانتازي)
   leagueStandingsCache:{}, viewMemberId:null, viewMemberSquad:null,
   canInstall:false, showInstallGuide:false,
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
@@ -2461,6 +2488,13 @@ function viewGwPoints(){
 }
 function squadValue(ids){ return squad(ids).reduce((s,p)=>s+p.price,0); }
 function seasonTotal(){ return state.seasonBaseline + roundPoints(); }
+// النقط اللي نعرضها في الرئيسية: لو الجولة المركزية لسه مبدأتش (اتقدّمنا للجاية)، نوري
+// نقاط آخر جولة اتلعبت (الرسمية من الفانتازي) بدل صفر؛ غير كده نقط الجولة الحالية العادية.
+function displayRoundPoints(){
+  const started = state.gwInfo && new Date(state.gwInfo.deadline).getTime() < Date.now();
+  if(!started && state.eventPoints != null) return state.eventPoints;
+  return roundPoints();
+}
 
 function setFlash(type, text){
   state.flash = {type, text};
@@ -2524,6 +2558,8 @@ async function boot(){
       if(!raw){ state.managerName = entry.managerName; state.teamName = entry.teamName; await saveManager(); }
       state.overallRank = entry.overallRank;
       state.eventRank = entry.eventRank;
+      state.eventPoints = entry.eventPoints;
+      state.overallPoints = entry.overallPoints;
       state.realLeagues = entry.leagues;
     } else if(!raw){
       state.managerName = 'مدير ' + savedFplId;
@@ -2572,15 +2608,22 @@ async function loadSquadOrDraft(){
   const gw = state.gwInfo && state.gwInfo.current;
   const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
 
+  // لو الجولة المركزية لسه مبدأتش (اتقدّمنا للجولة الجاية بعد ما اللي قبلها خلصت)، نجيب
+  // تشكيلة آخر جولة اتلعبت كأساس "مُرحّل" — لأن الفانتازي لسه ما عندهاش تشكيلة للجولة الجاية.
+  const lastPlayed = state.gwInfo && state.gwInfo.lastPlayedGw;
+  const picksGw = (!isStarted && lastPlayed && lastPlayed < gw) ? lastPlayed : gw;
+  const carriedForward = (picksGw !== gw);
+
   // ١. الأولوية المطلقة: محاولة جلب التشكيلة الرسمية من سيرفر الفانتازي
   // (لو الديدلاين قفل، الفانتازي هيرجع الداتا الحقيقية وهنمسح بيها التشكيلة التجريبية)
   try{
-    const picks = state.deviceId ? await fetchFplPicks(state.deviceId, gw) : null;
+    const picks = state.deviceId ? await fetchFplPicks(state.deviceId, picksGw) : null;
     if(picks && picks.squadIds && picks.squadIds.length){
       state.mySquadIds = picks.squadIds;
       state.captainId = picks.captainId;
       state.bank = picks.bank;
-      state.activeChip = picks.activeChip || null; // الشيب اللي المدير لعبه الجولة دي
+      // الشيب بتاع الجولة اللي جبناها — بس لو دي نفس الجولة المركزية (مش تشكيلة مُرحّلة لجولة جاية)
+      state.activeChip = carriedForward ? null : (picks.activeChip || null);
 
       // تحديد التبديلات بذكاء (غير محدود قبل بداية الموسم، و 1 بعد البداية)
       state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
@@ -2666,6 +2709,8 @@ async function submitOnboard(){
   state.teamName = entry.teamName;
   state.overallRank = entry.overallRank;
   state.eventRank = entry.eventRank;
+  state.eventPoints = entry.eventPoints;
+  state.overallPoints = entry.overallPoints;
   state.realLeagues = entry.leagues;
 
   await saveManager();
@@ -2913,7 +2958,7 @@ function renderMatchModal() {
 }
 
 function renderHome(){
-  const rp = roundPoints();
+  const rp = displayRoundPoints();
 
   return '' +
   '<div class="header">' +
@@ -2941,7 +2986,7 @@ function renderHome(){
 
   '<div class="summary">' +
     '<div class="summary-top">' +
-      '<div><div class="lbl">إجمالي النقاط</div><div class="big">' + seasonTotal().toLocaleString() + ' <span>نقطة</span></div></div>' +
+      '<div><div class="lbl">إجمالي النقاط</div><div class="big">' + (state.seasonBaseline + displayRoundPoints()).toLocaleString() + ' <span>نقطة</span></div></div>' +
       '<div class="badge-rank">' + ICON_UP + 'الدوري العام' + '</div>' +
     '</div>' +
     '<div class="summary-grid">' +
