@@ -48,6 +48,22 @@
     border:1px solid rgba(216,27,96,0.35); border-radius:999px; font-family:'Cairo'; font-weight:800;
     font-size:12px; color:var(--primary-soft); }
   .chip-badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--primary-soft); }
+  /* شريط التنقّل بين الجولات (آلة الزمن) */
+  .gw-nav{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 20px 12px;
+    background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:7px 10px; }
+  .gw-arrow{ width:38px; height:38px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+    border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid var(--card-line); color:var(--text); }
+  .gw-arrow svg{ width:20px; height:20px; }
+  .gw-arrow:disabled{ opacity:0.3; cursor:default; }
+  .gw-arrow:not(:disabled):active{ background:rgba(216,27,96,0.15); }
+  .gw-nav-mid{ flex:1; text-align:center; min-width:0; }
+  .gw-nav-label{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--text); }
+  .gw-cur-tag{ display:inline-block; margin-inline-start:6px; font-size:9.5px; font-weight:800; color:var(--primary-soft);
+    background:rgba(216,27,96,0.12); border:1px solid rgba(216,27,96,0.25); border-radius:6px; padding:1px 6px; vertical-align:middle; }
+  .gw-nav-live{ display:block; margin:3px auto 0; font-family:'Tajawal'; font-size:10.5px; color:var(--primary-soft);
+    background:none; text-decoration:underline; }
+  .gw-pts-line{ margin:0 20px 10px; font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--muted); text-align:center; }
+  .gw-pts-line strong{ color:var(--primary-soft); font-size:15px; }
   input{ font-family:inherit; }
 
   :root{
@@ -1112,6 +1128,7 @@ async function buildLiveDataset(){
   });
 
   let parsedFixtures = [];
+  let fixturesByGw = {}; // مباريات كل جولة (id -> [matches]) عشان نقدر نعرض أي جولة فاتت فورًا
   let liveTeams = new Set();
 
   // الجولة الحالية: لو الموسم شغال ناخد الجولة الجارية، لو لسه مبدأش ناخد أول جولة قادمة
@@ -1221,6 +1238,17 @@ async function buildLiveDataset(){
     // بونص لحظي (Provisional Bonus): بنجمع لاعبين كل مباراة لسه شغالة (بدأت ولسه ما خلصتش)
     // ونرتبهم حسب الـ bps تنازلي، ونديهم 3/2/1 زي قاعدة الفانتازي الرسمية —
     // لو فيه تعادل في الـ bps بين لاعبين أو أكتر بياخدوا نفس البونص وبيتخطى الترتيب اللي بعدهم
+    // بنبني نسخة مبسّطة من مباريات كل الجولات (للتصفّح بين الجولات في تبويب المباريات)
+    (allFx || []).forEach(f=>{
+      const hK = teamIdToKey[f.team_h], aK = teamIdToKey[f.team_a];
+      (fixturesByGw[f.event] = fixturesByGw[f.event] || []).push({
+        id: f.id, team_h: hK, team_a: aK,
+        score_h: f.team_h_score, score_a: f.team_a_score,
+        started: f.started, finished: f.finished_provisional || f.finished,
+        minutes: f.minutes, kickoff: f.kickoff_time, stats: f.stats
+      });
+    });
+
     var liveFixtureIds = new Set(gwFx.filter(f=>f.started && !f.finished).map(f=>f.id));
     hasLiveNow = liveFixtureIds.size > 0;
     var bpsByFixture = {};
@@ -1357,7 +1385,7 @@ async function buildLiveDataset(){
     fixtures: fixturesMap,
   };
 
-  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures };
+  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures, fixturesByGw: fixturesByGw };
 }
 
 // ===== إشعارات أحداث اللاعبين اللحظية =====
@@ -1511,6 +1539,7 @@ function applyLiveDataset(d){
   state.totalManagers = d.totalManagers || 0;
   state.hasLiveFixtures = d.live || false;
   state.fixturesList = d.fixturesList || [];
+  state.fixturesByGw = d.fixturesByGw || {};
 }
 
 // ===== app state =====
@@ -1536,6 +1565,11 @@ let state = {
   flash:null,
   viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null,
   activeChip:null,      // الشيب المُفعّل في الجولة الحالية (من الفانتازي): 3xc/bboost/wildcard/freehit
+  // ===== تصفّح الجولات (آلة الزمن) =====
+  viewGw:null,          // الجولة اللي بنعرضها دلوقتي (null = اتبع الجولة الحالية تلقائيًا)
+  gwCache:{},           // كاش بيانات كل جولة اتصفّحناها: { [gw]: {loading, picks, ptsById} }
+  viewPtsById:null,     // مصدر نقط مؤقت وقت عرض جولة تاريخية (بيتحط/يترفع أثناء الرسم فقط)
+  fixturesByGw:{},      // مباريات كل جولة (بتتملى من buildLiveDataset)
 
   adminUnlocked:false, adminPinInput:'', adminSavedBanner:false,
   refreshing:false,
@@ -1558,7 +1592,70 @@ function fmtCount(n){ // بيفرمت رقم التحويلات بشكل مخت�
 }
 function findPlayer(id){ return state.players.find(p=>p.id===id); }
 function totalPoints(p){ return (p.totalPointsReal!=null) ? p.totalPointsReal : (p.history||[]).reduce((s,h)=>s+h.pts,0); }
-function currentGwPoints(p){ const h=(p.history||[]).find(h=>h.gw===state.gwInfo.current); return h?h.pts:0; }
+function currentGwPoints(p){
+  // وقت عرض جولة تاريخية بيتحط state.viewPtsById فيرجّع نقط الجولة دي؛ غير كده نقط الجولة الحالية.
+  if(state.viewPtsById){ return state.viewPtsById[p.id] || 0; }
+  const h=(p.history||[]).find(h=>h.gw===state.gwInfo.current); return h?h.pts:0;
+}
+// ===== آلة الزمن: تصفّح الجولات =====
+// الجولة المعروضة حاليًا (null = اتبع الحالية)
+function activeViewGw(){ return (state.viewGw==null) ? (state.gwInfo && state.gwInfo.current) : state.viewGw; }
+// هل بنعرض جولة تاريخية (مش الحالية)؟
+function isHistoricalView(){ return !!(state.gwInfo && activeViewGw() !== state.gwInfo.current); }
+// بيجيب بيانات جولة تاريخية (تشكيلتي فيها + نقط كل اللاعبين فيها) ويخزّنها في الكاش
+async function loadGwView(gw){
+  const cur = state.gwInfo && state.gwInfo.current;
+  if(gw < 1 || (cur && gw > cur)) return;
+  if(gw === cur){ state.viewGw = null; render(); return; } // رجوع للحالية
+  state.viewGw = gw;
+  if(state.gwCache[gw]){ render(); return; } // متخزّنة بالفعل
+  state.gwCache[gw] = { loading:true };
+  render();
+  let picks = null, live = null;
+  try{ picks = await fetchFplPicks(state.deviceId, gw); }catch(e){}
+  try{ live = await fplFetch('live', gw); }catch(e){}
+  const ptsById = {};
+  if(live && live.elements){ live.elements.forEach(row=>{ ptsById[row.id] = (row.stats && row.stats.total_points) || 0; }); }
+  state.gwCache[gw] = { loading:false, picks: picks, ptsById: ptsById };
+  if(activeViewGw() === gw) render();
+}
+// بيلفّ رسم شاشة عشان تعرض بيانات الجولة التاريخية (تشكيلة + كابتن + نقط) بدل الحالية،
+// وبيرجّع كل حاجة زي ما كانت بعد الرسم (الرسم متزامن فالتبديل آمن).
+function renderWithView(builder){
+  if(!isHistoricalView()) return builder();
+  const cache = state.gwCache[activeViewGw()] || {};
+  const savedSquad = state.mySquadIds, savedCap = state.captainId, savedPts = state.viewPtsById, savedFx = state.fixturesList;
+  const picks = cache.picks;
+  state.mySquadIds = (picks && picks.squadIds) ? picks.squadIds : [];
+  state.captainId  = (picks && picks.captainId) || null;
+  state.viewPtsById = cache.ptsById || {};
+  state.fixturesList = state.fixturesByGw[activeViewGw()] || [];
+  let html;
+  try{ html = builder(); }
+  finally{
+    state.mySquadIds = savedSquad; state.captainId = savedCap;
+    state.viewPtsById = savedPts; state.fixturesList = savedFx;
+  }
+  return html;
+}
+// شريط التنقّل بين الجولات (◀ الجولة N ▶) — بيظهر فوق التشكيلة/الدريم تيم/المباريات
+function renderGwNav(){
+  const cur = (state.gwInfo && state.gwInfo.current) || 1;
+  const gw = activeViewGw() || 1;
+  const cache = state.gwCache[gw];
+  const loading = !!(cache && cache.loading);
+  const isCur = gw === cur;
+  const olderDisabled = gw <= 1;           // مفيش أقدم من الجولة 1
+  const newerDisabled = gw >= cur;         // مفيش أحدث من الجولة الحالية
+  return '<div class="gw-nav">' +
+    '<button class="gw-arrow" data-gwnav="older"' + (olderDisabled?' disabled':'') + ' aria-label="الجولة السابقة">' + ICON_CHEV_R + '</button>' +
+    '<div class="gw-nav-mid">' +
+      '<div class="gw-nav-label">' + (loading ? 'جاري التحميل…' : ('الجولة ' + gw)) + (isCur ? ' <span class="gw-cur-tag">الحالية</span>' : '') + '</div>' +
+      (isCur ? '' : '<button class="gw-nav-live" data-gwnav="live">الرجوع للحالية</button>') +
+    '</div>' +
+    '<button class="gw-arrow" data-gwnav="newer"' + (newerDisabled?' disabled':'') + ' aria-label="الجولة التالية">' + ICON_CHEV_L + '</button>' +
+  '</div>';
+}
 // بيحدد حالة مباراة اللاعب دلوقتي: لسه ماجاش، شغالة، أو خلصت — عشان نعرض الوقت أو النقط بشكل مناسب
 // دالة بتعرف هل ماتش اللاعب بدأ، وبتجيب اختصار اسم الخصم (مثال: BOU (H))
 function getPlayerMatchStatus(p) {
@@ -2205,7 +2302,9 @@ function renderDreamTeamCard(){
   }
 
   // تغيير العنوان والوصف ديناميكياً
-  const titleText = dt.useLive ? '⭐ دريم تيم الجولة (لايف)' : '⭐ دريم تيم الجولة ' + state.gwInfo.current;
+  const titleText = isHistoricalView()
+    ? '⭐ دريم تيم الجولة ' + activeViewGw()
+    : (dt.useLive ? '⭐ دريم تيم الجولة (لايف)' : '⭐ دريم تيم الجولة ' + state.gwInfo.current);
   const scoreText = dt.useLive ? dt.total + ' نقطة فعلية' : 'توقع ' + fmt(dt.total) + ' نقطة';
   const descText = dt.useLive
     ? 'أفضل تشكيلة حققت نقاط فعلية حتى الآن في هذه الجولة (بدون تقيد بالميزانية).'
@@ -2349,6 +2448,14 @@ function roundPoints(){
   // الكابتن أصلاً محتسب مرة في base؛ بنضيفله مرة (×2 عادي) أو مرتين (×3 تريبل كابتن)
   const extra = isCapStarting ? currentGwPoints(c) * (tripleCap ? 2 : 1) : 0;
   return base + extra;
+}
+// نقط الجولة المعروضة (تاريخية) — مجموع الأساسيين + الكابتن مرة زيادة، بدون أي شيب
+// (الشيب بتاع الجولة الحالية مش بيتطبّق على جولة فاتت).
+function viewGwPoints(){
+  const base = starters().reduce((s,p)=>s+currentGwPoints(p),0);
+  const c = captain();
+  const capStart = c && state.mySquadIds.find(e=>e.id===c.id && e.slot==='start');
+  return base + (capStart ? currentGwPoints(c) : 0);
 }
 function squadValue(ids){ return squad(ids).reduce((s,p)=>s+p.price,0); }
 function seasonTotal(){ return state.seasonBaseline + roundPoints(); }
@@ -2581,6 +2688,8 @@ const ICON_CLOCK = '<svg class="i ic" viewBox="0 0 24 24"><circle cx="12" cy="12
 const ICON_UP = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>';
 const ICON_DOWN = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>';
 const ICON_CHEV = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>';
+const ICON_CHEV_L = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l-6 6 6 6"/></svg>';
+const ICON_CHEV_R = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l6 6-6 6"/></svg>';
 const ICON_BACK = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6l-6 6 6 6"/></svg>';
 const ICON_BELL = '<svg class="i" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
 const ICON_BULB = '<svg class="i" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2.3h6c0-1.1.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg>';
@@ -2692,9 +2801,13 @@ function renderFixturesList(onlyLive) {
 
 // دالة منفصلة لشاشة كل المباريات
 function renderFixtures(){
+  const emptyMsg = (!state.fixturesList || !state.fixturesList.length)
+    ? '<div class="hint" style="margin:20px;">لا توجد مباريات لهذه الجولة.</div>' : '';
   return '' +
-  '<div class="topbar"><button class="back" id="fixBack">' + ICON_BACK + '</button><h1>مباريات الجولة</h1><div class="spacer"></div></div>' +
-  renderFixturesList(false);
+  '<div class="topbar"><div class="spacer"></div><h1>مباريات الجولة ' + (activeViewGw()||'') + '</h1><div class="spacer"></div></div>' +
+  renderGwNav() +
+  renderFixturesList(false) +
+  emptyMsg;
 }
 
 // تشكيلة كل فريق في الماتش (أساسي + بدلاء نزلوا فعلاً) — مبنية من بيانات اللايف
@@ -2740,7 +2853,9 @@ function renderMatchLineup(f){
 
 function renderMatchModal() {
   if(!state.viewMatchId) return '';
-  const f = state.fixturesList.find(x => x.id === state.viewMatchId);
+  // بندوّر في مباريات الجولة المعروضة (الحالية أو جولة تاريخية اتصفّحناها)
+  const f = state.fixturesList.find(x => x.id === state.viewMatchId)
+    || ((state.fixturesByGw && state.fixturesByGw[activeViewGw()]) || []).find(x => x.id === state.viewMatchId);
   if(!f) return '';
 
   // قاموس الإحصائيات
@@ -2834,16 +2949,22 @@ function renderHome(){
     '</div>' +
   '</div>' +
 
-  '<div class="section-title"><h2>التشكيلة الأساسية — الجولة ' + state.gwInfo.current + '</h2><a data-goto="team">عرض التفاصيل ' + ICON_CHEV + '</a></div>' +
+  renderGwNav() +
 
-  renderPitchCard(false) +
+  renderWithView(function(){
+    const hist = isHistoricalView();
+    return '<div class="section-title"><h2>التشكيلة الأساسية — الجولة ' + activeViewGw() + '</h2>' +
+        (hist ? '' : '<a data-goto="team">عرض التفاصيل ' + ICON_CHEV + '</a>') + '</div>' +
+      (hist ? '<div class="gw-pts-line">نقاط الجولة ' + activeViewGw() + ': <strong>' + viewGwPoints() + '</strong></div>' : '') +
+      renderPitchCard(false) +
+      renderDreamTeamCard();
+  }) +
 
-  renderDreamTeamCard() +
-
-  '<div class="nudge" style="margin-bottom: 20px;"><div class="ic">' + ICON_BULB + '</div>' +
-    '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
-    '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
-  '</div>';
+  (isHistoricalView() ? '' :
+    '<div class="nudge" style="margin-bottom: 20px;"><div class="ic">' + ICON_BULB + '</div>' +
+      '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
+      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
+    '</div>');
 }
 
 // ترتيب الجولة الرسمي (summary_event_rank من فانتازي البريميرليج نفسها).
@@ -3067,6 +3188,22 @@ function renderPitchCard(interactive){
 
 // ===== TEAM TAB =====
 function renderTeam(){
+  const topbar = '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>';
+
+  // ===== وضع عرض جولة تاريخية: تشكيلتك ونقاطك في الجولة دي (بدون تعديل) =====
+  if(isHistoricalView()){
+    const cache = state.gwCache[activeViewGw()];
+    if(cache && cache.loading){
+      return topbar + renderGwNav() + '<div class="hint" style="margin:20px;">جاري تحميل تشكيلة الجولة...</div>';
+    }
+    if(!state.mySquadIds || !state.mySquadIds.length){
+      return topbar + renderGwNav() + '<div class="hint" style="margin:20px;">لا تتوفر تشكيلة محفوظة لهذه الجولة.</div>';
+    }
+    return topbar + renderGwNav() +
+      '<div class="gw-pts-line">نقاط الجولة ' + activeViewGw() + ': <strong>' + viewGwPoints() + '</strong></div>' +
+      renderPitchCard(false);
+  }
+
   const modeHint = state.teamMode==='captain'
     ? 'اضغط على أي لاعب أساسي لتعيينه كابتنًا'
     : (state.selectedBenchId
@@ -3076,7 +3213,8 @@ function renderTeam(){
     ? '<div class="msg-banner ' + state.flash.type + '">' + state.flash.text + '</div>'
     : '';
   return '' +
-  '<div class="topbar"><div class="spacer"></div><h1>تشكيلتي</h1><div class="spacer"></div></div>' +
+  topbar +
+  renderGwNav() +
   flash +
   chipBadgeHtml() +
   '<div class="segment">' +
@@ -3923,9 +4061,9 @@ function renderBody(){
   if(state.phase==='boot') html = renderBoot();
   else if(state.phase==='onboard') html = renderOnboard();
   else if(state.tab==='home') html = renderHome();
-  else if(state.tab==='team') html = renderTeam();
+  else if(state.tab==='team') html = renderWithView(renderTeam);
   else if(state.tab==='transfers') html = renderTransfers();
-  else if(state.tab==='fixtures') html = renderFixtures();
+  else if(state.tab==='fixtures') html = renderWithView(renderFixtures);
   else if(state.tab==='leagues') html = renderLeagues();
   else if(state.tab==='more') html = renderMore();
   else if(state.tab==='player') html = renderPlayerProfile();
@@ -4039,6 +4177,19 @@ function bindBody(){
   el.querySelectorAll('.back').forEach(b=>{ if(!b.getAttribute('aria-label')) b.setAttribute('aria-label','رجوع'); });
   // 2) أيقونات SVG الزخرفية — نخفيها عن قارئ الشاشة عشان ميقراهاش كلام مبهم
   el.querySelectorAll('button svg, a svg').forEach(s=>{ s.setAttribute('aria-hidden','true'); s.setAttribute('focusable','false'); });
+
+  // ===== أزرار التنقّل بين الجولات (آلة الزمن) =====
+  el.querySelectorAll('[data-gwnav]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if(b.hasAttribute('disabled')) return;
+      const dir = b.getAttribute('data-gwnav');
+      const cur = (state.gwInfo && state.gwInfo.current) || 1;
+      if(dir==='live'){ loadGwView(cur); return; }
+      const gw = activeViewGw() || cur;
+      if(dir==='older') loadGwView(gw - 1);
+      else if(dir==='newer') loadGwView(gw + 1);
+    });
+  });
 
   // فتح تفاصيل الماتش
   el.querySelectorAll('[data-match]').forEach(b=>{
@@ -4348,6 +4499,7 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     state.tab = btn.getAttribute('data-tab');
     state.notifOpen = false;
+    state.viewGw = null; // كل تبويب يبدأ على الجولة الحالية (الأولوية)، والتصفّح جوه التبويب
     if(state.tab !== 'leagues'){ state.activeLeagueId = null; state.viewMemberId = null; state.viewMemberSquad = null; }
     render();
   });
