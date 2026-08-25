@@ -1713,9 +1713,9 @@ function lastForm(p, n){ return (p.history||[]).slice(-n); }
 // المباراة الجاية لنادي معين (الجولة اللي بعد الحالية) — بتتستخدم في عرض مسودة تشكيلة الجولة الجاية
 function nextFixtureText(club){
   const tf = state.teamFixtures && state.teamFixtures[club];
-  const nextGw = (state.gwInfo && state.gwInfo.current || 1) + 1;
   if(tf && tf.lookahead && tf.lookahead.length){
-    const nf = tf.lookahead.find(x=>x.event===nextGw) || tf.lookahead.find(x=>x.event > (state.gwInfo.current||1));
+    // أقرب مباراة جاية فعليًا (lookahead[0]) — مش حسب رقم الجولة، عشان يفضل صح بعد التقدّم للجولة الجاية
+    const nf = tf.lookahead[0];
     if(nf){
       const opp = CLUB_TAG[nf.oppKey] || '؟';
       return opp + (nf.isHome ? ' (H)' : ' (A)');
@@ -2841,7 +2841,7 @@ function renderFixturesList(onlyLive) {
     </div>`;
   }).join('');
 
-  const title = onlyLive ? '<span class="h2-icon" style="color:var(--coral);">' + ICON_LIVE + ' مباريات تلعب الآن</span>' : 'مباريات الجولة ' + state.gwInfo.current;
+  const title = onlyLive ? '<span class="h2-icon" style="color:var(--coral);">' + ICON_LIVE + ' مباريات تلعب الآن</span>' : 'مباريات الجولة ' + (activeViewGw()||'');
   return '<div class="section-title"><h2>' + title + '</h2></div>' +
          '<div style="margin: 0 20px 20px;">' + listHtml + '</div>';
 }
@@ -2851,7 +2851,7 @@ function renderFixtures(){
   const emptyMsg = (!state.fixturesList || !state.fixturesList.length)
     ? '<div class="hint" style="margin:20px;">لا توجد مباريات لهذه الجولة.</div>' : '';
   return '' +
-  '<div class="topbar"><div class="spacer"></div><h1>مباريات الجولة ' + (activeViewGw()||'') + '</h1><div class="spacer"></div></div>' +
+  '<div class="topbar"><div class="spacer"></div><h1>المباريات</h1><div class="spacer"></div></div>' +
   renderGwNav() +
   renderFixturesList(false) +
   emptyMsg;
@@ -3916,7 +3916,7 @@ function renderPredictions(){
   const topIn = topTransfersIn(5).map(x => predRow(x, '+' + fmtCount(x.transfersInEvent), 'mkt-in', 'شراء', false));
   const topOut = topTransfersOut(5).map(x => predRow(x, '-' + fmtCount(x.transfersOutEvent), 'mkt-out', 'بيع', false));
 
-  const nextGwNum = (state.gwInfo.current||1) + 1;
+  const nextGwNum = plannerGw(); // الجولة اللي بتخطّط لها (مش الحالية+1 — عشان يشتغل صح بعد التقدّم)
   const noteText = isLive 
     ? 'النقاط الفعلية المحققة لتشكيلتك حتى الآن في هذه الجولة.' 
     : 'ملاحظة: التوقعات إحصائية ومبنية على xG/xA وموديل Poisson للكلين شيت وصعوبة الخصم لكل مباراة وتوقعات FPL الرسمية. مقترحات الانتقال واللاعبين الأعلى توقعاً محسوبة على أقرب 5 جولات.';
