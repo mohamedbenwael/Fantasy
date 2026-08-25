@@ -1208,14 +1208,20 @@ async function buildLiveDataset(){
       // بدل ما يتحول لتصنيف خشن (سهلة/متوسطة/صعبة) بيدي نفس النسبة لكل الأندية في نفس الفئة.
       if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, isHome:true, oppKey:aKey,
         ownDefHome: hTeam?hTeam.strength_defence_home:null, ownDefAway: hTeam?hTeam.strength_defence_away:null,
-        oppAtkHome: aTeam?aTeam.strength_attack_home:null, oppAtkAway: aTeam?aTeam.strength_attack_away:null }); }
+        ownAtkHome: hTeam?hTeam.strength_attack_home:null, ownAtkAway: hTeam?hTeam.strength_attack_away:null,
+        oppAtkHome: aTeam?aTeam.strength_attack_home:null, oppAtkAway: aTeam?aTeam.strength_attack_away:null,
+        oppDefHome: aTeam?aTeam.strength_defence_home:null, oppDefAway: aTeam?aTeam.strength_defence_away:null }); }
       if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, isHome:false, oppKey:hKey,
         ownDefHome: aTeam?aTeam.strength_defence_home:null, ownDefAway: aTeam?aTeam.strength_defence_away:null,
-        oppAtkHome: hTeam?hTeam.strength_attack_home:null, oppAtkAway: hTeam?hTeam.strength_attack_away:null }); }
+        ownAtkHome: aTeam?aTeam.strength_attack_home:null, ownAtkAway: aTeam?aTeam.strength_attack_away:null,
+        oppAtkHome: hTeam?hTeam.strength_attack_home:null, oppAtkAway: hTeam?hTeam.strength_attack_away:null,
+        oppDefHome: hTeam?hTeam.strength_defence_home:null, oppDefAway: hTeam?hTeam.strength_defence_away:null }); }
     });
     Object.keys(lookaheadByTeam).forEach(key=>{
-      const list = lookaheadByTeam[key].slice(0,3);
-      const avgFdr = list.length ? list.reduce((s,x)=>s+x.fdr,0)/list.length : 3;
+      // بنخزّن أقرب 5 مباريات (بدل 3) عشان توقعات النقط والانتقالات تحسب على مدى 3-5 جولات
+      const list = lookaheadByTeam[key].slice(0,5);
+      const first3 = list.slice(0,3);
+      const avgFdr = first3.length ? first3.reduce((s,x)=>s+x.fdr,0)/first3.length : 3;
       if(!teamFixtures[key]) teamFixtures[key] = {}; // نادي معندوش مباراة الجولة دي (bye) لسه ممكن يكون عنده نظرة قدام
       teamFixtures[key].lookahead = list;
       teamFixtures[key].avgFdrNext3 = avgFdr;
@@ -1435,6 +1441,7 @@ function applyLiveDataset(d){
   CLUB_NAME = d.clubName;
   CLUB_CODE = d.clubCode || {};
   state.teamFixtures = d.teamFixtures || {};
+  if(typeof resetEngineCaches === 'function') resetEngineCaches(); // تصفير كاش المحرك (xGC لكل نادي) مع كل تحديث بيانات
   state.totalManagers = d.totalManagers || 0;
   state.hasLiveFixtures = d.live || false;
   state.fixturesList = d.fixturesList || [];
@@ -1630,172 +1637,268 @@ function availabilityMultiplier(p){
   return 0; // i, s, u, n أو أي حالة تانية غير معروفة = مش متاح، منستبعده من كل الترشيحات
 }
 
-// احتمال الكلين شيت الأساسي لنادي اللاعب في مباراته الجاية (قوة دفاعه مقابل هجوم الخصم)
-// + تعديل بسيط لو اللاعب نفسه بيستقبل أهداف أكتر من المتوقع لمركزه (xGC90 عالي شخصيًا)
+// ============================================================
+// ثوابت المعايرة: قيم strength_attack/strength_defence في FPL بتتحرك في نطاق ~1000..1400
+// ومتوسطها التقريبي ~1120. متوسط أهداف الفريق في الماتش الواحد في البريميرليج ~1.35.
+const STRENGTH_REF = 1120;
+const LEAGUE_AVG_GOALS = 1.35;
+
+// كاش متوسط xGC لكل نادي — بيتصفّر مع كل تحديث بيانات (resetEngineCaches)
+let _teamXgcCache = {};
+function resetEngineCaches(){ _teamXgcCache = {}; }
+
+// متوسط الأهداف المتوقع استقبالها (xGC90) لدفاع النادي — من مدافعينه/حارسه اللي لعبوا فعليًا.
+// ده أقوى مؤشر على جودة الدفاع الحقيقية (مش بس تصنيف FPL الثابت). بيرجع null لو مفيش عينة كافية.
+function teamAvgXGC(clubKey){
+  if(Object.prototype.hasOwnProperty.call(_teamXgcCache, clubKey)) return _teamXgcCache[clubKey];
+  const defs = (state.players||[]).filter(p=>p.club===clubKey && (p.pos==='DEF'||p.pos==='GK') && (p.minutes||0)>60 && (p.xGC90||0)>0);
+  let val = null;
+  if(defs.length){ val = defs.reduce((s,p)=>s+(p.xGC90||0),0)/defs.length; }
+  _teamXgcCache[clubKey] = val;
+  return val;
+}
+
+// λ = الأهداف المتوقع أن يستقبلها النادي في مباراة معيّنة (أساس موديل بواسون للكلين شيت)
+// = خط أساس دفاعي (xGC حقيقي أو مشتق من قوة الدفاع الرسمية) × عامل هجوم الخصم × عامل الأرض/الخارج
+function expectedConcede(clubKey, fx){
+  if(!fx) return LEAGUE_AVG_GOALS;
+  const ownDef = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
+  const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
+
+  let baseXGC = teamAvgXGC(clubKey);
+  if(baseXGC==null || !isFinite(baseXGC)){
+    // مفيش عينة كفاية (بداية موسم مثلاً) → نشتق خط الأساس من قوة الدفاع الرسمية
+    baseXGC = (ownDef && ownDef>0) ? LEAGUE_AVG_GOALS * (STRENGTH_REF/ownDef) : LEAGUE_AVG_GOALS;
+  }
+  const oppFactor = (oppAtk && oppAtk>0) ? (oppAtk/STRENGTH_REF) : 1; // هجوم الخصم نسبةً للمتوسط
+  const haFactor  = fx.isHome ? 0.92 : 1.08;                          // الأرض بتقلل الاستقبال، الخارج بيزوّده
+  const lam = baseXGC * oppFactor * haFactor;
+  return Math.max(0.15, Math.min(4.0, lam));
+}
+
+// احتمال الكلين شيت لمباراة معيّنة = P(صفر أهداف) حسب توزيع بواسون = e^(−λ)
+// ده بيكافئ الدفاعات القوية (λ صغيرة → احتمال عالي) ويعاقب الضعيفة بشكل متماثل وواقعي.
+function cleanSheetProbFor(clubKey, fx){
+  if(!fx) return 0.25;
+  return Math.exp(-expectedConcede(clubKey, fx));
+}
+
+// (متوافق مع الاسم القديم) احتمال الكلين شيت للاعب في مباراته الجاية
 function cleanSheetProbability(p){
   const fx = teamFixtureInfo(p.club);
-  let prob = 0.28;
-  if(fx && fx.ownDefHome!=null){
-    const defStrength = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
-    const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
-    if(defStrength!=null && oppAtk!=null){
-      prob = Math.max(0.03, Math.min(0.65, 0.32 + (defStrength-oppAtk)/220));
-    }
-  }
-  if((p.pos==='DEF'||p.pos==='GK') && p.xGC90>1.1){ prob = Math.max(0.02, prob - (p.xGC90-1.1)*0.12); }
-  return prob;
+  const nf = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
+  return cleanSheetProbFor(p.club, nf);
 }
 
-// نموذج إحصائي: تم وضع سقف للأرقام (Cap) لمنع خداع الدقائق القليلة للاعبين المجهولين
-function statModelPoints(p){
+// عامل صعوبة الهجوم لمباراة معيّنة: كل ما دفاع الخصم أضعف كل ما زاد العائد الهجومي المتوقع.
+// بندمج المشتق من قوة دفاع الخصم (دقيق لكل خصم) مع مضاعف الـ FDR الرسمي (توازن).
+function attackMultiplier(fx){
+  if(!fx) return 1;
+  const oppDef = fx.isHome ? fx.oppDefAway : fx.oppDefHome;
+  let m = (oppDef && oppDef>0) ? (STRENGTH_REF/oppDef) : 1;
+  m *= fx.isHome ? 1.05 : 0.95;              // ميزة الأرض للهجوم
+  const fm = fdrMultiplier(fx.fdr);
+  m = (m*0.6) + (fm*0.4);
+  return Math.max(0.6, Math.min(1.5, m));
+}
+
+// 🔑 جوهر الدقة: توقع نقاط اللاعب في مباراة واحدة محددة — بيفصل بين:
+//   • نقط الظهور: ثابتة، مش بتتأثر بصعوبة الخصم إطلاقًا (الخطأ القديم كان بيضرب FDR في كل النقط)
+//   • العائد الهجومي (xG/xA): بيتأثر بصعوبة الهجوم للمباراة دي بالذات
+//   • الكلين شيت: احتمال بواسون حقيقي للمباراة دي + خصم متوقع للأهداف + نقط التصديات للحارس
+function fixtureExpectedPoints(p, fx){
+  const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
+  if(minFactor<=0) return 0;
+
   const posGoalPts = {GK:6,DEF:6,MID:5,FWD:4}[p.pos] || 4;
   const posCSPts   = {GK:4,DEF:4,MID:1,FWD:0}[p.pos] || 0;
-  const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : (p.minutes>0 ? 0.5 : 0);
-  if(minFactor<=0) return 0;
-  
-  const appearancePts = minFactor * 2; 
-  
-  // السحر هنا: حد أقصى للـ xG عشان نعالج أخطاء الفانتازي في أول الموسم للاحتياطيين
-  const safeXG90 = Math.min(p.xG90 || 0, 1.1); 
-  const safeXA90 = Math.min(p.xA90 || 0, 0.7);
-  
-  const goalPts   = safeXG90 * minFactor * posGoalPts;
-  const assistPts = safeXA90 * minFactor * 3;
-  
-  let csProb = 0.25;
-  const fxInfo = state.teamFixtures[p.club];
-  if (fxInfo && fxInfo.lookahead && fxInfo.lookahead[0]) {
-      const fdr = fxInfo.lookahead[0].fdr;
-      csProb = fdr <= 2 ? 0.35 : (fdr >= 4 ? 0.10 : 0.25);
+
+  const appearancePts = minFactor * 2; // نقط الظهور (لحد نقطتين للأساسي) — مستقلة عن الخصم
+
+  // العائد الهجومي: xG/xA مقيّدين لتفادي طفرات العينة الصغيرة، × صعوبة هجوم المباراة
+  const atkMul = attackMultiplier(fx);
+  const safeXG90 = Math.min(p.xG90 || 0, 1.1);
+  const safeXA90 = Math.min(p.xA90 || 0, 0.8);
+  const goalPts   = safeXG90 * minFactor * posGoalPts * atkMul;
+  const assistPts = safeXA90 * minFactor * 3 * atkMul;
+
+  // الكلين شيت + خصم الأهداف (للحارس/المدافع) + التصديات (للحارس)
+  let csPts = 0, concedePts = 0, savePts = 0;
+  const isDefender = (p.pos==='GK' || p.pos==='DEF');
+  if(posCSPts>0 || isDefender){
+    const lam = fx ? expectedConcede(p.club, fx) : LEAGUE_AVG_GOALS;
+    const csProb = Math.exp(-lam);
+    csPts = csProb * posCSPts * minFactor;
+    if(isDefender){
+      // قاعدة FPL: −1 لكل هدفين. تقدير مبسّط للخصم المتوقع من λ
+      concedePts = -Math.max(0, (lam-0.5)) * 0.35 * minFactor;
+    }
   }
-  const csPts = csProb * posCSPts * minFactor;
-  
-  const bonusPts  = (p.bonusPerMatch||0) * minFactor;
-  return appearancePts + goalPts + assistPts + csPts + bonusPts;
+  if(p.pos==='GK'){ savePts = ((p.savesPer90||0)/3) * minFactor; } // نقطة لكل 3 تصديات
+
+  const bonusPts = (p.bonusPerMatch||0) * minFactor * (0.5 + 0.5*atkMul);
+  return appearancePts + goalPts + assistPts + csPts + concedePts + savePts + bonusPts;
 }
 
-// خوارزمية الجولة الأولى: من غير أي مباريات لعبت فعلاً في الموسم ده، أي إحصائية جاية من الـ API
-// (xG90, xA90, بونص لكل مباراة... إلخ) ممكن تكون محسوبة على 5 دقايق لعبهم آخر الموسم اللي فات
-// وطلعت رقم فلكي لمجرد إنهم شاطوا كورة فيها. عشان كده في الجولة الأولى بنتجاهل كل إحصائيات
-// الـ API تمامًا (مفيش statModelPoints هنا خالص) ونعتمد 100% على مؤشرين مضمونين:
-// - سعر اللاعب: فانتازي نفسها حطته بناءً على مستواه وموسمه اللي فات.
-// - نسبة ملكيته: يعني آلاف المديرين راجعوا بياناته واختاروه فعلاً (مش رقم مهرج من الـ API).
-// أي لاعب ملكيته أقل من 1% بياخد قيمة أرضية ثابتة ومفيهاش أي اعتماد على إحصائياته المحتمل تكون مضروبة.
-function gw1BaseEstimate(p){
-  if((p.ownership||0) < 1) return 1; // استبعاد فوري: نقطة ظهور تقريبية بس، من غير أي إحصائيات API
-
+// خط أساس مبني على فئة اللاعب (سعره/ملكيته) — مرساة بتمنع طفرات الجولة الواحدة من تضليل التوقع
+function classBaseline(p){
   const posFloor = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
-  const priceScore = Math.max(0, (p.price - posFloor)) * 0.9; // كل نص مليون فوق سعر مركزه ≈ نقطة إضافية
-  const ownScore = Math.min(p.ownership||0, 45) * 0.09;        // الملكية بتضيف تدريجيًا لغاية سقف معقول
-  return 1.5 + priceScore + ownScore; // 1.5 قاعدة أساسية تقريبية لنقط الظهور
+  return 1.5 + (Math.max(0, p.price - posFloor) * 0.8) + (Math.min(p.ownership||0, 40) * 0.05);
 }
 
-// توقع نقاط اللاعب في الجولة الجاية:
-// - في الجولة الأولى: سعر + ملكية بس (gw1BaseEstimate)، وexception واحد بيقطع epNext تمامًا.
-// - من الجولة التانية: بنمزج بين توقع FPL الرسمي (ep_next) والنموذج الإحصائي (xG/xA/كلين شيت/بونص)،
-//   وإلا لو معندناش ep_next بنمزج الفورم الموزون مع النموذج الإحصائي.
-// وبعدين بنضرب في صعوبة المباراة (FDR) واحتمال المشاركة.
-// توقعات النقاط: دمج ذكي يعتمد بقوة على فئة اللاعب (سعره) لتجاهل طفرات الجولة الواحدة
-function predictedPoints(p){
+// توقع نقاط اللاعب لمباراة واحدة مع الدمج الذكي (توقع FPL الرسمي + الإحصائي + الفورم + الفئة).
+// isImmediate=true للجولة الجاية (فيها ep_next وتأثير السوق)، false للجولات الأبعد في الأفق.
+function blendedFixturePoints(p, fx, isImmediate){
+  const stat = fixtureExpectedPoints(p, fx);
+  const cls  = classBaseline(p);
+  const isEarlySeason = state.gwInfo && state.gwInfo.current <= 3;
+
+  let base;
+  if(isImmediate){
+    if(isEarlySeason){
+      base = (p.epNext && p.epNext>0) ? (cls*0.35) + (p.epNext*0.45) + (stat*0.20)
+                                      : (cls*0.6) + (stat*0.4);
+    } else if(p.epNext && p.epNext>0 && p.formWeighted>0){
+      base = (p.epNext*0.35) + (stat*0.40) + (p.formWeighted*0.25);
+    } else if(p.epNext && p.epNext>0){
+      base = (p.epNext*0.45) + (stat*0.55);
+    } else if(p.formWeighted>0){
+      base = (p.formWeighted*0.45) + (stat*0.55);
+    } else {
+      base = stat>0 ? stat : cls;
+    }
+    // تأثير السوق (حكمة الجمهور) — إشارة قصيرة المدى للجولة الجاية بس، بوزن مخفّض (كان مبالغ فيه قبل كده)
+    const net = (p.transfersInEvent||0) - (p.transfersOutEvent||0);
+    let marketBonus = 0;
+    if(net!==0) marketBonus = Math.max(-1.2, Math.min(1.2, (net/40000) * 0.25));
+    if(isEarlySeason) marketBonus *= 1.3;
+    base += marketBonus;
+  } else {
+    // جولات أبعد: مفيش ep_next مخصص ليها → الإحصائي هو الأساس، مع مرساة فئة بصعوبة الجولة دي
+    const fxAtk = fx ? attackMultiplier(fx) : 1;
+    if(isEarlySeason){
+      base = ((cls*0.55) + (stat*0.45)) * (0.7 + 0.3*fxAtk);
+    } else if(p.formWeighted>0){
+      base = (stat*0.6) + (p.formWeighted*0.4*fxAtk);
+    } else {
+      base = stat>0 ? stat : (cls*0.5*fxAtk);
+    }
+  }
+
+  base = Math.max(0.5, base);
   const avail = availabilityMultiplier(p);
-  if(avail === 0) return 0;
-  
+  return Math.max(0, base * avail);
+}
+
+// توقع نقاط اللاعب في الجولة الجاية (مباراة واحدة) — بيستخدمه الكابتن والتشكيل والدريم تيم والسوق.
+// بيعتمد على المحرك الجديد اللي بيفصل نقط الظهور عن العائد الهجومي (مش بيضرب FDR في كل النقط زي قبل).
+function predictedPoints(p){
+  if(availabilityMultiplier(p) === 0) return 0;
   const fx = teamFixtureInfo(p.club);
   const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
-  const fdrMul = nextFix ? fdrMultiplier(nextFix.fdr) : 1;
-  
-  // قوة اللاعب الأساسية مبنية على سعره في السوق
-  const posFloor = {GK:4.0, DEF:4.0, MID:4.5, FWD:4.5}[p.pos] || 4.0;
-  const classScore = 1.5 + (Math.max(0, p.price - posFloor) * 0.8) + (Math.min(p.ownership, 40) * 0.05);
-  
-  let base = classScore;
-  const isEarlySeason = state.gwInfo && state.gwInfo.current <= 3;
-  const stat = statModelPoints(p);
-  
-  // حساب الأساس الفني
-  if (isEarlySeason) {
-    if(p.epNext && p.epNext > 0) {
-        base = (classScore * 0.4) + (p.epNext * 0.6);
-    } else {
-        base = classScore;
-    }
-  } else {
-    if(p.epNext && p.epNext > 0 && p.formWeighted > 0){ 
-        base = (p.epNext * 0.4) + (stat * 0.3) + (p.formWeighted * 0.3); 
-    }
-    else if(p.epNext && p.epNext > 0){ base = (p.epNext * 0.5) + (stat * 0.5); }
-    else if(p.formWeighted > 0){ base = (p.formWeighted * 0.6) + (stat * 0.4); }
-    else if(stat > 0){ base = stat; }
-  }
-  
-  // 🔥 السحر الجديد: "تأثير السوق" (حكمة الجمهور) 🔥
-  const netTransfers = (p.transfersInEvent || 0) - (p.transfersOutEvent || 0);
-  let marketBonus = 0;
-
-  if (netTransfers > 0) {
-      // شراء مكثف = تألق ملحوظ (يرفع التوقع بقوة)
-      // كل 20 ألف شراء بيدي ربع نقطة، بحد أقصى +2.5
-      marketBonus = Math.min(2.5, (netTransfers / 20000) * 0.25);
-  } else if (netTransfers < 0) {
-      // بيع مكثف = أداء باهت أو مشكلة (يخفض التوقع)
-      marketBonus = Math.max(-2.5, (netTransfers / 20000) * 0.25);
-  }
-
-  // في أول 3 جولات الإحصائيات بتكون مضللة، فبنضاعف تأثير السوق بنسبة 50%
-  if (isEarlySeason && marketBonus !== 0) {
-      marketBonus *= 1.5;
-  }
-
-  base += marketBonus;
-  base = Math.max(0.5, base); // مينفعش التوقع المبدئي ينزل للصفر لو هو لاعب متاح وأساسي
-  
-  const pts = base * fdrMul * avail;
+  const pts = blendedFixturePoints(p, nextFix, true);
   return Math.max(0, Math.round(pts * 10) / 10);
 }
 
-// الكلين شيت: حسابات واقعية تعتمد على الأداء الفعلي للدفاع
+// 🔭 توقع مجموع النقاط على أقرب N جولات (افتراضي 5) — أساس نصايح الانتقال واللاعبين الأعلى توقعًا.
+// بيجمع توقع كل مباراة قادمة (الجولة الجاية بالدمج الكامل، والأبعد بالإحصائي + الفورم)، فبيدي
+// صورة أدق بكتير من مباراة واحدة: لاعب بمباراة صعبة الجولة دي بس رن سهل بعدها ماينفعش يتشال.
+function projectedPointsHorizon(p, n){
+  if(availabilityMultiplier(p) === 0) return { total:0, perGw:0, count:0 };
+  const fx = teamFixtureInfo(p.club);
+  const list = (fx && fx.lookahead) ? fx.lookahead.slice(0, n||5) : [];
+  if(!list.length){
+    const one = predictedPoints(p);
+    return { total: one, perGw: one, count: 1 };
+  }
+  let total = 0;
+  list.forEach((f, i)=>{ total += blendedFixturePoints(p, f, i===0); });
+  total = Math.round(total*10)/10;
+  return { total, perGw: Math.round((total/list.length)*10)/10, count: list.length };
+}
+
+// ترتيب الكلين شيت بموديل بواسون: احتمال الجولة الجاية = e^(−λ)، والترتيب بيدمج الجولة الجاية
+// مع متوسط أقرب 3 مباريات (عشان الفرق اللي عندها رن سهل أو جولة مزدوجة تطلع فوق).
 function cleanSheetRanking(){
   return Object.keys(CLUB_TAG).map(key=>{
     const fxInfo = state.teamFixtures[key];
     if(!fxInfo || !fxInfo.lookahead || !fxInfo.lookahead.length) return null;
-    const nextFix = fxInfo.lookahead[0]; 
-    
-    let prob = 0.25;
-    if(nextFix.ownDefHome && nextFix.oppAtkAway) {
-        const defStrength = nextFix.isHome ? nextFix.ownDefHome : nextFix.ownDefAway;
-        const oppAtk = nextFix.isHome ? nextFix.oppAtkAway : nextFix.oppAtkHome;
-        prob = Math.max(0.05, Math.min(0.55, 0.25 + ((defStrength - oppAtk) / 1000)));
-    } else {
-        prob = nextFix.fdr <= 2 ? 0.35 : (nextFix.fdr >= 4 ? 0.12 : 0.25);
-    }
-    
-    if (nextFix.isHome) prob += 0.05; // دفعة الأرض
-    
-    // 🟢 عقاب شديد للفرق اللي استقبلت فرص كتير (xGC90 عالي) زي مانشستر وتوتنهام
-    const teamDefenders = state.players.filter(p=>p.club===key && (p.pos==='DEF'||p.pos==='GK') && p.minutes > 0);
-    if (teamDefenders.length > 0) {
-        const avgXGC = teamDefenders.reduce((sum, p) => sum + p.xGC90, 0) / teamDefenders.length;
-        if (avgXGC > 1.2) {
-            prob -= (avgXGC - 1.0) * 0.15; // تقليل النسبة لو الدفاع مخترق
-        }
-    }
-    
-    return { club:key, prob: Math.max(2, Math.min(75, Math.round(prob*100))), fx: nextFix };
-  }).filter(Boolean).sort((a,b)=>b.prob-a.prob);
+    const nextFix = fxInfo.lookahead[0];
+    const nextProb = cleanSheetProbFor(key, nextFix);                 // 0..1 لأقرب مباراة
+    const next3 = fxInfo.lookahead.slice(0,3);
+    const avg3 = next3.reduce((s,f)=>s+cleanSheetProbFor(key,f),0)/next3.length; // متوسط الرن
+    const rankScore = (nextProb*0.65) + (avg3*0.35);
+    return {
+      club: key,
+      prob: Math.max(2, Math.min(85, Math.round(nextProb*100))),
+      avg3: Math.round(avg3*100),
+      rankScore: rankScore,
+      fx: nextFix
+    };
+  }).filter(Boolean).sort((a,b)=>b.rankScore-a.rankScore);
 }
 
-// 🟢 دالة جديدة بترجع الفرقة بدل الحارس
+// 🟢 بترجع الفرق (بدل الحارس) الأعلى احتمالاً للكلين شيت
 function topCleanSheetTeams(limit){
   return cleanSheetRanking().slice(0, limit||8);
 }
 
-// اللاعبون الأعلى توقعاً (منع ظهور المدافعين الرخاص اللي تألقوا صدفة)
+// اللاعبون الأعلى توقعاً — على مدى أقرب 5 جولات (مش مباراة واحدة)، عشان الترشيح يبقى قرار
+// انتقال حقيقي مش لمعة جولة. بنرتب بالمجموع الكلي، ونستبعد الرخاص جدًا (< £5.0) اللي تألقوا صدفة.
 function inFormRanking(limit){
-  return state.players.filter(p => availabilityMultiplier(p) > 0 && p.price >= 5.0) 
-    .map(p => ({ p, score: predictedPoints(p) }))
-    .filter(x => x.score > 3.0) 
-    .sort((a,b) => b.score - a.score)
+  return state.players.filter(p => availabilityMultiplier(p) > 0 && p.price >= 5.0)
+    .map(p => { const h = projectedPointsHorizon(p, 5); return { p, score: h.perGw, total: h.total, count: h.count }; })
+    .filter(x => x.score > 3.0)
+    .sort((a,b) => b.total - a.total)
     .slice(0, limit || 10);
+}
+
+// 🔁 أفضل مقترحات الانتقال — بتقارن الإسقاط على 5 جولات: لكل لاعب في تشكيلتك بندوّر على أفضل
+// بديل في نفس المركز داخل الميزانية (البنك + سعر البيع) وبيحترم حد 3 لاعبين لكل نادي، ونرتب
+// بمكسب النقط المتوقع على المدى. ده أشمل بكتير من الطريقة القديمة اللي كانت بتشترط "سببين".
+function bestTransferSuggestions(horizon){
+  const N = horizon || 5;
+  const owned = new Set(state.mySquadIds.map(e=>e.id));
+  const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
+  pool().forEach(p=>{
+    if(availabilityMultiplier(p) <= 0) return;
+    if(owned.has(p.id)) return;
+    if(!byPos[p.pos]) return;
+    byPos[p.pos].push(p);
+  });
+  Object.keys(byPos).forEach(k=>{
+    byPos[k].forEach(p=>{ p._proj = projectedPointsHorizon(p, N).total; });
+    byPos[k].sort((a,b)=>b._proj - a._proj);
+  });
+
+  const suggestions = [];
+  squad().forEach(sellP=>{
+    const sellProj = projectedPointsHorizon(sellP, N).total;
+    const budget = (state.bank||0) + sellP.price;
+    const list = byPos[sellP.pos] || [];
+    let bestBuy = null, bestGain = 0;
+    for(let i=0;i<list.length;i++){
+      const b = list[i];
+      if(b.price > budget) continue;
+      if(b.club !== sellP.club && clubCountInSquad(b.club, sellP.id) >= MAX_PER_CLUB) continue;
+      const gain = b._proj - sellProj;
+      if(gain > bestGain){ bestGain = gain; bestBuy = b; }
+    }
+    if(bestBuy && bestGain > 0.5){
+      suggestions.push({ sellP: sellP, buyP: bestBuy, diff: Math.round(bestGain*10)/10, horizon: N });
+    }
+  });
+
+  // نتفادى ترشيح نفس لاعب البيع أو الشراء أكتر من مرة
+  suggestions.sort((a,b)=>b.diff-a.diff);
+  const usedBuy = new Set(), usedSell = new Set(), out = [];
+  for(const s of suggestions){
+    if(usedBuy.has(s.buyP.id) || usedSell.has(s.sellP.id)) continue;
+    usedBuy.add(s.buyP.id); usedSell.add(s.sellP.id);
+    out.push(s);
+    if(out.length >= 3) break;
+  }
+  return out;
 }
 
 // نصايح البيع: لو لاعب غالي ومتوقع يجيب نقط قليلة هيرشحلك تبيعه فوراً
@@ -3343,7 +3446,8 @@ function predRow(p, chipText, chipClass, metaExtra, showBonus){
 }
 
 function renderMiniFixtures(p) {
-  const lookahead = (state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || [];
+  // ودجت مصغّرة داخل كروت الانتقال — بنعرض أقرب 3 بس عشان متزحمش المساحة الصغيرة
+  const lookahead = ((state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || []).slice(0,3);
   if (!lookahead.length) return '<div class="hint" style="font-size:8px;">لا توجد مباريات</div>';
   const fixCards = lookahead.map(f => {
     const fdrCls = f.fdr <= 2 ? 'easy' : (f.fdr >= 4 ? 'hard' : 'mid');
@@ -3476,33 +3580,12 @@ function renderPredictions(){
     return predRow(p, ptsText + (isCap?' (C)':''), null, state.gwInfo.fixtures[p.club]);
   });
 
-  const sells = sellAdvice();
-  const buys = buyAdvice();
-  const ownedIds = new Set(state.mySquadIds.map(e=>e.id));
-  const swapSuggestions = [];
-  sells.forEach(s=>{
-    const budget = state.bank + s.p.price;
-    let bestBuy = null;
-    buys.forEach(b=>{
-      if(b.p.pos !== s.p.pos) return;
-      if(b.p.price > budget) return;
-      if(ownedIds.has(b.p.id)) return;
-      if(b.p.club !== s.p.club && clubCountInSquad(b.p.club, s.p.id) >= MAX_PER_CLUB) return;
-      if(!bestBuy || b.pred > bestBuy.pred) bestBuy = b;
-    });
-    if(!bestBuy) return;
-    const diff = bestBuy.pred - predictedPoints(s.p);
-    if(diff > 0){
-      swapSuggestions.push({ sellP: s.p, buyP: bestBuy.p, diff });
-    }
-  });
-
-  swapSuggestions.sort((a,b)=>b.diff-a.diff);
-  const topSwaps = swapSuggestions.slice(0,3);
+  // مقترحات الانتقال دلوقتي مبنية على الإسقاط الكامل على 5 جولات جاية (مش مباراة واحدة)
+  const topSwaps = bestTransferSuggestions(5);
 
   const suggestionsHtml = topSwaps.length ? topSwaps.map(sug=>
     '<div class="swap-card">' +
-      '<div class="swap-title"><span class="icon-inline" style="color:var(--coral);">' + ICON_FIRE + ' متوقع زيادة: +' + fmt(sug.diff) + ' نقطة</span></div>' +
+      '<div class="swap-title"><span class="icon-inline" style="color:var(--coral);">' + ICON_FIRE + ' مكسب متوقع: +' + fmt(sug.diff) + ' نقطة على ' + (sug.horizon||5) + ' جولات</span></div>' +
       '<div class="swap-body">' +
         '<div class="swap-side sell" data-viewprofile="' + sug.sellP.id + '">' +
           '<div class="swap-tag" style="color:var(--coral);">' + ICON_DOWN + ' بيع</div>' +
@@ -3528,11 +3611,11 @@ function renderPredictions(){
     return '<div class="cs-row"><div class="p-left" style="cursor:default;">' +
       '<img src="' + logoSrc + '" alt="' + CLUB_NAME[x.club] + '" onerror="this.style.display=\'none\'" style="width:34px;height:34px;object-fit:contain;margin-left:10px;">' +
       '<div class="p-info"><div class="p-name" style="font-size:13px;">' + CLUB_NAME[x.club] + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div></div>' +
+      '<div class="p-meta">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + (x.avg3!=null ? (' · متوسط 3 جولات ' + x.avg3 + '%') : '') + '</div></div></div>' +
       '<div class="cs-prob">' + x.prob + '%</div></div>';
   });
 
-  const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.score) + ' نقطة', null, null, false) );
+  const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.total) + ' نقطة', null, (x.count>1 ? ('~' + fmt(x.score) + ' لكل جولة · ' + x.count + ' جولات') : null), false) );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
   
   // دمج التريندات الحقيقية فقط (الأكثر شراءً وبيعاً) وإزالة توقع الأسعار
@@ -3542,7 +3625,7 @@ function renderPredictions(){
   const nextGwNum = (state.gwInfo.current||1) + 1;
   const noteText = isLive 
     ? 'النقاط الفعلية المحققة لتشكيلتك حتى الآن في هذه الجولة.' 
-    : 'ملاحظة: هذه التوقعات إحصائية ومبنية على نماذج أداء معتمدة (xG/xA, FDR) وتوقعات FPL الرسمية.';
+    : 'ملاحظة: التوقعات إحصائية ومبنية على xG/xA وموديل Poisson للكلين شيت وصعوبة الخصم لكل مباراة وتوقعات FPL الرسمية. مقترحات الانتقال واللاعبين الأعلى توقعاً محسوبة على أقرب 5 جولات.';
 
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>التوقعات والنصائح</h1><div class="spacer"></div></div>' +
@@ -3571,7 +3654,7 @@ function renderPredictions(){
   '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ')</h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (الجولة ' + nextGwNum + ')</h2></div>' +
+  '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (أقرب 5 جولات)</h2></div>' +
   limitedListHtml(informRowsArr, 'predInformMore', 'league-list', 'gap:8px;') +
 
   '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
