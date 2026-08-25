@@ -1340,16 +1340,19 @@ async function buildLiveDataset(){
     };
   });
 
-  // الجولة الجاية (اللي بتتعدّل تشكيلتها) — بناخدها من is_next، وإلا الجولة اللي بعد الحالية رقمًا.
-  // ده بيفصل بوضوح بين "الجولة اللي بتتلعب دلوقتي" و"الجولة الجاية" بدل ما يتلغبطوا.
-  const nextEvent = events.find(e=>e.is_next)
-    || (currentEvent ? events.find(e=>e.id === currentEvent.id + 1) : null)
-    || null;
+  // الجولة الجاية (اللي المستخدم يقدر يعدّل تشكيلتها دلوقتي) = أقرب جولة ديدلاينها لسه
+  // في المستقبل فعليًا. بنعتمد على الديدلاين نفسه مش على فلاج is_next، لأن الفلاج ساعات
+  // بيبقى مش متظبط وقت ما الجولة الحالية بتتلعب، وساعتها كان بيطلع عداد "مقفول" بالغلط.
+  const nowMs = Date.now();
+  const upcoming = events
+    .filter(e => e.deadline_time && new Date(e.deadline_time).getTime() > nowMs)
+    .sort((a,b) => new Date(a.deadline_time).getTime() - new Date(b.deadline_time).getTime())[0] || null;
   const gwInfo = {
     current: gwId,
     deadline: currentEvent ? currentEvent.deadline_time : new Date(Date.now()+86400000).toISOString(),
-    nextGw: nextEvent ? nextEvent.id : (gwId + 1),
-    nextDeadline: nextEvent ? nextEvent.deadline_time : null,
+    // أقرب ديدلاين جاي + رقم جولته (لو مفيش أي ديدلاين جاي = الموسم خلص، بنرجع للحالية+1)
+    nextGw: upcoming ? upcoming.id : (gwId + 1),
+    nextDeadline: upcoming ? upcoming.deadline_time : null,
     currentFinished: currentEvent ? !!currentEvent.finished : false,
     fixtures: fixturesMap,
   };
@@ -1607,19 +1610,16 @@ function pool(ids){ const list = ids || state.mySquadIds; const owned=new Set(li
 function isGwLocked(){
   return !!(state.gwInfo && new Date(state.gwInfo.deadline).getTime() < Date.now());
 }
-// الجولة اللي المستخدم بيخطّط ويعدّل تشكيلتها دلوقتي:
-// - قبل الديدلاين: نفس الجولة الحالية.
-// - بعد ما تقفل (بتتلعب دلوقتي): الجولة الجاية، لأن أي تعديل بيروح ليها.
+// الجولة اللي المستخدم بيخطّط ويعدّل تشكيلتها دلوقتي = أقرب جولة ديدلاينها لسه جاي.
+// قبل ديدلاين الجولة الحالية: nextGw = نفس الحالية. بعد ما يقفل: الجولة اللي بعدها.
 function plannerGw(){
   const gi = state.gwInfo; if(!gi) return 1;
-  if(isGwLocked()) return gi.nextGw || ((gi.current || 1) + 1);
-  return gi.current || 1;
+  return gi.nextGw || gi.current || 1;
 }
-// الديدلاين اللي يهمّ المستخدم دلوقتي (ديدلاين الجولة اللي هيعدّلها فعلاً)
+// الديدلاين اللي يهمّ المستخدم دلوقتي (أقرب ديدلاين جاي). لو الموسم خلص نرجع لديدلاين الحالية.
 function plannerDeadline(){
   const gi = state.gwInfo; if(!gi) return null;
-  if(isGwLocked() && gi.nextDeadline) return gi.nextDeadline;
-  return gi ? gi.deadline : null;
+  return gi.nextDeadline || gi.deadline || null;
 }
 function ensureDraftLoaded(){
   if(!state.draftSquadIds){
