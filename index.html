@@ -1340,9 +1340,17 @@ async function buildLiveDataset(){
     };
   });
 
+  // الجولة الجاية (اللي بتتعدّل تشكيلتها) — بناخدها من is_next، وإلا الجولة اللي بعد الحالية رقمًا.
+  // ده بيفصل بوضوح بين "الجولة اللي بتتلعب دلوقتي" و"الجولة الجاية" بدل ما يتلغبطوا.
+  const nextEvent = events.find(e=>e.is_next)
+    || (currentEvent ? events.find(e=>e.id === currentEvent.id + 1) : null)
+    || null;
   const gwInfo = {
     current: gwId,
     deadline: currentEvent ? currentEvent.deadline_time : new Date(Date.now()+86400000).toISOString(),
+    nextGw: nextEvent ? nextEvent.id : (gwId + 1),
+    nextDeadline: nextEvent ? nextEvent.deadline_time : null,
+    currentFinished: currentEvent ? !!currentEvent.finished : false,
     fixtures: fixturesMap,
   };
 
@@ -1599,13 +1607,28 @@ function pool(ids){ const list = ids || state.mySquadIds; const owned=new Set(li
 function isGwLocked(){
   return !!(state.gwInfo && new Date(state.gwInfo.deadline).getTime() < Date.now());
 }
+// الجولة اللي المستخدم بيخطّط ويعدّل تشكيلتها دلوقتي:
+// - قبل الديدلاين: نفس الجولة الحالية.
+// - بعد ما تقفل (بتتلعب دلوقتي): الجولة الجاية، لأن أي تعديل بيروح ليها.
+function plannerGw(){
+  const gi = state.gwInfo; if(!gi) return 1;
+  if(isGwLocked()) return gi.nextGw || ((gi.current || 1) + 1);
+  return gi.current || 1;
+}
+// الديدلاين اللي يهمّ المستخدم دلوقتي (ديدلاين الجولة اللي هيعدّلها فعلاً)
+function plannerDeadline(){
+  const gi = state.gwInfo; if(!gi) return null;
+  if(isGwLocked() && gi.nextDeadline) return gi.nextDeadline;
+  return gi ? gi.deadline : null;
+}
 function ensureDraftLoaded(){
   if(!state.draftSquadIds){
     state.draftSquadIds = state.mySquadIds.map(e=>Object.assign({}, e));
     state.draftCaptainId = state.captainId;
     state.draftBank = state.bank;
     state.draftFreeTransfers = state.freeTransfers;
-    state.draftForGw = (state.gwInfo && state.gwInfo.current || 1) + 1;
+    // نستخدم الجولة الجاية الحقيقية (nextGw) بدل مجرد current+1 — بيتعامل صح مع أي ترقيم/جولات فاضية
+    state.draftForGw = (state.gwInfo && state.gwInfo.nextGw) || ((state.gwInfo && state.gwInfo.current || 1) + 1);
   }
 }
 function activeIds(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftSquadIds; } return state.mySquadIds; }
@@ -2794,7 +2817,7 @@ function renderHome(){
 
   '<div class="deadline">' +
     '<div class="left">' + ICON_CLOCK +
-      '<div><div class="lbl">الوقت المتبقي لإغلاق التشكيلة</div><div class="val">' + countdown(state.gwInfo.deadline) + '</div></div>' +
+      '<div><div class="lbl">إغلاق تشكيلة الجولة ' + plannerGw() + '</div><div class="val">' + countdown(plannerDeadline()) + '</div></div>' +
     '</div>' +
     '<button class="cta" data-goto="transfers">تعديل التشكيلة</button>' +
   '</div>' +
@@ -3148,6 +3171,9 @@ function renderTransfers(){
 
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
+  (isGwLocked()
+    ? '<div class="hint" style="margin:0 20px 12px;background:rgba(216,27,96,0.08);border:1px solid rgba(216,27,96,0.25);border-radius:10px;padding:9px 12px;">الجولة ' + (state.gwInfo.current) + ' بدأت وتشكيلتها مقفولة. أي تعديل هنا يتحضّر لتشكيلة <strong style="color:var(--primary-soft);">الجولة ' + plannerGw() + '</strong> ويُطبّق تلقائيًا عند بدايتها.</div>'
+    : '') +
   '<div class="stat-strip">' +
     '<div class="stat-pill"><div class="v">£' + fmt(bank) + 'm</div><div class="k">الرصيد المتاح</div></div>' +
     '<div class="stat-pill"><div class="v">' + freeT + '</div><div class="k">تبديلات مجانية</div></div>' +
