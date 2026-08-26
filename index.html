@@ -1868,6 +1868,11 @@ function applyLiveDataset(d){
   state.hasLiveFixtures = d.live || false;
   state.fixturesList = d.fixturesList || [];
   state.fixturesByGw = d.fixturesByGw || {};
+  // 🎯 تحميل أودز الرهان (غير معطِّل): بيتخزّن في كاش ساعة، وأول ما يجهز بيعيد الرسم عشان
+  // الكلين شيت وتوقع النقط يستخدموا السوق. لو فشل (مفيش مفتاح/شبكة) بنكمّل بالموديل عادي.
+  if(typeof loadOddsModel === 'function'){
+    loadOddsModel().then(changed=>{ if(changed && state.phase==='app'){ try{ renderBody(); }catch(e){} } }).catch(()=>{});
+  }
 }
 
 // ===== app state =====
@@ -1882,6 +1887,7 @@ let state = {
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
+  oddsByClub:{}, oddsSyncedAt:null,   // 🎯 أودز الرهان المشتقة لكل نادي (لو المفتاح/البروكسي متوفر)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
   realLeagues: [], overallRank: 0, eventRank: null,
@@ -2208,7 +2214,144 @@ const REAL_FORM_WEIGHT_MIN = 0.35;
 // وزن الدمج للحارس/المدافع أول الموسم: نعلي حصة إحصائياتنا (stat) اللي جواها محرك الكلين شيت،
 // لأن الكلين شيت هو المصدر الأساسي لنقط المدافع، ومحرّكنا بيفرّق بين المدافعين أدق من ep_next
 // الرسمي اللي بيبقى متقارب بينهم بدري. المجموع لازم = 1. (cls=فئة/سعر، ep=توقع FPL، stat=إحصائياتنا)
-const DEF_STAT_BLEND = { cls:0.15, ep:0.30, stat:0.55 };
+const DEF_STAT_BLEND = { cls:0.20, ep:0.40, stat:0.40 };
+// PERF_CONF_MIN: الحد الأدنى للثقة في إحصائيات اللاعب الفردية (xG/xA/بونص) بدري في الموسم.
+// 0.30 = أول الموسم بناخد ~ثلث قيمة إحصائيات الماتش الواحد بس (الباقي بيعتمد على ep_next/الفئة)،
+// وبتكبر لـ 1 حوالي الجولة 9. بيمنع هاتريك/أسيست الجولة الواحدة إنه يضخّم توقع اللاعب.
+const PERF_CONF_MIN = 0.30;
+
+// ============================================================
+// 🎯 محرك أودز الرهان (Bookmaker Odds) — "حكمة السوق" أدق مصدر لاحتمالات المباراة
+// ------------------------------------------------------------
+// بنجيب أودز النتيجة (h2h) + إجمالي الأهداف (totals) من بروكسي /api/odds، ونشتق منها
+// بملاءمة بواسون الأهدافَ المتوقعة لكل فريق (يسجل/يستقبل). دي بتبقى المرساة الأقوى للكلين
+// شيت وللعائد الهجومي. لو الأودز مش متوفرة (مفيش مفتاح/الشبكة فشلت) بنرجع للموديل العادي.
+const ODDS_ENDPOINT   = '/api/odds';        // بروكسي Vercel اللي بيخبّي المفتاح (شوف api/odds.js)
+const ODDS_CACHE_KEY  = 'fpl_odds_cache_v1';
+const ODDS_CACHE_TTL  = 6 * 60 * 60 * 1000; // 6 ساعات — كاش مشترك بين كل المستخدمين (Supabase).
+// الحساب: طلبات الشهر = (720 ساعة ÷ TTL بالساعات) × 2 نقطة/طلب. عند 6 ساعات = 120 تحديث × 2 = 240
+// نقطة/شهر (نص الباقة المجانية 500). نزّله لـ 3 ساعات لو عايز أحدث (480 نقطة)، أو طلّعه لـ 12 لتوفير أكتر.
+const ODDS_WEIGHT_CS  = 0.70;               // وزن الأودز في احتمال الكلين شيت (السوق أدق من الموديل)
+const ODDS_WEIGHT_ATK = 0.50;               // وزن الأودز في العائد الهجومي المتوقع
+
+// أسماء شركات الرهان بتكون كاملة ("Manchester City")، وFPL بيستخدم أسماء مختصرة ("Man City").
+// الجدول ده بيطابق الاختلافات المعروفة؛ وفيه fallback عام بعده لأي اسم تاني.
+const ODDS_TEAM_ALIAS = {
+  'manchester city':'man city', 'manchester united':'man utd', 'manchester utd':'man utd',
+  'nottingham forest':'nottm forest', 'tottenham hotspur':'spurs', 'tottenham':'spurs',
+  'wolverhampton wanderers':'wolves', 'wolverhampton':'wolves', 'newcastle united':'newcastle',
+  'west ham united':'west ham', 'brighton and hove albion':'brighton', 'brighton hove albion':'brighton',
+  'leeds united':'leeds', 'leicester city':'leicester', 'ipswich town':'ipswich',
+  'afc bournemouth':'bournemouth', 'sheffield united':'sheffield utd'
+};
+function _normName(s){
+  return (s||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9 ]/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+// بيطابق اسم فريق من الأودز على مفتاح النادي في التطبيق (بيرجع null لو مفيش تطابق)
+function _matchOddsTeam(oddsName){
+  const nameToKey = {}, tagToKey = {};
+  Object.keys(CLUB_NAME||{}).forEach(k=>{ nameToKey[_normName(CLUB_NAME[k])] = k; });
+  Object.keys(CLUB_TAG||{}).forEach(k=>{ tagToKey[_normName(CLUB_TAG[k])] = k; });
+  const target = _normName(oddsName);
+  const canon  = ODDS_TEAM_ALIAS[target] || target;
+  if(nameToKey[canon]) return nameToKey[canon];
+  if(nameToKey[target]) return nameToKey[target];
+  if(tagToKey[canon]) return tagToKey[canon];
+  if(tagToKey[target]) return tagToKey[target];
+  // fallback: شيل اللواحق العامة (city/town/united...) من الطرفين وقارن
+  const strip = s => s.replace(/\b(city|town|united|utd|wanderers|hotspur|albion|fc|afc)\b/g,'').replace(/\s+/g,' ').trim();
+  const st = strip(canon);
+  for(const nk in nameToKey){ if(strip(nk)===st && st) return nameToKey[nk]; }
+  // fallback أخير: تطابق أول كلمة مميزة
+  const firstTok = st.split(' ')[0];
+  if(firstTok && firstTok.length>=4){ for(const nk in nameToKey){ if(nk.split(' ')[0]===firstTok) return nameToKey[nk]; } }
+  return null;
+}
+
+function _oddsMedian(arr){ if(!arr||!arr.length) return null; const s=arr.slice().sort((a,b)=>a-b); const m=Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+function _devig(prices){ const inv=prices.map(p=>1/p); const t=inv.reduce((a,b)=>a+b,0); return inv.map(x=>x/t); }
+function _poiPmf(k,l){ let p=Math.exp(-l); for(let i=1;i<=k;i++) p*=l/i; return p; }
+// ملاءمة بواسون: بندوّر على (أهداف الأرض lh, أهداف الخارج la) اللي بتطابق احتمالات السوق
+function _fitLambdas(pH,pD,pA,pUnder){
+  const N=8; let best=null;
+  for(let lh=0.15; lh<=3.6; lh+=0.05){
+    const ph=[]; for(let i=0;i<=N;i++) ph[i]=_poiPmf(i,lh);
+    for(let la=0.15; la<=3.6; la+=0.05){
+      let hw=0,dr=0,aw=0,under=0;
+      for(let j=0;j<=N;j++){ const paj=_poiPmf(j,la);
+        for(let i=0;i<=N;i++){ const pr=ph[i]*paj; if(i>j)hw+=pr; else if(i===j)dr+=pr; else aw+=pr; if(i+j<=2) under+=pr; }
+      }
+      let err=(hw-pH)*(hw-pH)+(dr-pD)*(dr-pD)+(aw-pA)*(aw-pA);
+      if(pUnder!=null) err += 1.5*(under-pUnder)*(under-pUnder);
+      if(!best || err<best.err) best={lh:lh, la:la, err:err};
+    }
+  }
+  return best;
+}
+
+// بيبني state.oddsByClub من رد الـ API. بيرجع true لو اتحدّث فعلاً (عشان نعيد الرسم).
+async function loadOddsModel(){
+  try{
+    if(!CLUB_NAME || !Object.keys(CLUB_NAME).length) return false; // لسه بيانات الفرق ماجتش
+    let raw = null;
+    // كاش: منجيبش من الشبكة إلا لو عدّت ساعة
+    try{
+      const cached = await sGet(ODDS_CACHE_KEY, true);
+      if(cached){ const c=JSON.parse(cached); if(c.at && (Date.now()-c.at)<ODDS_CACHE_TTL){ raw=c.data; } }
+    }catch(e){}
+    if(!raw){
+      const res = await fetchWithTimeout(ODDS_ENDPOINT, undefined, 12000);
+      if(!res.ok) return false;
+      raw = await res.json();
+      if(!Array.isArray(raw)) return false;
+      try{ await sSet(ODDS_CACHE_KEY, JSON.stringify({at:Date.now(), data:raw}), true); }catch(e){}
+    }
+
+    const map = {};
+    let unmatched = [];
+    raw.forEach(m=>{
+      const home=m.home_team, away=m.away_team;
+      const hKey=_matchOddsTeam(home), aKey=_matchOddsTeam(away);
+      if(!hKey||!aKey){ if(!hKey) unmatched.push(home); if(!aKey) unmatched.push(away); return; }
+      // نجمّع الأسعار عبر كل شركات الرهان (وسيط)
+      const hP=[],dP=[],aP=[],ovP=[],unP=[];
+      (m.bookmakers||[]).forEach(bk=>{
+        (bk.markets||[]).forEach(mk=>{
+          if(mk.key==='h2h'){ (mk.outcomes||[]).forEach(o=>{
+            if(o.name===home) hP.push(o.price); else if(o.name===away) aP.push(o.price); else if(o.name==='Draw') dP.push(o.price);
+          }); }
+          else if(mk.key==='totals'){ (mk.outcomes||[]).forEach(o=>{
+            if(o.point===2.5){ if(o.name==='Over') ovP.push(o.price); else if(o.name==='Under') unP.push(o.price); }
+          }); }
+        });
+      });
+      const mh=_oddsMedian(hP), md=_oddsMedian(dP), ma=_oddsMedian(aP);
+      if(mh==null||md==null||ma==null) return; // مفيش سوق نتيجة كافي
+      const [pH,pD,pA]=_devig([mh,md,ma]);
+      let pUnder=null; const mov=_oddsMedian(ovP), mun=_oddsMedian(unP);
+      if(mov!=null && mun!=null){ pUnder=_devig([mov,mun])[1]; }
+      const fit=_fitLambdas(pH,pD,pA,pUnder);
+      if(!fit) return;
+      // للفريق صاحب الأرض: يستقبل la (أهداف الخارج)، يسجّل lh
+      map[hKey] = { lamConcede:fit.la, lamScore:fit.lh, oppKey:aKey, isHome:true,  csProb:Math.exp(-fit.la) };
+      map[aKey] = { lamConcede:fit.lh, lamScore:fit.la, oppKey:hKey, isHome:false, csProb:Math.exp(-fit.lh) };
+    });
+    if(unmatched.length){ try{ console.warn('أودز: فرق لم تُطابَق:', unmatched.join(', ')); }catch(e){} }
+    state.oddsByClub = map;
+    state.oddsSyncedAt = Date.now();
+    return Object.keys(map).length>0;
+  }catch(e){ return false; }
+}
+
+// بترجع أودز المباراة لنادي معيّن *بشرط إنها نفس المباراة الجاية* (تطابق الخصم)، وإلا null
+function oddsForFixture(clubKey, fx){
+  if(!fx || !state.oddsByClub) return null;
+  const od = state.oddsByClub[clubKey];
+  if(!od) return null;
+  if(fx.oppKey && od.oppKey && fx.oppKey!==od.oppKey) return null; // مش نفس المباراة
+  return od;
+}
 
 function expectedConcede(clubKey, fx){
   if(!fx) return LEAGUE_AVG_GOALS;
@@ -2251,6 +2394,12 @@ function expectedConcede(clubKey, fx){
 
   // ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده
   lam *= fx.isHome ? 0.92 : 1.08;
+
+  // 🎯 أودز الرهان: لو متوفرة لنفس المباراة، بتبقى المرساة الأقوى (السوق أدق من أي موديل).
+  const od = oddsForFixture(clubKey, fx);
+  if(od && od.lamConcede!=null && isFinite(od.lamConcede)){
+    lam = od.lamConcede*ODDS_WEIGHT_CS + lam*(1-ODDS_WEIGHT_CS);
+  }
 
   return Math.max(0.12, Math.min(4.5, lam));
 }
@@ -2302,10 +2451,21 @@ function fixtureExpectedPoints(p, fx){
 
   const appearancePts = minFactor * 2; // نقط الظهور (لحد نقطتين للأساسي) — مستقلة عن الخصم
 
-  // العائد الهجومي: xG/xA مقيّدين لتفادي طفرات العينة الصغيرة، × صعوبة هجوم المباراة
-  const atkMul = attackMultiplier(fx);
-  const safeXG90 = Math.min(p.xG90 || 0, 1.1);
-  const safeXA90 = Math.min(p.xA90 || 0, 0.8);
+  // العائد الهجومي: xG/xA مقيّدين + مهدَّئين حسب حجم العينة (perfConf) لتفادي طفرات المباراة الواحدة.
+  // بدري في الموسم (perfConf≈PERF_CONF_MIN) بنقلّل أثر إحصائيات لاعب من ماتش واحد — عشان مدافع
+  // عمل هدف/أسيست بالحظ في الجولة 1 مايتوقعلوش نقط خيالية (لإن نقطة الهدف للمدافع = 6). ومع
+  // تراكم المباريات بنوثق في الأداء الفعلي أكتر. × صعوبة هجوم المباراة.
+  let atkMul = attackMultiplier(fx);
+  // 🎯 أودز الرهان: الأهداف المتوقعة لفريقنا في المباراة دي (lamScore) بتعدّل العائد الهجومي —
+  // فريق السوق متوقعله يسجّل كتير → فرص أعلى للاعبيه. بتدمج مع مضاعف الموديل.
+  const odA = oddsForFixture(p.club, fx);
+  if(odA && odA.lamScore!=null && isFinite(odA.lamScore)){
+    const oddsAtk = Math.max(0.5, Math.min(1.8, odA.lamScore / LEAGUE_AVG_GOALS));
+    atkMul = atkMul*(1-ODDS_WEIGHT_ATK) + oddsAtk*ODDS_WEIGHT_ATK;
+  }
+  const perfConf = Math.max(PERF_CONF_MIN, xgConfidence());
+  const safeXG90 = Math.min(p.xG90 || 0, 1.1) * perfConf;
+  const safeXA90 = Math.min(p.xA90 || 0, 0.8) * perfConf;
   const goalPts   = safeXG90 * minFactor * posGoalPts * atkMul;
   const assistPts = safeXA90 * minFactor * 3 * atkMul;
 
@@ -2323,7 +2483,9 @@ function fixtureExpectedPoints(p, fx){
   }
   if(p.pos==='GK'){ savePts = ((p.savesPer90||0)/3) * minFactor; } // نقطة لكل 3 تصديات
 
-  const bonusPts = (p.bonusPerMatch||0) * minFactor * (0.5 + 0.5*atkMul);
+  // البونص: مهدَّأ برضو (بونص ماتش واحد ضجيج عالي) — بسقف + وزن العينة نفسه
+  const effBonusPerMatch = Math.min(p.bonusPerMatch || 0, 1.5) * perfConf;
+  const bonusPts = effBonusPerMatch * minFactor * (0.5 + 0.5*atkMul);
   return appearancePts + goalPts + assistPts + csPts + concedePts + savePts + bonusPts;
 }
 
@@ -4367,7 +4529,7 @@ function renderPredictions(){
   '<div class="section-title"><h2><span class="h2-icon" style="color:var(--muted);">' + ICON_CLOSE + ' الأكثر بيعاً هذه الجولة</span></h2></div>' +
   limitedListHtml(topOut, 'predTopOut', 'league-list', 'gap:8px;') +
 
-  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• محرك v5</span></h2></div>' +
+  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• ' + ((state.oddsByClub && Object.keys(state.oddsByClub).length) ? 'أودز مفعّلة ✓' : 'محرك v7') + '</span></h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
   '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (أقرب 5 جولات)</h2></div>' +
