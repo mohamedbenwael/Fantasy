@@ -965,6 +965,99 @@
     display:flex; align-items:center; justify-content:center;
   }
   .swap-icon svg{ width:15px !important; height:15px !important; transform:rotate(90deg); }
+
+  /* ==================================================================
+     التجاوب مع كل الشاشات (تابلت / لابتوب / ديسكتوب)
+     ------------------------------------------------------------------
+     كل ما تحت مطبَّق فقط من عرض 820px وأكبر. شاشة الموبايل تفضل زي ما هي.
+     المبدأ: تخطيط ثابت ومحسوب (مش عشوائي):
+       • خلفية متدرّجة تملأ النافذة + شريط تنقّل جانبي
+       • الرئيسية = عمودين مستقلّين (كروت | ملعب)
+       • باقي الشاشات = عمود واحد مرتّب، والقوائم جواه شبكة تملأ العرض
+     ================================================================== */
+
+  /* على الموبايل: حاويات تقسيم الرئيسية شفّافة تمامًا (مالهاش أي تأثير) */
+  .home-grid, .home-side, .home-main{ display:contents; }
+
+  @media (min-width:820px){
+
+    /* الخلفية بتملأ كامل النافذة فمفيش فراغ أسود على الجناب */
+    html,body{ background:var(--ink); }
+    body{ overflow-x:hidden; }
+
+    /* الإطار العام يملأ العرض بالكامل + مساحة على اليسار للشريط الجانبي */
+    .screen{
+      max-width:none; width:100%; margin:0; min-height:100vh;
+      padding-left:96px; align-items:center;
+    }
+    .screen::after{ left:96px; }
+
+    /* منطقة المحتوى في المنتصف بعرض مريح */
+    #app-body{ width:100%; margin-inline:auto; padding:16px 32px 64px; max-width:1120px; }
+    #app-body.tab-home{ max-width:1080px; }
+    /* شاشات العمود الواحد الأبسط */
+    #app-body.tab-more, #app-body.tab-support, #app-body.tab-terms,
+    #app-body.tab-admin, #app-body.tab-team, #app-body.tab-player{ max-width:720px; }
+    #app-body.tab-boot, #app-body.tab-onboard{ max-width:560px; }
+
+    /* توحيد الهوامش الجانبية للأقسام المباشرة (نسيب التباعد الرأسي زي ما هو) */
+    #app-body > *{ margin-inline:0 !important; }
+
+    /* ===== الرئيسية: عمودان مستقلّان — الكروت يمين، الملعب شمال ===== */
+    #app-body.tab-home > .home-grid{ display:flex !important; align-items:flex-start; gap:28px; }
+    .home-side{ display:flex !important; flex-direction:column; flex:1 1 0; min-width:0; }
+    .home-main{ display:block !important; flex:1 1 0; min-width:0; }
+    .home-side > *, .home-main > *{ margin-inline:0 !important; }
+    .home-side > *:first-child{ margin-top:0 !important; }
+
+    /* الملعب ما يتمددش أكتر من اللازم ويتوسّط في عموده */
+    .pitch-card{ max-width:560px; margin-inline:auto !important; }
+
+    /* ===== القوائم تتحوّل لشبكة تملأ العرض ===== */
+    .league-list, .match-list, #marketList{
+      display:grid !important;
+      grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));
+      gap:10px; align-content:start;
+    }
+    .league-list > *, .match-list > *, #marketList > *{
+      width:100% !important; margin-bottom:0 !important; break-inside:avoid;
+    }
+    /* عناوين المراكز/التلميحات جوه سوق الانتقالات تمتد على كل الأعمدة */
+    #marketList > .pos-head, #marketList > .hint{ grid-column:1 / -1; margin-inline:0; }
+
+    /* أزرار «عرض المزيد» وما شابه ما تتمددش على كامل العرض */
+    #app-body button[data-toggle], #app-body .btn-ghost{
+      width:auto !important; min-width:240px; max-width:420px;
+      margin-inline:auto !important; display:block;
+    }
+
+    /* ===== الشريط السفلي يبقى شريط جانبي رأسي على اليسار ===== */
+    .navbar{
+      top:0; bottom:0; left:0; right:auto; transform:none;
+      width:96px; max-width:none; height:100vh; height:100dvh;
+      flex-direction:column; justify-content:center; gap:4px;
+      border-radius:0; padding:16px 6px;
+      border:none; border-inline-end:1px solid rgba(255,255,255,0.09);
+      background:rgba(20,3,26,0.97); backdrop-filter:blur(16px);
+    }
+    .nav-item{ width:100%; flex-direction:column; gap:6px; font-size:10px; padding:12px 2px; border-radius:14px; }
+    .nav-item svg{ width:22px; height:22px; }
+    .nav-item .dash{ display:none; }
+    .nav-item.active{ background:rgba(233,0,82,0.13); }
+    .nav-item.active svg{ filter:drop-shadow(0 0 6px rgba(233,0,82,0.55)); }
+
+    /* ===== النوافذ المنبثقة في نص الشاشة بدل ما تطلع من تحت ===== */
+    .modal-overlay{ justify-content:center; align-items:center; padding:28px; padding-left:124px; }
+    .modal-content{
+      max-width:560px; width:100%; margin:0 auto;
+      border-radius:24px; border:1px solid var(--card-line);
+      max-height:88vh; transform:translateY(26px) scale(.98);
+    }
+    .modal-overlay.open .modal-content{ transform:none; }
+
+    /* ===== شاشات البداية / تسجيل الفريق في المنتصف ===== */
+    .boot, .onboard{ max-width:560px; margin-inline:auto; }
+  }
 </style>
 </head>
 <body>
@@ -3407,7 +3500,7 @@ function renderFixturesList(onlyLive) {
 
   const title = onlyLive ? '<span class="h2-icon" style="color:var(--coral);">' + ICON_LIVE + ' مباريات تلعب الآن</span>' : 'مباريات الجولة ' + (activeViewGw()||'');
   return '<div class="section-title"><h2>' + title + '</h2></div>' +
-         '<div style="margin: 0 20px 20px;">' + listHtml + '</div>';
+         '<div class="match-list" style="margin: 0 20px 20px;">' + listHtml + '</div>';
 }
 
 // دالة منفصلة لشاشة كل المباريات
@@ -3538,6 +3631,8 @@ function renderHome(){
     (state.notifOpen ? renderNotifPanel() : '') +
   '</div>' +
 
+  '<div class="home-grid">' +
+  '<div class="home-side">' +
   renderLivePill() +
   renderLiveSyncedAt() +
 
@@ -3562,6 +3657,14 @@ function renderHome(){
 
   renderGwNav() +
 
+  (isHistoricalView() ? '' :
+    '<div class="nudge" style="margin-bottom: 20px;"><div class="ic">' + ICON_BULB + '</div>' +
+      '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
+      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
+    '</div>') +
+  '</div>' +   /* إغلاق home-side */
+
+  '<div class="home-main">' +
   renderWithView(function(){
     const hist = isHistoricalView();
     return '<div class="section-title"><h2>التشكيلة الأساسية — الجولة ' + activeViewGw() + '</h2>' +
@@ -3570,12 +3673,8 @@ function renderHome(){
       renderPitchCard(false) +
       renderDreamTeamCard();
   }) +
-
-  (isHistoricalView() ? '' :
-    '<div class="nudge" style="margin-bottom: 20px;"><div class="ic">' + ICON_BULB + '</div>' +
-      '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
-      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
-    '</div>');
+  '</div>' +   /* إغلاق home-main */
+  '</div>';    /* إغلاق home-grid */
 }
 
 // ترتيب الجولة الرسمي (summary_event_rank من فانتازي البريميرليج نفسها).
@@ -4710,6 +4809,8 @@ function renderBody(){
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
+  // كلاس يوضّح التبويب/المرحلة الحالية — يستخدمه الـ CSS المتجاوب لتنسيق كل شاشة على الشاشات الكبيرة
+  el.className = 'tab-' + (state.phase === 'app' ? state.tab : state.phase);
   el.innerHTML = html;
   document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
   if(state.viewMatchId) el.innerHTML += renderMatchModal();
