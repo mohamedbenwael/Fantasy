@@ -16,7 +16,7 @@
 <meta name="twitter:description" content="تابع فريقك في فانتازي البريميرليج لايف: النقاط، الأسعار، التوقعات، وترتيب الدوريات.">
 <meta name="twitter:image" content="/icon-192.png">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#4A0024">
+<meta name="theme-color" content="#160021">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <script>
   if ('serviceWorker' in navigator) {
@@ -44,8 +44,8 @@
   }
   /* شارة الشيب المُفعّل (تريبل كابتن/بنش بوست/وايلد كارد/فري هيت) */
   .chip-badge{ display:inline-flex; align-items:center; gap:6px; margin:0 20px 4px; padding:7px 13px;
-    background:linear-gradient(135deg, rgba(216,27,96,0.18), rgba(216,27,96,0.06));
-    border:1px solid rgba(216,27,96,0.35); border-radius:999px; font-family:'Cairo'; font-weight:800;
+    background:linear-gradient(135deg, rgba(233,0,82,0.18), rgba(233,0,82,0.06));
+    border:1px solid rgba(233,0,82,0.35); border-radius:999px; font-family:'Cairo'; font-weight:800;
     font-size:12px; color:var(--primary-soft); }
   .chip-badge .dot{ width:7px; height:7px; border-radius:50%; background:var(--primary-soft); }
   /* شريط التنقّل بين الجولات (آلة الزمن) */
@@ -55,11 +55,11 @@
     border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid var(--card-line); color:var(--text); }
   .gw-arrow svg{ width:20px; height:20px; }
   .gw-arrow:disabled{ opacity:0.3; cursor:default; }
-  .gw-arrow:not(:disabled):active{ background:rgba(216,27,96,0.15); }
+  .gw-arrow:not(:disabled):active{ background:rgba(233,0,82,0.15); }
   .gw-nav-mid{ flex:1; text-align:center; min-width:0; }
   .gw-nav-label{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--text); }
   .gw-cur-tag{ display:inline-block; margin-inline-start:6px; font-size:9.5px; font-weight:800; color:var(--primary-soft);
-    background:rgba(216,27,96,0.12); border:1px solid rgba(216,27,96,0.25); border-radius:6px; padding:1px 6px; vertical-align:middle; }
+    background:rgba(233,0,82,0.12); border:1px solid rgba(233,0,82,0.25); border-radius:6px; padding:1px 6px; vertical-align:middle; }
   .gw-nav-live{ display:block; margin:3px auto 0; font-family:'Tajawal'; font-size:10.5px; color:var(--primary-soft);
     background:none; text-decoration:underline; }
   .gw-pts-line{ margin:0 20px 10px; font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--muted); text-align:center; }
@@ -67,18 +67,24 @@
   input{ font-family:inherit; }
 
   :root{
-    --pitch1:#0FBE5E; --pitch2:#0A9A4B;
-    --ink:#0A0512;
-    --card:#150A1F;
-    --card-line:rgba(255,255,255,0.07);
-    --primary:#D81B60; --primary-soft:#F48FB1; --primary-deep:#880E4F;
+    /* ===== official Premier League identity ===== */
+    --pitch1:#00A94F; --pitch2:#05702F;
+    --ink:#160021;              /* deep aubergine base (PL) */
+    --ink-2:#0C0011;
+    --pl-purple:#37003C;        /* signature PL purple */
+    --card:#25062D;             /* purple-tinted surface */
+    --card-2:#1D0524;
+    --card-line:rgba(255,255,255,0.08);
+    --primary:#E90052; --primary-soft:#FF4D8B; --primary-deep:#9C0039;  /* PL pink family */
+    --accent:#00FF87; --accent-deep:#00B85F;   /* PL electric green */
     --gold:#E8C468;
     --coral:#FF4D6D;
     --easy-green:#3DD68C;
     --mid-grey:#AFA9B8;
-    --muted:rgba(235,238,244,0.52);
-    --muted2:rgba(235,238,244,0.34);
-    --text:#F3F5F8;
+    --muted:rgba(235,238,244,0.55);
+    --muted2:rgba(235,238,244,0.35);
+    --text:#F5F4FA;
+    --on-pink:#2A0016;          /* deep ink text sitting on pink fills */
   }
 
   /* ===== app screen (no phone frame — fills the real viewport) ===== */
@@ -86,11 +92,19 @@
     width:100%; max-width:480px; margin:0 auto;
     min-height:100vh;
     background:
-      radial-gradient(140% 30% at 8% -4%, rgba(216,27,96,0.09) 0%, transparent 55%),
-      radial-gradient(130% 34% at 100% -6%, rgba(92,18,104,0.38) 0%, transparent 55%),
-      var(--ink);
+      radial-gradient(120% 26% at 92% -6%, rgba(0,255,135,0.06) 0%, transparent 52%),
+      radial-gradient(150% 32% at 6% -4%, rgba(233,0,82,0.14) 0%, transparent 56%),
+      radial-gradient(150% 42% at 100% -8%, rgba(55,0,60,0.85) 0%, transparent 60%),
+      linear-gradient(180deg, #2A0430 0%, var(--ink) 30%, var(--ink) 100%);
     position:relative;
+    isolation:isolate;               /* contain the texture's z-index; keep modal/navbar stacking intact */
     display:flex; flex-direction:column;
+  }
+  /* fine grain texture — sits BEHIND all content (z-index:-1), above the base gradient only.
+     It never participates in the modal/navbar stacking, so nothing gets covered. */
+  .screen::before{
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:-1; opacity:0.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
   }
 
   #app-body{ flex:1; padding-bottom:100px; position:relative; }
@@ -111,14 +125,14 @@
   .brand{ display:flex; align-items:center; gap:11px; }
   .crest{
     width:40px; height:40px; border-radius:50%; flex-shrink:0;
-    background:radial-gradient(circle at 32% 26%, #4A1257, #17081F 72%);
-    border:1px solid rgba(216,27,96,0.38);
+    background:radial-gradient(circle at 32% 26%, #5A0F68, #1A0322 72%);
+    border:1px solid rgba(233,0,82,0.38);
     display:flex; align-items:center; justify-content:center;
     position:relative;
   }
   .crest::before{
     content:''; position:absolute; inset:3px; border-radius:50%;
-    border:1px solid rgba(216,27,96,0.16);
+    border:1px solid rgba(233,0,82,0.16);
   }
   .crest span{ font-family:'Cairo'; font-weight:900; font-size:14px; color:var(--primary-soft); letter-spacing:-0.5px; }
   .greet .hi{ font-size:11px; color:var(--muted); }
@@ -150,11 +164,11 @@
   .live-pill{
     margin:12px 20px 0; display:flex; align-items:center; gap:6px; width:fit-content;
     font-size:10px; font-weight:800; font-family:'Cairo'; color:var(--primary-soft);
-    background:rgba(216,27,96,0.1); border:1px solid rgba(216,27,96,0.25);
+    background:rgba(233,0,82,0.1); border:1px solid rgba(233,0,82,0.25);
     padding:5px 10px; border-radius:20px;
   }
-  .live-pill .dotpulse{ width:6px; height:6px; border-radius:50%; background:var(--primary); box-shadow:0 0 0 0 rgba(216,27,96,0.6); animation:pulse 1.8s infinite; }
-  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(216,27,96,0.5);} 70%{box-shadow:0 0 0 6px rgba(216,27,96,0);} 100%{box-shadow:0 0 0 0 rgba(216,27,96,0);} }
+  .live-pill .dotpulse{ width:6px; height:6px; border-radius:50%; background:var(--primary); box-shadow:0 0 0 0 rgba(233,0,82,0.6); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(233,0,82,0.5);} 70%{box-shadow:0 0 0 6px rgba(233,0,82,0);} 100%{box-shadow:0 0 0 0 rgba(233,0,82,0);} }
   .live-pill.warn{ color:var(--coral); background:rgba(255,77,109,0.1); border-color:rgba(255,77,109,0.28); }
   .live-pill.warn .dotpulse{ background:var(--coral); }
   .live-synced{ font-size:9.5px; color:var(--muted); margin:4px 20px 0; }
@@ -165,8 +179,8 @@
   /* ===== deadline strip ===== */
   .deadline{
     margin:14px 20px 0; padding:13px 16px; border-radius:14px;
-    background:linear-gradient(90deg, rgba(92,18,104,0.32), rgba(92,18,104,0.06));
-    border:1px solid rgba(160,60,190,0.32);
+    background:linear-gradient(90deg, rgba(55,0,60,0.32), rgba(55,0,60,0.06));
+    border:1px solid rgba(124,0,138,0.32);
     display:flex; align-items:center; justify-content:space-between; gap:10px;
   }
   .deadline .left{ display:flex; align-items:center; gap:10px; }
@@ -182,13 +196,13 @@
   /* ===== points summary ===== */
   .summary{
     margin:14px 20px 0; padding:20px; border-radius:18px;
-    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%);
+    background:linear-gradient(165deg, #460A52 0%, #1A0322 100%);
     border:1px solid rgba(255,255,255,0.06);
     position:relative; overflow:hidden;
   }
   .summary::after{
     content:''; position:absolute; width:200px; height:200px; border-radius:50%;
-    background:radial-gradient(circle, rgba(216,27,96,0.10), transparent 70%);
+    background:radial-gradient(circle, rgba(233,0,82,0.10), transparent 70%);
     top:-90px; left:-60px; pointer-events:none;
   }
   .summary-top{ display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
@@ -198,7 +212,7 @@
   .badge-rank{
     display:flex; align-items:center; gap:4px;
     font-family:'Cairo'; font-weight:700; font-size:10px; color:var(--primary-soft);
-    background:rgba(216,27,96,0.12); border:1px solid rgba(216,27,96,0.28);
+    background:rgba(233,0,82,0.12); border:1px solid rgba(233,0,82,0.28);
     padding:6px 10px 6px 8px; border-radius:20px; white-space:nowrap;
   }
   .badge-rank svg{ width:11px; height:11px; }
@@ -218,7 +232,7 @@
   /* ===== segmented control ===== */
   .segment{ margin:2px 20px 14px; display:flex; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:4px; gap:4px; }
   .segment button{ flex:1; padding:8px 0; border-radius:9px; font-family:'Cairo'; font-weight:800; font-size:11.5px; color:var(--muted); }
-  .segment button.on{ background:rgba(216,27,96,0.14); color:var(--primary-soft); }
+  .segment button.on{ background:rgba(233,0,82,0.14); color:var(--primary-soft); }
   .hint{ margin:0 20px 10px; font-size:10.5px; color:var(--muted); text-align:center; }
 
   /* ===== pitch ===== */
@@ -265,19 +279,19 @@
   .bench .jersey-shirt{ width:28px; }
   /* لاعب بيلعب لايف دلوقتي (مباراته شغالة وهو نازل الملعب فعليًا) — تمييز واضح في التشكيلة */
   .jersey.jersey-photo.live-now .jersey-shirt{
-    outline:2.5px solid #2ed573; outline-offset:1px; border-radius:6px;
+    outline:2.5px solid #00FF87; outline-offset:1px; border-radius:6px;
     animation: pulse-live-ring 1.8s infinite;
   }
   .live-dot.pulse{ animation: pulse-live-dot 1.8s infinite; }
   @keyframes pulse-live-ring{
-    0%{ filter:drop-shadow(0 0 0px rgba(46,213,115,0.9)); }
-    50%{ filter:drop-shadow(0 0 5px rgba(46,213,115,0.95)); }
-    100%{ filter:drop-shadow(0 0 0px rgba(46,213,115,0.9)); }
+    0%{ filter:drop-shadow(0 0 0px rgba(0,255,135,0.9)); }
+    50%{ filter:drop-shadow(0 0 5px rgba(0,255,135,0.95)); }
+    100%{ filter:drop-shadow(0 0 0px rgba(0,255,135,0.9)); }
   }
   @keyframes pulse-live-dot{
-    0%{ box-shadow:0 0 0 0 rgba(46,213,115,0.7); }
-    70%{ box-shadow:0 0 0 6px rgba(46,213,115,0); }
-    100%{ box-shadow:0 0 0 0 rgba(46,213,115,0); }
+    0%{ box-shadow:0 0 0 0 rgba(0,255,135,0.7); }
+    70%{ box-shadow:0 0 0 6px rgba(0,255,135,0); }
+    100%{ box-shadow:0 0 0 0 rgba(0,255,135,0); }
   }
 
   .cap{
@@ -357,7 +371,7 @@
     font-size:8px;
   }
 
-  .bench{ background:#0B0F14; padding:13px 16px; display:flex; gap:8px; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.05); }
+  .bench{ background:#12001A; padding:13px 16px; display:flex; gap:8px; justify-content:space-between; border-top:1px solid rgba(255,255,255,0.05); }
   .bench .player{ width:auto; opacity:0.85; }
   .bench .jersey{ width:29px; height:27px; font-size:9.5px; }
   .bench .pname{ font-size:8px; margin-top:5px; }
@@ -381,11 +395,11 @@
   .standing-row .s-rank{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--muted); width:22px; }
   .standing-row .s-name{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); }
   .standing-row .s-pts{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--primary-soft); }
-  .standing-row.me{ border-color:rgba(216,27,96,0.35); background:rgba(216,27,96,0.06); }
+  .standing-row.me{ border-color:rgba(233,0,82,0.35); background:rgba(233,0,82,0.06); }
 
   /* ===== transfer nudge ===== */
-  .nudge{ margin:20px 20px 4px; padding:15px; border-radius:16px; background:linear-gradient(120deg, rgba(92,18,104,0.28), rgba(92,18,104,0.03)); border:1px solid rgba(160,60,190,0.26); display:flex; align-items:center; gap:12px; }
-  .nudge .ic{ width:36px; height:36px; border-radius:11px; background:rgba(216,27,96,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--primary-soft); }
+  .nudge{ margin:20px 20px 4px; padding:15px; border-radius:16px; background:linear-gradient(120deg, rgba(55,0,60,0.28), rgba(55,0,60,0.03)); border:1px solid rgba(124,0,138,0.26); display:flex; align-items:center; gap:12px; }
+  .nudge .ic{ width:36px; height:36px; border-radius:11px; background:rgba(233,0,82,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--primary-soft); }
   .nudge .txt .t1{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text); }
   .nudge .txt .t2{ font-size:10px; color:var(--muted); margin-top:3px; line-height:1.5; }
 
@@ -396,7 +410,7 @@
   .stat-pill .k{ font-size:9px; color:var(--muted); margin-top:2px; }
   .msg-banner{ margin:10px 20px 0; padding:9px 12px; border-radius:10px; font-size:11px; font-weight:700; text-align:center; }
   .msg-banner.err{ background:rgba(255,77,109,0.14); color:var(--coral); border:1px solid rgba(255,77,109,0.3); }
-  .msg-banner.ok{ background:rgba(216,27,96,0.12); color:var(--primary-soft); border:1px solid rgba(216,27,96,0.28); }
+  .msg-banner.ok{ background:rgba(233,0,82,0.12); color:var(--primary-soft); border:1px solid rgba(233,0,82,0.28); }
 
   .p-row{ display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); padding:12px 16px; border-radius:16px; margin-bottom:10px; }
   .p-row.out-selected{ border-color:rgba(255,77,109,0.4); background:rgba(255,77,109,0.06); }
@@ -408,7 +422,7 @@
   .p-btn{ font-family:'Cairo'; font-weight:800; font-size:10.5px; padding:7px 13px; border-radius:9px; white-space:nowrap; }
   .p-btn.out{ background:rgba(255,77,109,0.14); color:var(--coral); border:1px solid rgba(255,77,109,0.3); }
   .p-btn.out.active{ background:var(--coral); color:#2B0007; }
-  .p-btn.in{ background:rgba(216,27,96,0.14); color:var(--primary-soft); border:1px solid rgba(216,27,96,0.3); }
+  .p-btn.in{ background:rgba(233,0,82,0.14); color:var(--primary-soft); border:1px solid rgba(233,0,82,0.3); }
   .p-btn.in:disabled{ opacity:0.35; }
   .pos-head{ margin:16px 20px 8px; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--muted); letter-spacing:0.5px; }
 
@@ -416,7 +430,7 @@
   .more-list{ margin:0 20px 20px; }
   .more-hero{
     display:flex; align-items:center; gap:12px; padding:18px; border-radius:18px; margin-bottom:22px;
-    background:linear-gradient(135deg, rgba(216,27,96,0.14), rgba(92,18,104,0.28)), var(--card);
+    background:linear-gradient(135deg, rgba(233,0,82,0.14), rgba(55,0,60,0.28)), var(--card);
     border:1px solid var(--card-line);
   }
   .more-hero .mh-crest{ width:46px; height:46px; border-radius:50%; overflow:hidden; flex-shrink:0; box-shadow:0 0 0 2px rgba(124,255,194,0.35); }
@@ -465,7 +479,7 @@
   .navbar{
     position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
     width:calc(100% - 28px); max-width:452px;
-    background:rgba(26,10,34,0.92); backdrop-filter:blur(16px);
+    background:rgba(30,4,38,0.9); backdrop-filter:blur(16px);
     border:1px solid rgba(255,255,255,0.07);
     border-radius:20px; padding:9px 4px;
     display:flex; justify-content:space-around; align-items:center;
@@ -495,14 +509,14 @@
     width:100%; background:var(--card); border:1px solid var(--card-line); border-radius:12px;
     padding:13px 14px; font-size:13px; color:var(--text); outline:none;
   }
-  .field input:focus{ border-color:rgba(216,27,96,0.4); }
+  .field input:focus{ border-color:rgba(233,0,82,0.4); }
   .btn-primary{
     margin-top:8px; font-family:'Cairo'; font-weight:800; font-size:13px;
-    background:rgba(216,27,96,0.1); color:var(--primary-soft);
-    border:1px solid rgba(216,27,96,0.3);
+    background:rgba(233,0,82,0.1); color:var(--primary-soft);
+    border:1px solid rgba(233,0,82,0.3);
     padding:14px; border-radius:14px; text-align:center; transition:all 0.2s;
   }
-  .btn-primary:active{ background:rgba(216,27,96,0.2); }
+  .btn-primary:active{ background:rgba(233,0,82,0.2); }
   .btn-primary:disabled{ opacity:0.4; }
   .btn-ghost{
     font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text);
@@ -511,9 +525,9 @@
 
   /* ===== player profile ===== */
   .profile-hero{ margin:6px 20px 0; padding:26px 18px 20px; border-radius:22px; text-align:center; position:relative; overflow:hidden;
-    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%); border:1px solid rgba(255,255,255,0.07); }
+    background:linear-gradient(165deg, #460A52 0%, #1A0322 100%); border:1px solid rgba(255,255,255,0.07); }
   .profile-hero::before{ content:''; position:absolute; top:-45%; left:50%; transform:translateX(-50%); width:230px; height:230px; pointer-events:none;
-    background:radial-gradient(circle, rgba(216,27,96,0.30), rgba(216,27,96,0) 70%); }
+    background:radial-gradient(circle, rgba(233,0,82,0.30), rgba(233,0,82,0) 70%); }
   /* منصة/هالة مضيئة خلف اللاعب عشان شكل مودرن */
   .pj-stage{ position:relative; z-index:1; width:170px; height:158px; margin:0 auto 2px; display:flex; align-items:flex-end; justify-content:center; }
   .pj-disc{ position:absolute; bottom:6px; left:50%; transform:translateX(-50%); width:126px; height:126px; border-radius:50%;
@@ -567,9 +581,9 @@
   .a-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .a-field{ display:flex; flex-direction:column; gap:5px; }
   .a-field label{ font-size:9.5px; color:var(--muted); }
-  .a-field input{ background:#0A0512; border:1px solid var(--card-line); border-radius:9px; padding:8px 10px; font-size:11.5px; color:var(--text); outline:none; }
-  .a-field input:focus{ border-color:rgba(216,27,96,0.4); }
-  .a-player{ background:#0A0512; border:1px solid var(--card-line); border-radius:13px; padding:12px; margin-bottom:8px; }
+  .a-field input{ background:#1A0524; border:1px solid var(--card-line); border-radius:9px; padding:8px 10px; font-size:11.5px; color:var(--text); outline:none; }
+  .a-field input:focus{ border-color:rgba(233,0,82,0.4); }
+  .a-player{ background:#1A0524; border:1px solid var(--card-line); border-radius:13px; padding:12px; margin-bottom:8px; }
   .a-player .head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:9px; }
   .a-player .head .nm{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); }
   .a-player .head .cl{ font-size:9.5px; color:var(--muted); }
@@ -579,23 +593,23 @@
   .admin-save{ position:sticky; bottom:14px; margin:16px 20px 0; }
   .pin-wrap{ min-height:70vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center; }
   .pin-wrap input{ width:160px; text-align:center; letter-spacing:6px; font-family:'Cairo'; font-weight:800; font-size:18px; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px; color:var(--text); outline:none; }
-  .banner-ok{ margin:0 20px 14px; padding:10px 12px; border-radius:10px; background:rgba(216,27,96,0.12); border:1px solid rgba(216,27,96,0.28); color:var(--primary-soft); font-size:11px; font-weight:700; text-align:center; }
+  .banner-ok{ margin:0 20px 14px; padding:10px 12px; border-radius:10px; background:rgba(233,0,82,0.12); border:1px solid rgba(233,0,82,0.28); color:var(--primary-soft); font-size:11px; font-weight:700; text-align:center; }
 
   /* ===== predictions & advice ===== */
   .pred-banner{ margin:6px 20px 0; padding:20px; border-radius:18px; text-align:center; position:relative; overflow:hidden;
-    background:linear-gradient(165deg, #0F3324 0%, #0F0A1A 100%); border:1px solid rgba(216,27,96,0.2); }
+    background:linear-gradient(165deg, #0F3324 0%, #0F0A1A 100%); border:1px solid rgba(233,0,82,0.2); }
   .pred-banner .lbl{ font-size:10.5px; color:var(--muted); }
   .pred-banner .big{ font-family:'Cairo'; font-weight:900; font-size:30px; color:var(--primary-soft); margin-top:4px; }
   .pred-banner .sub{ font-size:10.5px; color:var(--muted); margin-top:8px; }
   .pred-note{ margin:10px 20px 0; font-size:9.5px; color:var(--muted2); line-height:1.8; text-align:center; }
-  .pred-chip{ font-family:'Cairo'; font-weight:800; font-size:13px; padding:6px 14px; border-radius:10px; white-space:nowrap; flex-shrink:0; text-align:center; min-width:65px; letter-spacing:0.5px; background:rgba(216,27,96,0.12); color:var(--primary-soft); border:1px solid rgba(216,27,96,0.25); }
+  .pred-chip{ font-family:'Cairo'; font-weight:800; font-size:13px; padding:6px 14px; border-radius:10px; white-space:nowrap; flex-shrink:0; text-align:center; min-width:65px; letter-spacing:0.5px; background:rgba(233,0,82,0.12); color:var(--primary-soft); border:1px solid rgba(233,0,82,0.25); }
   .pred-chip.warn, .pred-chip.mkt-out{ background:rgba(255,77,109,0.12); color:#ff4d6d; border:1px solid rgba(255,77,109,0.25); }
-  .pred-chip.mkt-in{ background:rgba(46,213,115,0.12); color:#2ed573; border:1px solid rgba(46,213,115,0.25); }
+  .pred-chip.mkt-in{ background:rgba(0,255,135,0.12); color:#00FF87; border:1px solid rgba(0,255,135,0.25); }
   .adv-card{ background:var(--card); border:1px solid var(--card-line); border-radius:14px; padding:12px 14px; margin-bottom:8px; }
   .adv-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .adv-reasons{ display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; }
   .reason-tag{ font-size:9.5px; color:var(--muted); background:rgba(255,255,255,0.05); border:1px solid var(--card-line); padding:3px 8px; border-radius:20px; }
-  .reason-tag.buy{ color:var(--primary-soft); background:rgba(216,27,96,0.08); border-color:rgba(216,27,96,0.2); }
+  .reason-tag.buy{ color:var(--primary-soft); background:rgba(233,0,82,0.08); border-color:rgba(233,0,82,0.2); }
   .reason-tag.sell{ color:var(--coral); background:rgba(255,77,109,0.08); border-color:rgba(255,77,109,0.22); }
   .cs-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); border-radius:13px; padding:11px 14px; margin-bottom:8px; }
   .cs-row .cs-prob{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--primary-soft); flex-shrink:0; }
@@ -625,18 +639,18 @@
     background:linear-gradient(160deg, var(--primary-soft), var(--primary-deep)); color:#fff;
     box-shadow:0 16px 36px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.18); }
 
-  .live-dot { position:absolute; top:-4px; right:-4px; width:10px; height:10px; background:#2ed573; border-radius:50%; border:2px solid var(--pitch2); }
+  .live-dot { position:absolute; top:-4px; right:-4px; width:10px; height:10px; background:#00FF87; border-radius:50%; border:2px solid var(--pitch2); }
 
   /* ===== كروت المباريات وتفاصيلها ===== */
   .match-card { background: var(--card); border: 1px solid var(--card-line); border-radius: 16px; padding: 12px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.2s; }
-  .match-card:active { border-color: var(--primary-soft); background: rgba(216,27,96,0.05); }
+  .match-card:active { border-color: var(--primary-soft); background: rgba(233,0,82,0.05); }
   .match-team { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
   .match-team-logo { width: 38px; height: 38px; object-fit: contain; }
   .match-team-name { font-family: 'Cairo'; font-weight: 700; font-size: 11px; color: var(--text); }
   .match-center { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 10px; }
   .match-time { font-size: 10px; color: var(--muted); }
   .match-score { font-family: 'Cairo'; font-weight: 900; font-size: 22px; color: var(--text); background: rgba(0,0,0,0.3); padding: 2px 16px; border-radius: 10px; }
-  .match-live-badge { font-family: 'Cairo'; font-weight: 800; font-size: 9px; color: #04321B; background: #2ed573; padding: 2px 8px; border-radius: 10px; animation: pulse 2s infinite; }
+  .match-live-badge { font-family: 'Cairo'; font-weight: 800; font-size: 9px; color: #04321B; background: #00FF87; padding: 2px 8px; border-radius: 10px; animation: pulse 2s infinite; }
 
   /* Modal (شاشة تفاصيل الماتش) */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: flex; flex-direction: column; justify-content: flex-end; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: 0.3s; }
@@ -671,9 +685,9 @@
   .lineup-row.is-sub .lineup-name { color: var(--muted); }
   .lineup-sub {
     flex-shrink: 0; color: var(--primary-soft); font-size: 8px; font-weight: 800; font-family: 'Cairo';
-    background: rgba(216,27,96,0.14); border-radius: 5px; padding: 1.5px 5px; white-space: nowrap;
+    background: rgba(233,0,82,0.14); border-radius: 5px; padding: 1.5px 5px; white-space: nowrap;
   }
-  .lineup-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #2ed573; flex-shrink: 0; animation: pulse-live-dot 1.8s infinite; }
+  .lineup-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #00FF87; flex-shrink: 0; animation: pulse-live-dot 1.8s infinite; }
 
   /* ===== ستايلات الأيقونات الاحترافية (بديل الإيموشنات) ===== */
   .icon-inline { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
@@ -699,7 +713,7 @@
   .hist-row.clickable { cursor: pointer; transition: 0.2s; }
   .hist-row.clickable:active { background: rgba(255,255,255,0.08); }
   .hist-match-info { display: flex; align-items: center; gap: 8px; flex: 1; justify-content: center; }
-  .score-badge { font-family: 'Cairo'; font-weight: 800; font-size: 11px; background: #2ed573; color: #04321B; padding: 2px 8px; border-radius: 4px; direction: ltr; }
+  .score-badge { font-family: 'Cairo'; font-weight: 800; font-size: 11px; background: #00FF87; color: #04321B; padding: 2px 8px; border-radius: 4px; direction: ltr; }
   .score-badge.no-score { background: rgba(255,255,255,0.1); color: var(--text); }
 
   /* مودال تفاصيل النقاط */
@@ -720,6 +734,100 @@
   .brk-row > div:nth-child(2) { flex: 1; text-align: center; font-family: 'Cairo'; font-weight: 800; }
   .brk-row > div:nth-child(3) { flex: 1; text-align: left; font-family: 'Cairo'; font-weight: 800; }
   .brk-total-row { display: flex; align-items: center; justify-content: space-between; font-size: 14.5px; font-family: 'Cairo'; font-weight: 900; color: var(--text); padding-top: 14px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+  /* ==================================================================
+     PREMIER LEAGUE PROFESSIONAL POLISH LAYER
+     Signature identity: aubergine #37003C · pink #E90052 · green #00FF87
+     ================================================================== */
+
+  /* one-time app entrance — opacity ONLY (no transform on .screen, so the
+     fixed navbar/modals stay pinned to the viewport on mobile / iOS Safari) */
+  @keyframes screen-in{ from{ opacity:0; } to{ opacity:1; } }
+  .screen{ animation:screen-in .5s ease both; }
+  @media (prefers-reduced-motion: reduce){ .screen{ animation:none; } }
+
+  /* thin PL tri-colour signature line pinned to the very top of the app */
+  .screen::after{
+    content:''; position:absolute; top:0; left:0; right:0; height:3px; z-index:6; pointer-events:none;
+    background:linear-gradient(90deg, var(--primary) 0%, var(--primary) 38%, var(--accent) 38%, var(--accent) 66%, #7C008A 66%, #7C008A 100%);
+    opacity:.9;
+  }
+
+  /* ---- header: give the brand row a premium PL badge feel ---- */
+  .crest{
+    background:radial-gradient(circle at 32% 24%, #5A0F68, #1A0322 74%) !important;
+    box-shadow:0 0 0 1px rgba(233,0,82,0.45), 0 6px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .crest span{ color:#fff !important; text-shadow:0 1px 2px rgba(0,0,0,0.4); }
+  .greet .name{ background:linear-gradient(90deg,#fff, #FFC7DD); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+
+  /* ---- summary (season points) hero: layered depth + PL sheen ---- */
+  .summary{
+    box-shadow:0 20px 44px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.08) !important;
+  }
+  .summary::before{
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(80% 60% at 100% 0%, rgba(0,255,135,0.10), transparent 60%),
+      linear-gradient(115deg, transparent 55%, rgba(255,255,255,0.05) 78%, transparent 82%);
+  }
+  .summary-top, .summary-grid{ position:relative; z-index:1; }
+  .summary-top .big{ letter-spacing:-0.5px; text-shadow:0 2px 10px rgba(233,0,82,0.25); }
+
+  /* ---- deadline strip: sharper, more urgent PL styling ---- */
+  .deadline{ box-shadow:inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 24px rgba(0,0,0,0.28); }
+  .deadline .cta{ color:#fff !important; box-shadow:0 6px 16px rgba(233,0,82,0.4); background:linear-gradient(160deg,var(--primary),var(--primary-deep)) !important; }
+
+  /* ---- section titles: add a small PL accent tick before the heading ---- */
+  .section-title h2{ position:relative; padding-inline-start:12px; }
+  .section-title h2::before{
+    content:''; position:absolute; inset-inline-start:0; top:50%; transform:translateY(-50%);
+    width:4px; height:15px; border-radius:3px;
+    background:linear-gradient(180deg, var(--primary), #7C008A);
+  }
+
+  /* ---- segmented control: filled active pill w/ shadow ---- */
+  .segment button.on{
+    background:linear-gradient(160deg, var(--primary), var(--primary-deep)) !important;
+    color:#fff !important; box-shadow:0 4px 12px rgba(233,0,82,0.35);
+  }
+
+  /* ---- generic cards: consistent premium lift ---- */
+  .league-item, .standing-row, .match-card, .stat-pill, .adv-card, .swap-card,
+  .grouped-card, .feature-tile, .pp-fixcard, .pp-next-fix, .cs-row, .fix-row,
+  .own-bar, .form-card, .profile-stats .cell{
+    box-shadow:0 8px 20px rgba(0,0,0,0.22);
+  }
+
+  /* ---- bottom nav: floating premium bar w/ PL green active accent ---- */
+  .navbar{
+    box-shadow:0 12px 34px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    border-color:rgba(255,255,255,0.09) !important;
+  }
+  .nav-item.active .dash{
+    background:linear-gradient(90deg, var(--primary), var(--accent)) !important;
+    box-shadow:0 0 8px rgba(233,0,82,0.6); width:16px; height:3px;
+  }
+  .nav-item{ transition:color .18s, transform .18s; }
+  .nav-item.active{ transform:translateY(-1px); }
+
+  /* ---- live pill: brighter PL green treatment already via tokens ---- */
+  .live-pill{ box-shadow:inset 0 0 0 1px rgba(233,0,82,0.08); }
+
+  /* ---- pitch: deeper, more televisual turf ---- */
+  .pitch{
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.055) 0 44px, transparent 44px 88px),
+      radial-gradient(130% 96% at 50% 0%, var(--pitch1) 0%, var(--pitch2) 100%) !important;
+    box-shadow:inset 0 40px 60px rgba(0,0,0,0.22);
+  }
+
+  /* ---- more-hero avatar ring in PL green ---- */
+  .more-hero .mh-crest{ box-shadow:0 0 0 2px var(--accent) !important; }
+
+  /* pink chips: use deep-ink text where dark text sat on pink fills */
+  .badge-rank, .badge-rank *{ color:var(--primary-soft) !important; }
 </style>
 </head>
 <body>
@@ -1499,7 +1607,7 @@ function diffPlayerStats(newPlayers){
       const n = cur.goals - prev.goals;
       const pts = (GOAL_PTS_BY_POS[p.pos]||4) * n;
       pushLiveNotif({
-        kind:'goal', color:'#2ed573', icon: ICON_GOAL,
+        kind:'goal', color:'#00FF87', icon: ICON_GOAL,
         title: p.name + ' سجل هدف ⚽' + (n>1 ? ' (×'+n+')' : ''),
         sub: 'من تشكيلتك — تقريبًا +' + pts + ' نقطة'
       });
@@ -3188,7 +3296,7 @@ function renderNotifPanel(){
 
   // 2. إشعار المباريات المباشرة
   if (state.hasLiveFixtures) {
-    notifs.push('<div class="n-item"><div class="t1" style="color:#2ed573; display:flex; gap:6px; align-items:center;">' + ICON_LIVE + 'مباريات تلعب الآن</div><div class="t2">النقاط والبونص يتم تحديثها لحظياً مع كل حدث.</div></div>');
+    notifs.push('<div class="n-item"><div class="t1" style="color:#00FF87; display:flex; gap:6px; align-items:center;">' + ICON_LIVE + 'مباريات تلعب الآن</div><div class="t2">النقاط والبونص يتم تحديثها لحظياً مع كل حدث.</div></div>');
   }
 
   // 3. إشعار حالة الاتصال بالسيرفر
@@ -3470,7 +3578,7 @@ function renderTransfers(){
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>الانتقالات</h1><div class="spacer"></div></div>' +
   (isGwLocked()
-    ? '<div class="hint" style="margin:0 20px 12px;background:rgba(216,27,96,0.08);border:1px solid rgba(216,27,96,0.25);border-radius:10px;padding:9px 12px;">الجولة ' + (state.gwInfo.current) + ' بدأت وتشكيلتها مقفولة. أي تعديل هنا يتحضّر لتشكيلة <strong style="color:var(--primary-soft);">الجولة ' + plannerGw() + '</strong> ويُطبّق تلقائيًا عند بدايتها.</div>'
+    ? '<div class="hint" style="margin:0 20px 12px;background:rgba(233,0,82,0.08);border:1px solid rgba(233,0,82,0.25);border-radius:10px;padding:9px 12px;">الجولة ' + (state.gwInfo.current) + ' بدأت وتشكيلتها مقفولة. أي تعديل هنا يتحضّر لتشكيلة <strong style="color:var(--primary-soft);">الجولة ' + plannerGw() + '</strong> ويُطبّق تلقائيًا عند بدايتها.</div>'
     : '') +
   '<div class="stat-strip">' +
     '<div class="stat-pill"><div class="v">£' + fmt(bank) + 'm</div><div class="k">الرصيد المتاح</div></div>' +
@@ -3604,7 +3712,7 @@ function renderMore(){
       '<div class="grouped-card">' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(255,77,109,0.16);color:var(--coral);">' + ICON_MUTE + '</div><div class="gr-text"><span>وضع منع الحرق (Anti-Spoiler)</span><div class="gr-sub">كتم جميع إشعارات المباريات أثناء المشاهدة</div></div></div>' +
           '<div class="switch ' + (state.toggles.antiSpoiler?'on':'') + '" data-toggle="antiSpoiler"><div class="knob"></div></div></div>' +
-        '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(46,213,115,0.16);color:#2ed573;">' + ICON_GOAL + '</div><div class="gr-text"><span>أهداف وأسيستات فريقي</span><div class="gr-sub">صوت احتفال الجماهير</div></div></div>' +
+        '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(0,255,135,0.16);color:#00FF87;">' + ICON_GOAL + '</div><div class="gr-text"><span>أهداف وأسيستات فريقي</span><div class="gr-sub">صوت احتفال الجماهير</div></div></div>' +
           '<div class="switch ' + (state.toggles.notifGoals?'on':'') + '" data-toggle="notifGoals"><div class="knob"></div></div></div>' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(255,217,141,0.16);color:var(--gold);">' + ICON_SHIELD + '</div><div class="gr-text"><span>فقدان الكلين شيت</span><div class="gr-sub">صوت إحباط عند استقبال هدف</div></div></div>' +
           '<div class="switch ' + (state.toggles.notifCS?'on':'') + '" data-toggle="notifCS"><div class="knob"></div></div></div>' +
@@ -4015,7 +4123,7 @@ function renderPredictions(){
         '</div>' +
         '<div class="swap-icon">' + ICON_SWAP_ALT + '</div>' +
         '<div class="swap-side buy" data-viewprofile="' + sug.buyP.id + '">' +
-          '<div class="swap-tag" style="color:#2ed573;">' + ICON_UP + ' شراء</div>' +
+          '<div class="swap-tag" style="color:#00FF87;">' + ICON_UP + ' شراء</div>' +
           '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.buyP.teamCode + (sug.buyP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.buyP.name + '" onerror="imgFallback(this)" loading="lazy">' +
           '<div class="swap-name">' + sug.buyP.name + '</div>' +
           '<div class="swap-price">£' + fmt(sug.buyP.price) + 'm</div>' +
