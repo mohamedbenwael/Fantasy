@@ -1545,12 +1545,12 @@ async function buildLiveDataset(){
       }
       if(hKey && aKey && hTeam && aTeam){
         teamFixtures[hKey] = {
-          oppKey: aKey, isHome: true, fdr: f.team_h_difficulty || 3,
+          oppKey: aKey, isHome: true, fdr: f.team_h_difficulty || 3, oppFdr: f.team_a_difficulty || 3,
           ownDefHome: hTeam.strength_defence_home, ownDefAway: hTeam.strength_defence_away,
           oppAtkHome: aTeam.strength_attack_home, oppAtkAway: aTeam.strength_attack_away,
         };
         teamFixtures[aKey] = {
-          oppKey: hKey, isHome: false, fdr: f.team_a_difficulty || 3,
+          oppKey: hKey, isHome: false, fdr: f.team_a_difficulty || 3, oppFdr: f.team_h_difficulty || 3,
           ownDefHome: aTeam.strength_defence_home, ownDefAway: aTeam.strength_defence_away,
           oppAtkHome: hTeam.strength_attack_home, oppAtkAway: hTeam.strength_attack_away,
         };
@@ -1613,12 +1613,14 @@ async function buildLiveDataset(){
       // بنسجل قوة الهجوم/الدفاع الفعلية لكل نادي وخصمه مع كل مباراة قادمة (مش بس رقم الـ FDR)
       // عشان احتمال الكلين شيت للمباريات الجاية يتحسب بنفس الدقة اللي بيتحسب بيها لمباراة الجولة الحالية،
       // بدل ما يتحول لتصنيف خشن (سهلة/متوسطة/صعبة) بيدي نفس النسبة لكل الأندية في نفس الفئة.
-      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, isHome:true, oppKey:aKey,
+      // oppFdr = صعوبة المباراة من وجهة نظر الخصم = مؤشر على قوة *فريقنا* نفسه (كل ما الخصم
+      // بيلاقي مباراته ضدنا أصعب، معناها إحنا فريق أقوى → دفاع أفضل → كلين شيت أعلى).
+      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, oppFdr:f.team_a_difficulty||3, isHome:true, oppKey:aKey,
         ownDefHome: hTeam?hTeam.strength_defence_home:null, ownDefAway: hTeam?hTeam.strength_defence_away:null,
         ownAtkHome: hTeam?hTeam.strength_attack_home:null, ownAtkAway: hTeam?hTeam.strength_attack_away:null,
         oppAtkHome: aTeam?aTeam.strength_attack_home:null, oppAtkAway: aTeam?aTeam.strength_attack_away:null,
         oppDefHome: aTeam?aTeam.strength_defence_home:null, oppDefAway: aTeam?aTeam.strength_defence_away:null }); }
-      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, isHome:false, oppKey:hKey,
+      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, oppFdr:f.team_h_difficulty||3, isHome:false, oppKey:hKey,
         ownDefHome: aTeam?aTeam.strength_defence_home:null, ownDefAway: aTeam?aTeam.strength_defence_away:null,
         ownAtkHome: aTeam?aTeam.strength_attack_home:null, ownAtkAway: aTeam?aTeam.strength_attack_away:null,
         oppAtkHome: hTeam?hTeam.strength_attack_home:null, oppAtkAway: hTeam?hTeam.strength_attack_away:null,
@@ -2188,29 +2190,51 @@ function xgConfidence(){
 }
 
 // λ = الأهداف المتوقع أن يستقبلها النادي في مباراة معيّنة (أساس موديل بواسون للكلين شيت)
-// = خط أساس دفاعي (xGC حقيقي أو مشتق من قوة الدفاع الرسمية) × عامل هجوم الخصم × عامل الأرض/الخارج
+// خط الأساس بيتبني على صعوبة المباراة الرسمية (FDR) لأنها الإشارة الوحيدة المتمايزة والمتاحة
+// من الجولة الأولى. تصنيفات القوة (strength_*) بتكون موحّدة/غير متوفرة أول الموسم، والاعتماد
+// عليها لوحدها كان بيطلّع كل الفرق بنفس النسبة (29%). وقبلها كان الاعتماد على xGC مباراة واحدة
+// بيطلّع نِسب مبالغة (80%+). الحل: FDR أساس + دمج xGC الفعلي بوزن محدود يكبر مع الموسم.
+//
+// FDR_CONCEDE: متوسط الأهداف المتوقع استقبالها حسب صعوبة الخصم (1 سهل جدًا → 5 صعب جدًا).
+// القيم متعايرة بحيث احتمال الكلين شيت e^(−λ) يقع في نطاق واقعي للبريميرليج (~12%..60%).
+const FDR_CONCEDE = {1:0.80, 2:1.05, 3:1.30, 4:1.65, 5:2.05};
+// OWN_DEF_MULT: مضاعف دفاعي حسب قوة فريقنا نفسه (مستنتجة من صعوبة المباراة عند الخصم = oppFdr).
+// فريق قوي (الخصم بيلاقي مباراته ضدنا صعبة = oppFdr عالي) بيستقبل أهداف أقل → كلين شيت أعلى.
+const OWN_DEF_MULT = {1:1.22, 2:1.10, 3:1.00, 4:0.85, 5:0.72};
+
 function expectedConcede(clubKey, fx){
   if(!fx) return LEAGUE_AVG_GOALS;
-  const ownDef = fx.isHome ? fx.ownDefHome : fx.ownDefAway;
-  const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
 
-  let baseXGC = teamAvgXGC(clubKey);
-  if(baseXGC==null || !isFinite(baseXGC)){
-    // مفيش عينة كفاية (بداية موسم مثلاً) → نشتق خط الأساس من قوة الدفاع الرسمية
-    baseXGC = (ownDef && ownDef>0) ? LEAGUE_AVG_GOALS * (STRENGTH_REF/ownDef) : LEAGUE_AVG_GOALS;
+  // 1) خط الأساس من صعوبة المباراة = قوة هجوم الخصم (متاح ومتمايز لكل مباراة من الجولة الأولى)
+  let base = FDR_CONCEDE[fx.fdr] || 1.30;
+
+  // 2) قوة دفاع فريقنا نفسه: مستنتجة من صعوبة المباراة عند الخصم (oppFdr) — ده بيعالج إن الـ FDR
+  //    لوحده بيقيس الخصم بس ومبيدّيش أي فضل لدفاع الفريق القوي. أرسنال مثلاً (فريق الخصم بيلاقي
+  //    مباراته ضده صعبة) بياخد مضاعف أقل من 1 → أهداف متوقعة أقل → كلين شيت أعلى.
+  const ownStrength = fx.oppFdr || 3;
+  base *= (OWN_DEF_MULT[ownStrength] || 1.0);
+
+  // 3) تعديل بسيط بتصنيف هجوم الخصم الرسمي *لو* كان متوفر ومتمايز (بيبقى موحّد أول الموسم
+  //    فمايأثرش، ولما يتعاير بعدين بيدّي دقة إضافية). التأثير مخفّف عشان مايكررش إشارة الـ FDR.
+  const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
+  if(oppAtk && oppAtk>0){
+    const oppFactor = Math.max(0.80, Math.min(1.25, oppAtk/STRENGTH_REF));
+    base *= (0.80 + 0.20*oppFactor);
   }
-  // عامل هجوم الخصم: تصنيف القوة الرسمي (متاح دايمًا) مدموج مع أهداف الخصم المتوقعة الفعلية (xG).
-  // كل ما تقدّم الموسم (xgConfidence) كل ما اعتمدنا على الأداء الحقيقي أكتر من التصنيف الثابت.
-  let oppFactor = (oppAtk && oppAtk>0) ? (oppAtk/STRENGTH_REF) : 1; // هجوم الخصم نسبةً للمتوسط
-  const oppXG = fx.oppKey ? teamAvgXG(fx.oppKey) : null;
-  if(oppXG!=null && isFinite(oppXG)){
-    const realFactor = oppXG / LEAGUE_AVG_GOALS; // هجوم الخصم الحقيقي نسبةً لمتوسط الدوري
-    const c = xgConfidence();
-    oppFactor = oppFactor*(1-c) + realFactor*c;
+
+  // 4) ندمج xGC الفعلي (قوة دفاع الفريق الحقيقية المقاسة) بوزن ثقة العينة — بحد أدنى بسيط عشان
+  //    الأداء الفعلي يبان من بدري، وبحد أقصى عشان مباراة واحدة ماتسيطرش وتطلّع نِسب خيالية 80%+.
+  let lam = base;
+  const realXGC = teamAvgXGC(clubKey);
+  if(realXGC!=null && isFinite(realXGC)){
+    const c = Math.max(0.20, xgConfidence());
+    lam = base*(1-c) + realXGC*c;
   }
-  const haFactor  = fx.isHome ? 0.92 : 1.08;                          // الأرض بتقلل الاستقبال، الخارج بيزوّده
-  const lam = baseXGC * oppFactor * haFactor;
-  return Math.max(0.15, Math.min(4.0, lam));
+
+  // 5) ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده
+  lam *= fx.isHome ? 0.92 : 1.08;
+
+  return Math.max(0.12, Math.min(4.0, lam));
 }
 
 // احتمال الكلين شيت لمباراة معيّنة = P(صفر أهداف) حسب توزيع بواسون = e^(−λ)
