@@ -1903,9 +1903,10 @@ function availabilityMultiplier(p){
 const STRENGTH_REF = 1120;
 const LEAGUE_AVG_GOALS = 1.35;
 
-// كاش متوسط xGC لكل نادي — بيتصفّر مع كل تحديث بيانات (resetEngineCaches)
+// كاش متوسط xGC (دفاعي) و xG (هجومي) لكل نادي — بيتصفّر مع كل تحديث بيانات (resetEngineCaches)
 let _teamXgcCache = {};
-function resetEngineCaches(){ _teamXgcCache = {}; }
+let _teamXgCache = {};
+function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; }
 
 // متوسط الأهداف المتوقع استقبالها (xGC90) لدفاع النادي — من مدافعينه/حارسه اللي لعبوا فعليًا.
 // ده أقوى مؤشر على جودة الدفاع الحقيقية (مش بس تصنيف FPL الثابت). بيرجع null لو مفيش عينة كافية.
@@ -1916,6 +1917,29 @@ function teamAvgXGC(clubKey){
   if(defs.length){ val = defs.reduce((s,p)=>s+(p.xGC90||0),0)/defs.length; }
   _teamXgcCache[clubKey] = val;
   return val;
+}
+
+// متوسط الأهداف المتوقع تسجيلها (xG) لهجوم النادي في الـ90 دقيقة — تقدير قوة هجومه الحقيقية
+// من مهاجميه/لاعبي وسطه اللي لعبوا فعليًا. بيرجع null لو العينة صغيرة (بداية موسم).
+function teamAvgXG(clubKey){
+  if(Object.prototype.hasOwnProperty.call(_teamXgCache, clubKey)) return _teamXgCache[clubKey];
+  const atk = (state.players||[]).filter(p=>p.club===clubKey && (p.pos==='MID'||p.pos==='FWD') && (p.minutes||0)>60 && (p.xG90||0)>0);
+  let val = null;
+  if(atk.length>=3){
+    // مجموع xG90 لأعلى 5 مساهمين هجوميًا ≈ الأهداف المتوقعة للفريق في الـ90 دقيقة
+    const top = atk.map(p=>p.xG90).sort((a,b)=>b-a).slice(0,5);
+    val = top.reduce((s,x)=>s+x,0);
+  }
+  _teamXgCache[clubKey] = val;
+  return val;
+}
+
+// ثقة بيانات الـ xG بتكبر مع تقدم الموسم: ~0 في أول 3 جولات (عينة صغيرة → نعتمد على تصنيفات
+// القوة الرسمية الثابتة)، وبتوصل 1 حوالي الجولة 9 (عينة كافية → نعتمد على الأداء الفعلي xG/xGC).
+// ده بيمنع طفرات العينة الصغيرة من تشويش التوقعات بدري في الموسم.
+function xgConfidence(){
+  const gw = (state.gwInfo && state.gwInfo.current) || 1;
+  return Math.max(0, Math.min(1, (gw - 3) / 6));
 }
 
 // λ = الأهداف المتوقع أن يستقبلها النادي في مباراة معيّنة (أساس موديل بواسون للكلين شيت)
@@ -1930,7 +1954,15 @@ function expectedConcede(clubKey, fx){
     // مفيش عينة كفاية (بداية موسم مثلاً) → نشتق خط الأساس من قوة الدفاع الرسمية
     baseXGC = (ownDef && ownDef>0) ? LEAGUE_AVG_GOALS * (STRENGTH_REF/ownDef) : LEAGUE_AVG_GOALS;
   }
-  const oppFactor = (oppAtk && oppAtk>0) ? (oppAtk/STRENGTH_REF) : 1; // هجوم الخصم نسبةً للمتوسط
+  // عامل هجوم الخصم: تصنيف القوة الرسمي (متاح دايمًا) مدموج مع أهداف الخصم المتوقعة الفعلية (xG).
+  // كل ما تقدّم الموسم (xgConfidence) كل ما اعتمدنا على الأداء الحقيقي أكتر من التصنيف الثابت.
+  let oppFactor = (oppAtk && oppAtk>0) ? (oppAtk/STRENGTH_REF) : 1; // هجوم الخصم نسبةً للمتوسط
+  const oppXG = fx.oppKey ? teamAvgXG(fx.oppKey) : null;
+  if(oppXG!=null && isFinite(oppXG)){
+    const realFactor = oppXG / LEAGUE_AVG_GOALS; // هجوم الخصم الحقيقي نسبةً لمتوسط الدوري
+    const c = xgConfidence();
+    oppFactor = oppFactor*(1-c) + realFactor*c;
+  }
   const haFactor  = fx.isHome ? 0.92 : 1.08;                          // الأرض بتقلل الاستقبال، الخارج بيزوّده
   const lam = baseXGC * oppFactor * haFactor;
   return Math.max(0.15, Math.min(4.0, lam));
@@ -1956,6 +1988,14 @@ function attackMultiplier(fx){
   if(!fx) return 1;
   const oppDef = fx.isHome ? fx.oppDefAway : fx.oppDefHome;
   let m = (oppDef && oppDef>0) ? (STRENGTH_REF/oppDef) : 1;
+  // دمج جودة دفاع الخصم الفعلية (xGC): دفاع بيستقبل أهداف كتير → أسهل نسجّل عليه.
+  // مدموج بوزن ثقة العينة زي محرك الكلين شيت بالظبط (اتساق كامل بين الهجوم والدفاع).
+  const oppXGC = fx.oppKey ? teamAvgXGC(fx.oppKey) : null;
+  if(oppXGC!=null && isFinite(oppXGC)){
+    const realFactor = oppXGC / LEAGUE_AVG_GOALS;
+    const c = xgConfidence();
+    m = m*(1-c) + realFactor*c;
+  }
   m *= fx.isHome ? 1.05 : 0.95;              // ميزة الأرض للهجوم
   const fm = fdrMultiplier(fx.fdr);
   m = (m*0.6) + (fm*0.4);
@@ -2055,7 +2095,20 @@ function blendedFixturePoints(p, fx, isImmediate){
 function predictedPoints(p){
   if(availabilityMultiplier(p) === 0) return 0;
   const fx = teamFixtureInfo(p.club);
-  const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
+  const look = (fx && fx.lookahead) ? fx.lookahead : [];
+  const nextGw = state.gwInfo && state.gwInfo.nextGw;
+  // مباريات النادي في الجولة الجاية بالذات (بتبقى 2+ في الجولة المزدوجة DGW)
+  const dgw = (nextGw!=null) ? look.filter(f=>f.event===nextGw) : [];
+  if(dgw.length >= 2){
+    // جولة مزدوجة: المباراة الأولى بالدمج الكامل (فيها ep_next اللي بيغطي الجولة)، والباقي
+    // بالإحصائي فقط — عشان مانكررش تأثير ep_next على كل مباراة فيطلع الرقم منفوخ.
+    const avail = availabilityMultiplier(p);
+    let pts = blendedFixturePoints(p, dgw[0], true);
+    for(let i=1;i<dgw.length;i++){ pts += Math.max(0, fixtureExpectedPoints(p, dgw[i]) * avail); }
+    return Math.max(0, Math.round(pts * 10) / 10);
+  }
+  // الوضع العادي (مباراة واحدة) — أو fallback لو حقل الجولة مش متوفر
+  const nextFix = look[0] || null;
   const pts = blendedFixturePoints(p, nextFix, true);
   return Math.max(0, Math.round(pts * 10) / 10);
 }
