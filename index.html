@@ -1107,9 +1107,19 @@ async function openMemberSquad(entryId, teamName, managerName){
   state.viewMemberSquad = { loading:true, teamName, managerName };
   renderBody();
   const gw = state.gwInfo && state.gwInfo.current;
-  const picks = await fetchFplPicks(entryId, gw);
-  state.viewMemberSquad = (picks && picks.squadIds && picks.squadIds.length)
-    ? { loading:false, teamName, managerName, squadIds:picks.squadIds, captainId:picks.captainId }
+  // لو الجولة الحالية لسه مبدأتش (الديدلاين ما قفلش)، المدير غالبًا ما أعلنش تشكيلته لسه،
+  // فبنعرض تشكيلة آخر جولة اتلعبت بدل شاشة فاضية — ولو مش لاقيينها نرجع لجولة أقدم لحد ما نلاقي.
+  const isStarted = state.gwInfo && state.gwInfo.deadline && (new Date(state.gwInfo.deadline).getTime() < Date.now());
+  const lastPlayed = state.gwInfo && state.gwInfo.lastPlayedGw;
+  const startGw = (!isStarted && lastPlayed && lastPlayed < gw) ? lastPlayed : gw;
+  let picks = null, usedGw = null;
+  for(let g = startGw; g >= 1 && g > startGw - 6; g--){
+    try{ picks = await fetchFplPicks(entryId, g); }catch(e){ picks = null; }
+    if(picks && picks.squadIds && picks.squadIds.length){ usedGw = g; break; }
+  }
+  state.viewMemberSquad = (picks && usedGw != null)
+    ? { loading:false, teamName, managerName, squadIds:picks.squadIds, captainId:picks.captainId,
+        squadGw: usedGw, carriedForward: (usedGw !== gw) }
     : { loading:false, error:true, teamName, managerName };
   if(state.tab==='leagues' && String(state.viewMemberId)===String(entryId)) renderBody();
 }
@@ -3433,8 +3443,12 @@ function renderLeagues(){
     const pitchHtml = renderPitchCard(false);
     state.mySquadIds = savedSquad;
     state.captainId = savedCap;
+    const gwNote = vm.carriedForward
+      ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + ' (آخر جولة اتلعبت) — الجولة الحالية لسه ما بدأتش</div>'
+      : (vm.squadGw ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + '</div>' : '');
     return header +
-      (vm.managerName ? '<div class="hint" style="margin:0 20px 10px;">' + escapeHtml(vm.managerName) + '</div>' : '') +
+      (vm.managerName ? '<div class="hint" style="margin:0 20px 4px;">' + escapeHtml(vm.managerName) + '</div>' : '') +
+      gwNote +
       pitchHtml;
   }
 
