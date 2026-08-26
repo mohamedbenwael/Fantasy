@@ -2205,6 +2205,10 @@ const OWN_DEF_MULT = {1:1.22, 2:1.10, 3:1.00, 4:0.85, 5:0.72};
 // 0.35 = ثلث الحساب تقريبًا من المباريات الملعوبة فعلًا حتى في الجولة 2. ارفعه لو عايز المحرك
 // يتفاعل أسرع مع النتايج (مثلاً 0.5)، أو نزّله لو عايزه أثبت وأقل تأثرًا بمباراة واحدة (0.2).
 const REAL_FORM_WEIGHT_MIN = 0.35;
+// وزن الدمج للحارس/المدافع أول الموسم: نعلي حصة إحصائياتنا (stat) اللي جواها محرك الكلين شيت،
+// لأن الكلين شيت هو المصدر الأساسي لنقط المدافع، ومحرّكنا بيفرّق بين المدافعين أدق من ep_next
+// الرسمي اللي بيبقى متقارب بينهم بدري. المجموع لازم = 1. (cls=فئة/سعر، ep=توقع FPL، stat=إحصائياتنا)
+const DEF_STAT_BLEND = { cls:0.15, ep:0.30, stat:0.55 };
 
 function expectedConcede(clubKey, fx){
   if(!fx) return LEAGUE_AVG_GOALS;
@@ -2339,8 +2343,15 @@ function blendedFixturePoints(p, fx, isImmediate){
   let base;
   if(isImmediate){
     if(isEarlySeason){
-      base = (p.epNext && p.epNext>0) ? (cls*0.35) + (p.epNext*0.45) + (stat*0.20)
-                                      : (cls*0.6) + (stat*0.4);
+      const isDefPos = (p.pos==='GK' || p.pos==='DEF');
+      if(p.epNext && p.epNext>0){
+        // الحارس/المدافع: نعلي حصة إحصائياتنا (محرك الكلين شيت) لأنها أدق مصدر لنقطهم بدري.
+        base = isDefPos
+          ? (cls*DEF_STAT_BLEND.cls) + (p.epNext*DEF_STAT_BLEND.ep) + (stat*DEF_STAT_BLEND.stat)
+          : (cls*0.35) + (p.epNext*0.45) + (stat*0.20);
+      } else {
+        base = isDefPos ? (cls*0.3) + (stat*0.7) : (cls*0.6) + (stat*0.4);
+      }
     } else if(p.epNext && p.epNext>0 && p.formWeighted>0){
       base = (p.epNext*0.35) + (stat*0.40) + (p.formWeighted*0.25);
     } else if(p.epNext && p.epNext>0){
@@ -4356,7 +4367,7 @@ function renderPredictions(){
   '<div class="section-title"><h2><span class="h2-icon" style="color:var(--muted);">' + ICON_CLOSE + ' الأكثر بيعاً هذه الجولة</span></h2></div>' +
   limitedListHtml(topOut, 'predTopOut', 'league-list', 'gap:8px;') +
 
-  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• محرك v4</span></h2></div>' +
+  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• محرك v5</span></h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
   '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (أقرب 5 جولات)</h2></div>' +
