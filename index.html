@@ -2201,40 +2201,54 @@ const FDR_CONCEDE = {1:0.80, 2:1.05, 3:1.30, 4:1.65, 5:2.05};
 // OWN_DEF_MULT: مضاعف دفاعي حسب قوة فريقنا نفسه (مستنتجة من صعوبة المباراة عند الخصم = oppFdr).
 // فريق قوي (الخصم بيلاقي مباراته ضدنا صعبة = oppFdr عالي) بيستقبل أهداف أقل → كلين شيت أعلى.
 const OWN_DEF_MULT = {1:1.22, 2:1.10, 3:1.00, 4:0.85, 5:0.72};
+// الحد الأدنى لوزن "الأداء الفعلي" (النتايج اللي حصلت) مقابل "السمعة/التقييم الرسمي" أول الموسم.
+// 0.35 = ثلث الحساب تقريبًا من المباريات الملعوبة فعلًا حتى في الجولة 2. ارفعه لو عايز المحرك
+// يتفاعل أسرع مع النتايج (مثلاً 0.5)، أو نزّله لو عايزه أثبت وأقل تأثرًا بمباراة واحدة (0.2).
+const REAL_FORM_WEIGHT_MIN = 0.35;
 
 function expectedConcede(clubKey, fx){
   if(!fx) return LEAGUE_AVG_GOALS;
 
-  // 1) خط الأساس من صعوبة المباراة = قوة هجوم الخصم (متاح ومتمايز لكل مباراة من الجولة الأولى)
+  // ===== (أ) خط أساس "السمعة": من التقييم الرسمي (FDR + قوة الفريق) — متاح من الجولة الأولى =====
+  // 1) صعوبة المباراة = قوة هجوم الخصم حسب التقييم الرسمي
   let base = FDR_CONCEDE[fx.fdr] || 1.30;
-
-  // 2) قوة دفاع فريقنا نفسه: مستنتجة من صعوبة المباراة عند الخصم (oppFdr) — ده بيعالج إن الـ FDR
-  //    لوحده بيقيس الخصم بس ومبيدّيش أي فضل لدفاع الفريق القوي. أرسنال مثلاً (فريق الخصم بيلاقي
-  //    مباراته ضده صعبة) بياخد مضاعف أقل من 1 → أهداف متوقعة أقل → كلين شيت أعلى.
-  const ownStrength = fx.oppFdr || 3;
-  base *= (OWN_DEF_MULT[ownStrength] || 1.0);
-
-  // 3) تعديل بسيط بتصنيف هجوم الخصم الرسمي *لو* كان متوفر ومتمايز (بيبقى موحّد أول الموسم
-  //    فمايأثرش، ولما يتعاير بعدين بيدّي دقة إضافية). التأثير مخفّف عشان مايكررش إشارة الـ FDR.
+  // 2) قوة دفاع فريقنا نفسه: مستنتجة من صعوبة المباراة عند الخصم (oppFdr) — بيدّي الفريق القوي فضله
+  base *= (OWN_DEF_MULT[fx.oppFdr || 3] || 1.0);
+  // 3) تعديل بسيط بتصنيف هجوم الخصم الرسمي لو كان متوفر ومتمايز (بيبقى موحّد أول الموسم فمايأثرش)
   const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
   if(oppAtk && oppAtk>0){
     const oppFactor = Math.max(0.80, Math.min(1.25, oppAtk/STRENGTH_REF));
     base *= (0.80 + 0.20*oppFactor);
   }
 
-  // 4) ندمج xGC الفعلي (قوة دفاع الفريق الحقيقية المقاسة) بوزن ثقة العينة — بحد أدنى بسيط عشان
-  //    الأداء الفعلي يبان من بدري، وبحد أقصى عشان مباراة واحدة ماتسيطرش وتطلّع نِسب خيالية 80%+.
-  let lam = base;
-  const realXGC = teamAvgXGC(clubKey);
+  // ===== (ب) خط أساس "الأداء الفعلي": من المباريات اللي اتلعبت فعلًا =====
+  // λ الفعلي = (ضعف دفاعنا الحقيقي: xGC) × (خطورة هجوم الخصم الحقيقية: xG نسبةً لمتوسط الدوري).
+  // ده بيعالج الحالة اللي إنت رصدتها: برايتون سجّلت 4 (هجوم مشتعل) وتشيلسي استقبلت أهداف
+  // (دفاع مهزوز) → لازم كلين شيت تشيلسي ينزل، مش يفضل 40% اعتمادًا على السمعة بس.
+  const realXGC = teamAvgXGC(clubKey);                        // دفاعنا الفعلي (أهداف متوقع نستقبلها/90)
+  const oppXG   = fx.oppKey ? teamAvgXG(fx.oppKey) : null;    // هجوم الخصم الفعلي (أهداف متوقعة/90)
+  let realLam = null;
   if(realXGC!=null && isFinite(realXGC)){
-    const c = Math.max(0.20, xgConfidence());
-    lam = base*(1-c) + realXGC*c;
+    realLam = realXGC;
+    if(oppXG!=null && isFinite(oppXG)){
+      realLam *= (oppXG / LEAGUE_AVG_GOALS);                  // خصم بيسجل فوق المتوسط → استقبال أعلى
+    }
+  } else if(oppXG!=null && isFinite(oppXG)){
+    // مفيش عينة دفاعية لينا لكن فيه هجوم فعلي للخصم → نعدّل خط أساس السمعة بنسبة هجوم الخصم
+    realLam = base * (oppXG / LEAGUE_AVG_GOALS);
   }
 
-  // 5) ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده
+  // ===== (ج) دمج السمعة مع الأداء الفعلي (وزن الأداء بيكبر مع الموسم، وبحد أدنى معقول) =====
+  let lam = base;
+  if(realLam!=null){
+    const c = Math.max(REAL_FORM_WEIGHT_MIN, xgConfidence());
+    lam = base*(1-c) + realLam*c;
+  }
+
+  // ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده
   lam *= fx.isHome ? 0.92 : 1.08;
 
-  return Math.max(0.12, Math.min(4.0, lam));
+  return Math.max(0.12, Math.min(4.5, lam));
 }
 
 // احتمال الكلين شيت لمباراة معيّنة = P(صفر أهداف) حسب توزيع بواسون = e^(−λ)
@@ -4342,7 +4356,7 @@ function renderPredictions(){
   '<div class="section-title"><h2><span class="h2-icon" style="color:var(--muted);">' + ICON_CLOSE + ' الأكثر بيعاً هذه الجولة</span></h2></div>' +
   limitedListHtml(topOut, 'predTopOut', 'league-list', 'gap:8px;') +
 
-  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ')</h2></div>' +
+  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• محرك v4</span></h2></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
   '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (أقرب 5 جولات)</h2></div>' +
