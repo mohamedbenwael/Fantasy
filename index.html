@@ -828,6 +828,143 @@
 
   /* pink chips: use deep-ink text where dark text sat on pink fills */
   .badge-rank, .badge-rank *{ color:var(--primary-soft) !important; }
+
+  /* ==================================================================
+     COMPREHENSIVE POLISH — buttons · cards · typography
+     (additive only — same layout & identity, richer finish)
+     ================================================================== */
+
+  /* ---------- TYPOGRAPHY: crisper text + aligned figures ---------- */
+  body{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; }
+  /* tabular figures so all stats/points/ranks line up like a real scoreboard */
+  .summary-top .big, .summary-grid .cell .v, .stat-pill .v, .profile-stats .cell .v,
+  .li-rank .num, .standing-row .s-pts, .standing-row .s-rank, .match-score, .ppts,
+  .price-tag .amt, .pred-banner .big, .form-bars .val, .brk-total-row, .a-row4 .a-field input,
+  .cs-row .cs-prob, .pp-next-fix .fdr-box, .pp-fixcard .fdr, .hist-row .p{
+    font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1; letter-spacing:0.1px;
+  }
+  /* headings a touch tighter for a premium editorial feel */
+  .section-title h2, .topbar h1, .onboard h1, .brk-player-name, .profile-hero .pn{ letter-spacing:-0.2px; }
+
+  /* ---------- UNIVERSAL TAP FEEDBACK ---------- */
+  button, .feature-tile, .grouped-row, .league-item, .match-card, .p-row, .nav-item,
+  .icon-btn, .topbar .back, .gw-arrow, .swap-side{
+    transition:transform .13s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease, opacity .15s ease;
+  }
+  button:active, .feature-tile:active, .icon-btn:active, .topbar .back:active,
+  .gw-arrow:not(:disabled):active{ transform:scale(.96); }
+  .league-item:active, .match-card:active, .grouped-row:active, .p-row:active{ transform:scale(.99); }
+
+  /* ---------- BUTTONS ---------- */
+  /* primary CTA — filled PL gradient, the strongest action on any screen */
+  .btn-primary{
+    background:linear-gradient(160deg, var(--primary), var(--primary-deep)) !important;
+    color:#fff !important; border:none !important;
+    box-shadow:0 10px 24px rgba(233,0,82,0.34), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+  }
+  .btn-primary:active{ background:linear-gradient(160deg, var(--primary-deep), var(--primary-deep)) !important; box-shadow:0 4px 12px rgba(233,0,82,0.3) !important; }
+  .btn-primary:disabled{ opacity:0.45 !important; box-shadow:none !important; }
+  .btn-ghost{ box-shadow:0 6px 16px rgba(0,0,0,0.22); }
+
+  /* transfer "in" button — clear primary; "out" stays a danger tint */
+  .p-btn.in:not(:disabled){
+    background:linear-gradient(160deg, var(--primary), var(--primary-deep)) !important;
+    color:#fff !important; border:none !important; box-shadow:0 5px 14px rgba(233,0,82,0.32);
+  }
+  .p-btn.out.active{ box-shadow:0 5px 14px rgba(255,77,109,0.32); }
+
+  /* icon buttons & back/arrow — subtle raised chip w/ real press */
+  .icon-btn, .topbar .back, .gw-arrow{
+    background:linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)) !important;
+    box-shadow:0 4px 10px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .icon-btn:active, .topbar .back:active{ background:rgba(233,0,82,0.16) !important; color:var(--primary-soft); }
+
+  /* segmented control container — inset track for depth */
+  .segment{ box-shadow:inset 0 2px 6px rgba(0,0,0,0.25); }
+
+  /* small pill chips (predictions / reasons) — crisper edges */
+  .pred-chip, .reason-tag, .chip-badge, .bonus-badge, .rank-live-badge{ box-shadow:0 3px 8px rgba(0,0,0,0.18); }
+
+  /* ---------- CARDS: unified premium surface ---------- */
+  .league-item, .standing-row, .match-card, .stat-pill, .adv-card, .swap-card,
+  .grouped-card, .feature-tile, .pp-fixcard, .pp-next-fix, .cs-row, .fix-row,
+  .own-bar, .form-card, .profile-stats .cell, .p-row, .admin-card, .nudge,
+  .pp-fixcard, .a-player{
+    box-shadow:0 8px 20px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.045);
+  }
+  /* feature tiles: lift + PL accent on press, brighter icon */
+  .feature-tile:active{ border-color:var(--primary) !important; box-shadow:0 12px 26px rgba(233,0,82,0.18), inset 0 1px 0 rgba(255,255,255,0.06); }
+  .feature-tile .ft-icon{ color:#fff !important; box-shadow:0 6px 14px rgba(233,0,82,0.3); }
+  .feature-tile.alt .ft-icon{ color:#241A08 !important; box-shadow:0 6px 14px rgba(232,196,104,0.28); }
+  /* the "me" row in standings — stronger PL highlight */
+  .standing-row.me{ box-shadow:0 8px 20px rgba(233,0,82,0.14), inset 0 0 0 1px rgba(233,0,82,0.25); }
+  /* cleaner grouped-card dividers */
+  .grouped-row:not(:last-child){ border-bottom-color:rgba(255,255,255,0.06) !important; }
+
+  /* ---------- MISC FINISH ---------- */
+  /* match score chip a bit more premium */
+  .match-score{ box-shadow:inset 0 1px 3px rgba(0,0,0,0.4); }
+  /* input focus states get a soft PL glow */
+  .field input:focus, .a-field input:focus, .pin-wrap input:focus{
+    border-color:var(--primary) !important; box-shadow:0 0 0 3px rgba(233,0,82,0.14);
+  }
+
+  /* ==================================================================
+     TRANSFER SUGGESTION CARD — full redesign (clean, professional)
+     replaces the oversized up/down arrows with a compact comparison
+     ================================================================== */
+  .swap-card{
+    background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent 60%), var(--card) !important;
+    border:1px solid var(--card-line) !important; border-radius:18px !important; padding:14px 14px 15px !important;
+    box-shadow:0 10px 24px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  }
+  /* header: green gain pill + subtle kicker */
+  .swap-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
+  .swap-gain{
+    display:inline-flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:900; font-size:13px;
+    color:var(--accent); background:rgba(0,255,135,0.1); border:1px solid rgba(0,255,135,0.28);
+    padding:5px 12px; border-radius:999px; letter-spacing:0.2px;
+    box-shadow:0 3px 10px rgba(0,255,135,0.12);
+  }
+  .swap-gain svg{ width:13px; height:13px; stroke-width:3; }
+  .swap-gain span{ font-size:9.5px; color:var(--muted); font-weight:700; }
+  .swap-kicker{ font-family:'Cairo'; font-weight:800; font-size:10px; color:var(--muted2); letter-spacing:0.4px; }
+
+  /* body: two equal comparison panels + centred swap chip */
+  .swap-body{ display:flex; align-items:stretch; justify-content:space-between; gap:9px; }
+  .swap-side{
+    flex:1; min-width:0; text-align:center; cursor:pointer;
+    background:rgba(255,255,255,0.028); border:1px solid var(--card-line); border-radius:14px;
+    padding:12px 8px 11px; position:relative; overflow:hidden;
+    transition:transform .13s ease, border-color .2s ease, background .2s ease;
+  }
+  .swap-side.sell{ box-shadow:inset 0 3px 0 var(--coral); }
+  .swap-side.buy{ box-shadow:inset 0 3px 0 var(--accent); }
+  .swap-side:active{ transform:scale(.98); background:rgba(255,255,255,0.05); }
+
+  /* the OUT/IN label as a small solid pill (NO more giant arrows) */
+  .swap-tag{
+    display:inline-flex !important; align-items:center; justify-content:center; gap:0 !important;
+    font-family:'Cairo'; font-weight:800; font-size:9px; margin:0 auto 9px !important;
+    padding:3px 13px; border-radius:999px; line-height:1.4;
+  }
+  .swap-tag svg{ display:none !important; }              /* kill any inherited icon */
+  .swap-side.sell .swap-tag{ color:var(--coral); background:rgba(255,77,109,0.14); }
+  .swap-side.buy  .swap-tag{ color:var(--accent); background:rgba(0,255,135,0.14); }
+
+  .swap-photo{ width:46px !important; filter:drop-shadow(0 5px 7px rgba(0,0,0,0.4)); }
+  .swap-name{ font-family:'Cairo'; font-weight:800; font-size:11.5px; color:var(--text); margin-top:7px; }
+  .swap-price{ font-size:10px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums; }
+
+  /* centred circular swap chip — small & premium (horizontal arrows) */
+  .swap-icon{
+    align-self:center; flex-shrink:0; width:32px; height:32px; margin:0 !important; border-radius:50%;
+    background:linear-gradient(160deg, var(--primary), var(--primary-deep)) !important; border:none !important;
+    color:#fff !important; box-shadow:0 6px 16px rgba(233,0,82,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .swap-icon svg{ width:15px !important; height:15px !important; transform:rotate(90deg); }
 </style>
 </head>
 <body>
@@ -4112,10 +4249,13 @@ function renderPredictions(){
 
   const suggestionsHtml = topSwaps.length ? topSwaps.map(sug=>
     '<div class="swap-card">' +
-      '<div class="swap-title"><span class="icon-inline" style="color:var(--coral);">' + ICON_FIRE + ' مكسب متوقع: +' + fmt(sug.diff) + ' نقطة على ' + (sug.horizon||5) + ' جولات</span></div>' +
+      '<div class="swap-head">' +
+        '<div class="swap-gain">' + ICON_UP + '+' + fmt(sug.diff) + ' <span>نقطة · ' + (sug.horizon||5) + ' جولات</span></div>' +
+        '<div class="swap-kicker">مقترح انتقال</div>' +
+      '</div>' +
       '<div class="swap-body">' +
         '<div class="swap-side sell" data-viewprofile="' + sug.sellP.id + '">' +
-          '<div class="swap-tag" style="color:var(--coral);">' + ICON_DOWN + ' بيع</div>' +
+          '<div class="swap-tag">بيع</div>' +
           '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.sellP.teamCode + (sug.sellP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.sellP.name + '" onerror="imgFallback(this)" loading="lazy">' +
           '<div class="swap-name">' + sug.sellP.name + '</div>' +
           '<div class="swap-price">£' + fmt(sug.sellP.price) + 'm</div>' +
@@ -4123,7 +4263,7 @@ function renderPredictions(){
         '</div>' +
         '<div class="swap-icon">' + ICON_SWAP_ALT + '</div>' +
         '<div class="swap-side buy" data-viewprofile="' + sug.buyP.id + '">' +
-          '<div class="swap-tag" style="color:#00FF87;">' + ICON_UP + ' شراء</div>' +
+          '<div class="swap-tag">شراء</div>' +
           '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.buyP.teamCode + (sug.buyP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.buyP.name + '" onerror="imgFallback(this)" loading="lazy">' +
           '<div class="swap-name">' + sug.buyP.name + '</div>' +
           '<div class="swap-price">£' + fmt(sug.buyP.price) + 'm</div>' +
