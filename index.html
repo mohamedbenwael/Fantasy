@@ -1124,6 +1124,27 @@ async function openMemberSquad(entryId, teamName, managerName){
   if(state.tab==='leagues' && String(state.viewMemberId)===String(entryId)) renderBody();
 }
 
+// بتتأكد إن قايمة الدوريات محمّلة — التطبيق كان بيجيبها مرة واحدة بس وقت الفتح، فلو
+// الطلب ده رجع فاضي/فشل كانت الشاشة تفضل فاضية طول الجلسة. دي بتعيد جلبها من الفانتازي
+// أول ما تفتح تبويب الدوريات وهي فاضية (مرة تلقائيًا)، و force=true بتجبرها تحدّث (زر التحديث).
+async function ensureLeagues(force){
+  if(state.leaguesFetching || !state.deviceId) return;
+  if(!force){
+    if(state.realLeagues && state.realLeagues.length) return;
+    if(state.leaguesTried) return; // جرّبنا وما لقيناش — بلاش لووب لا نهائي
+  }
+  state.leaguesFetching = true; state.leaguesTried = true;
+  try{
+    const entry = await fetchFplEntry(state.deviceId);
+    if(entry && !entry.error && entry.leagues){
+      state.realLeagues = entry.leagues;
+      if(entry.overallRank != null) state.overallRank = entry.overallRank;
+    }
+  }catch(e){}
+  state.leaguesFetching = false;
+  if(state.tab==='leagues') renderBody();
+}
+
 // ===== تسجيل الخروج =====
 function logout(){
   try{ localStorage.removeItem('mazareta_fpl_id'); } catch(e){}
@@ -1619,6 +1640,7 @@ let state = {
   realLeagues: [], overallRank: 0, eventRank: null,
   eventPoints: null, overallPoints: null, // نقاط آخر جولة + إجمالي الموسم (من الفانتازي)
   leagueStandingsCache:{}, viewMemberId:null, viewMemberSquad:null,
+  leaguesFetching:false, leaguesTried:false, // لإعادة جلب الدوريات لو رجعت فاضية أول مرة
   canInstall:false, showInstallGuide:false,
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
@@ -2705,6 +2727,7 @@ async function loadSquadOrDraft(){
 async function refreshLiveData(){
   state.refreshing = true; render();
   await loadLiveData(true);
+  ensureLeagues(true); // نحدّث الدوريات كمان مع التحديث اليدوي (من غير ما نستنّاها)
   state.refreshing = false;
   render();
 }
@@ -3064,7 +3087,12 @@ function leagueRankChange(lg){
 }
 
 function renderLeaguePreviewItems(){
-  if(!state.realLeagues.length) return '<div class="hint">لم تقم بالانضمام لأي دوري خاص حتى الآن.</div>';
+  if(!state.realLeagues.length){
+    // مفيش دوريات لسه — نحاول نجيبها من الفانتازي (لو ما جرّبناش قبل كده)
+    if(state.deviceId && !state.leaguesTried && !state.leaguesFetching) ensureLeagues();
+    if(state.leaguesFetching) return '<div class="hint">جاري تحميل الدوريات...</div>';
+    return '<div class="hint">لم تقم بالانضمام لأي دوري خاص حتى الآن.</div>';
+  }
   return state.realLeagues.map(lg => {
     const rc = leagueRankChange(lg);
     return '<button class="league-item" data-league="' + lg.id + '">' +
