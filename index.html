@@ -510,11 +510,18 @@
   }
 
   /* ===== player profile ===== */
-  .profile-hero{ margin:6px 20px 0; padding:22px 18px; border-radius:20px; text-align:center; position:relative; overflow:hidden;
-    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%); border:1px solid rgba(255,255,255,0.06); }
-  .profile-hero .pj-photo{ width:74px; height:auto; display:block; margin:0 auto; border-radius:10px; }
-  .profile-hero .pn{ font-family:'Cairo'; font-weight:900; font-size:17px; color:var(--text); margin-top:12px; }
-  .profile-hero .pm{ font-size:11px; color:var(--muted); margin-top:4px; }
+  .profile-hero{ margin:6px 20px 0; padding:26px 18px 20px; border-radius:22px; text-align:center; position:relative; overflow:hidden;
+    background:linear-gradient(165deg, #3A0F45 0%, #1B0A22 100%); border:1px solid rgba(255,255,255,0.07); }
+  .profile-hero::before{ content:''; position:absolute; top:-45%; left:50%; transform:translateX(-50%); width:230px; height:230px; pointer-events:none;
+    background:radial-gradient(circle, rgba(216,27,96,0.30), rgba(216,27,96,0) 70%); }
+  /* منصة/هالة مضيئة خلف اللاعب عشان شكل مودرن */
+  .pj-stage{ position:relative; z-index:1; width:170px; height:158px; margin:0 auto 2px; display:flex; align-items:flex-end; justify-content:center; }
+  .pj-disc{ position:absolute; bottom:6px; left:50%; transform:translateX(-50%); width:126px; height:126px; border-radius:50%;
+    background:radial-gradient(circle at 50% 42%, rgba(255,255,255,0.17), rgba(255,255,255,0.02) 68%);
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.12), 0 16px 36px rgba(0,0,0,0.5); }
+  .profile-hero .pj-photo{ position:relative; z-index:1; width:148px; height:auto; display:block; margin:0 auto; filter: drop-shadow(0 14px 12px rgba(0,0,0,0.45)); }
+  .profile-hero .pn{ font-family:'Cairo'; font-weight:900; font-size:19px; color:var(--text); margin-top:8px; }
+  .profile-hero .pm{ font-size:11.5px; color:var(--muted); margin-top:4px; }
   /* ===== upcoming fixtures (player profile) ===== */
   .pp-fixtures{ display:flex; gap:8px; margin:0 20px; }
   .pp-fixcard{ flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:10px 6px; text-align:center; }
@@ -613,7 +620,10 @@
     background:linear-gradient(160deg,var(--primary-soft),var(--primary-deep)); color:#04321B;
     font-family:'Cairo'; font-weight:900; font-size:11px; line-height:1;
   }
-  .img-fallback.img-fallback-profile{ aspect-ratio:110/140; border-radius:10px; font-size:26px; }
+  .img-fallback.img-fallback-profile{ position:relative; z-index:1; width:126px; height:126px; aspect-ratio:auto; border-radius:50%; font-size:44px; letter-spacing:1px;
+    align-self:center; margin-bottom:6px;
+    background:linear-gradient(160deg, var(--primary-soft), var(--primary-deep)); color:#fff;
+    box-shadow:0 16px 36px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(255,255,255,0.18); }
 
   .live-dot { position:absolute; top:-4px; right:-4px; width:10px; height:10px; background:#2ed573; border-radius:50%; border:2px solid var(--pitch2); }
 
@@ -778,8 +788,15 @@ const LIVE_CACHE_TTL_ACTIVE = 45 * 1000; // 45 ثانية — لما فيه مب
 // بيستبدلها ببادج بسيط فيه أول حرف من اسم اللاعب، بدل ما يظهر أيقونة صورة مكسورة.
 function imgFallback(img){
   img.onerror = null; // يمنع لووب لو الفولباك نفسه اتحط بغلط جوه img (مش متوقع هنا لكن أمان زيادة)
-  const label = (img.alt || '؟').trim().charAt(0).toUpperCase() || '؟';
   const isProfile = img.classList.contains('pj-photo');
+  // فى البروفايل نعمل أفاتار دائرى بأول حرفين من الاسم بدل حرف واحد — شكل أنضف للاعب اللى مالوش صورة
+  const parts = String(img.alt || '').trim().split(/\s+/).filter(Boolean);
+  let label = '؟';
+  if(parts.length){
+    label = parts[0].charAt(0);
+    if(isProfile && parts.length > 1) label += parts[1].charAt(0);
+  }
+  label = label.toUpperCase() || '؟';
   const fb = document.createElement('div');
   fb.className = img.className + ' img-fallback' + (isProfile ? ' img-fallback-profile' : '');
   fb.textContent = label;
@@ -1180,6 +1197,8 @@ async function buildLiveDataset(){
   const currentGwYellow = {};
   const currentGwRed = {};
   const currentGwExplain = {};
+  // تفاصيل النقاط (explain) لكل جولة اتجابت — عشان تفاصيل نقاط أي جولة تفتح بالضغط مش الحالية بس
+  const explainByElementGw = {};
   for(const evId of liveIds){
     try{
       const live = await fplFetch('live', evId);
@@ -1187,6 +1206,8 @@ async function buildLiveDataset(){
         const pts = row.stats ? row.stats.total_points : 0;
         if(!historyByElement[row.id]) historyByElement[row.id] = [];
         historyByElement[row.id].push({ gw: evId, pts: pts||0 });
+        if(!explainByElementGw[row.id]) explainByElementGw[row.id] = {};
+        explainByElementGw[row.id][evId] = row.explain || [];
         if(evId === gwId){
           const bps = row.stats ? (row.stats.bps || 0) : 0;
           const fx = (row.explain && row.explain[0] && row.explain[0].fixture) || null;
@@ -1392,6 +1413,7 @@ async function buildLiveDataset(){
       gwYellow: currentGwYellow[el.id] || 0,
       gwRed: currentGwRed[el.id] || 0,
       gwExplain: currentGwExplain[el.id] || [],
+      gwExplainByGw: explainByElementGw[el.id] || {}, // تفاصيل النقاط لكل جولة متاحة
     };
   });
 
@@ -1592,7 +1614,7 @@ let state = {
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
   flash:null,
-  viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null,
+  viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null, viewBreakdownGw:null,
   activeChip:null,      // الشيب المُفعّل في الجولة الحالية (من الفانتازي): 3xc/bboost/wildcard/freehit
   // ===== تصفّح الجولات (آلة الزمن) =====
   viewGw:null,          // الجولة اللي بنعرضها دلوقتي (null = اتبع الجولة الحالية تلقائيًا)
@@ -3587,34 +3609,43 @@ function renderPlayerProfile(){
       '<div class="fdr-box">' + f.fdr + '</div></div>';
   }).join('') : '<div class="hint">لا توجد بيانات مباريات قادمة حاليًا</div>';
 
-  // صف مباراة الجولة الحالية (لو متوفرة) — بيفتح مودال تفاصيل النقاط عند الضغط
+  // كل الجولات المتاحة للاعب — الأحدث فوق. كل صف بيوري الخصم + النتيجة + النقط،
+  // وكله قابل للضغط عشان يفتح تفاصيل نقاط الجولة دي بالتحديد (مش الحالية بس).
   const currentGw = state.gwInfo.current;
-  const currentFx = state.fixturesList.find(fx => fx.team_h === p.club || fx.team_a === p.club);
-  let currentGwHtml = '';
-  if (currentFx && currentFx.started) {
-      const isHome = currentFx.team_h === p.club;
-      const oppKey = isHome ? currentFx.team_a : currentFx.team_h;
+  const fixturesByGw = state.fixturesByGw || {};
+  function resultRow(gw, pts){
+    const gwFx = (fixturesByGw[gw] || []).find(fx => fx.team_h === p.club || fx.team_a === p.club);
+    let matchInfo = '';
+    if (gwFx) {
+      const isHome = gwFx.team_h === p.club;
+      const oppKey = isHome ? gwFx.team_a : gwFx.team_h;
       const oppCode = CLUB_CODE[oppKey] || '';
       const logoSrc = oppCode ? `https://resources.premierleague.com/premierleague/badges/t${oppCode}.png` : '';
       const oppTag = (CLUB_TAG[oppKey]||'؟') + (isHome ? ' (H)' : ' (A)');
-      const scoreText = (currentFx.score_h != null && currentFx.score_a != null)
-          ? `<div class="score-badge">${currentFx.score_h} - ${currentFx.score_a}</div>`
+      const scoreText = (gwFx.score_h != null && gwFx.score_a != null)
+          ? `<div class="score-badge">${gwFx.score_h} - ${gwFx.score_a}</div>`
           : '<div class="score-badge no-score">- : -</div>';
-      currentGwHtml = `
-      <div class="hist-row clickable" data-breakdown="${p.id}" style="margin-bottom:8px;">
-          <div class="g" style="width:40px;">GW ${currentGw}</div>
-          <div class="hist-match-info">
+      matchInfo = `<div class="hist-match-info">
              <div style="font-size:10.5px; color:var(--muted);">${oppTag}</div>
              <img src="${logoSrc}" style="width:20px;height:20px;object-fit:contain;" onerror="this.style.display='none'">
              ${scoreText}
-          </div>
-          <div class="p" style="font-size:14px;">${currentGwPoints(p)} نقطة</div>
+          </div>`;
+    }
+    return `<div class="hist-row clickable" data-breakdown="${p.id}" data-breakdown-gw="${gw}" style="margin-bottom:8px;">
+          <div class="g" style="width:46px;">GW ${gw}</div>
+          ${matchInfo}
+          <div class="p" style="font-size:14px;">${pts} نقطة</div>
       </div>`;
   }
+  const resultsRows = hist.slice().reverse().map(h=>{
+    const pts = (h.gw === currentGw) ? currentGwPoints(p) : h.pts;
+    return resultRow(h.gw, pts);
+  }).join('');
 
   return '' +
   '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1><div class="spacer"></div></div>' +
-  '<div class="profile-hero"><img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/110x140/p' + p.code + '.png" alt="' + p.name + '" onerror="imgFallback(this)">' +
+  '<div class="profile-hero"><div class="pj-stage"><div class="pj-disc"></div>' +
+    '<img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png" alt="' + p.name + '" onerror="imgFallback(this)"></div>' +
     '<div class="pn">' + p.name + '</div>' +
     '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
     '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
@@ -3629,18 +3660,14 @@ function renderPlayerProfile(){
     '<div class="track"><div class="fill" style="width:' + Math.min(100,p.ownership) + '%;"></div></div></div>' +
   '<div class="section-title"><h2>جدول المباريات القادمة</h2></div>' +
   '<div class="pp-fixtures">' + fixturesHtml + '</div>' +
-  '<div class="section-title"><h2>النتائج (الجولة الحالية)</h2></div>' +
-  '<div style="margin:0 20px;">' + currentGwHtml +
-  (currentGwHtml ? '<div class="hint" style="text-align:right; font-size:9.5px; margin-top:4px;">اضغط على المباراة لعرض تفاصيل النقاط</div>' : '<div class="hint">لا توجد مباراة لهذا اللاعب في الجولة الحالية</div>') + '</div>' +
+  '<div class="section-title"><h2>النتائج (كل الجولات)</h2></div>' +
+  '<div style="margin:0 20px;">' + (resultsRows || '<div class="hint">لا توجد نتائج بعد لهذا اللاعب</div>') +
+  (resultsRows ? '<div class="hint" style="text-align:right; font-size:9.5px; margin-top:4px;">اضغط على أي مباراة لعرض تفاصيل نقاطها</div>' : '') + '</div>' +
   '<div class="section-title"><h2>الفورم (آخر جولات)</h2></div>' +
-  '<div class="form-card"><div class="form-bars">' + last4.map(h=>{
+  '<div class="form-card" style="margin-bottom:14px;"><div class="form-bars">' + last4.map(h=>{
     const hpct = Math.max(8,(h.pts/maxPts)*100);
     return '<div class="fb"><div class="val">'+h.pts+'</div><div class="bar-wrap"><div class="bar" style="height:'+hpct+'%;"></div></div><div class="lbl">جولة '+h.gw+'</div></div>';
   }).join('') + '</div></div>' +
-  '<div class="section-title"><h2>نقاط كل جولة</h2></div>' +
-  '<div class="league-list" style="gap:8px; margin-bottom:14px;">' + hist.slice().reverse().map(h=>
-    '<div class="hist-row"><div class="g">الجولة '+h.gw+'</div><div class="p">'+h.pts+' نقطة</div></div>'
-  ).join('') + '</div>' +
   adminBlock;
 }
 
@@ -3650,8 +3677,11 @@ function renderPlayerBreakdownModal() {
     const p = findPlayer(state.viewBreakdownPlayerId);
     if(!p) return '';
 
-    const explains = p.gwExplain || [];
-    const currentFx = state.fixturesList.find(fx => fx.team_h === p.club || fx.team_a === p.club);
+    // الجولة المطلوب عرض تفاصيلها (لو المستخدم ضغط على جولة معينة) وإلا الجولة الحالية
+    const gw = state.viewBreakdownGw || state.gwInfo.current;
+    const explains = (p.gwExplainByGw && p.gwExplainByGw[gw]) || p.gwExplain || [];
+    const gwFixtures = (state.fixturesByGw && state.fixturesByGw[gw]) || state.fixturesList || [];
+    const currentFx = gwFixtures.find(fx => fx.team_h === p.club || fx.team_a === p.club);
 
     const statLabels = {
         minutes: 'عدد الدقائق التي لعبها',
@@ -3708,7 +3738,7 @@ function renderPlayerBreakdownModal() {
             <div class="brk-handle"></div>
             <button class="modal-close" id="closeBreakdown">${ICON_CLOSE}</button>
             <div class="brk-player-name">${p.name}</div>
-            <div class="brk-gw-title">الجولة ${state.gwInfo.current}</div>
+            <div class="brk-gw-title">الجولة ${gw}</div>
             ${fixHeader}
             <div class="brk-details-box">
                 <div class="brk-head">
@@ -4257,6 +4287,8 @@ function bindBody(){
     b.addEventListener('click', (e)=>{
       e.stopPropagation();
       state.viewBreakdownPlayerId = parseInt(b.getAttribute('data-breakdown'));
+      const gwAttr = b.getAttribute('data-breakdown-gw');
+      state.viewBreakdownGw = gwAttr ? parseInt(gwAttr) : null;
       renderBody();
     });
   });
@@ -4264,8 +4296,8 @@ function bindBody(){
   // قفل تفاصيل نقط اللاعب
   const closeBrkBtn = el.querySelector('#closeBreakdown');
   const brkOverlay = el.querySelector('#breakdownOverlay');
-  if(closeBrkBtn) closeBrkBtn.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; renderBody(); });
-  if(brkOverlay) brkOverlay.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; renderBody(); });
+  if(closeBrkBtn) closeBrkBtn.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; state.viewBreakdownGw = null; renderBody(); });
+  if(brkOverlay) brkOverlay.addEventListener('click', ()=>{ state.viewBreakdownPlayerId = null; state.viewBreakdownGw = null; renderBody(); });
 
   // boot retry
   const retry = el.querySelector('#retryBoot');
