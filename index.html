@@ -4038,7 +4038,31 @@ async function loadSquadOrDraft(){
   const picksGw = (!isStarted && lastPlayed && lastPlayed < gw) ? lastPlayed : gw;
   const carriedForward = (picksGw !== gw);
 
-  // ١. الأولوية المطلقة: محاولة جلب التشكيلة الرسمية من سيرفر الفانتازي
+  // ★ لو الجولة لسه ماقفلتش (قبل الديدلاين): التشكيلة المحلية (مسودتك) هي الأساس دايمًا،
+  // ومينفعش نستبدلها بإعادة جلب تشكيلة جولة قديمة/مُرحّلة من الفانتازي في كل ريفريش —
+  // لأن ده بالظبط اللي كان بيمسح تعديلاتك بعد الحفظ. الفانتازي بيبقى مصدر الحقيقة
+  // بس أول ما الجولة تقفل فعليًا (isStarted = true).
+  if(!isStarted){
+    try{
+      const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
+      if(savedRaw){
+        const saved = JSON.parse(savedRaw);
+        if(saved && saved.mySquadIds && saved.mySquadIds.length && saved.squadGw === gw){
+          state.mySquadIds = saved.mySquadIds;
+          state.captainId = saved.captainId;
+          state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
+          state.activeChip = null; // التشكيلة التجريبية مفيهاش شيب رسمي
+          state.freeTransfers = (gw === 1) ? 'غير محدود' : 1;
+          state.seasonBaseline = saved.seasonBaseline || 0;
+          await syncDraftForGw(gw);
+          return;
+        }
+      }
+    }catch(e){}
+  }
+
+  // ١. الأولوية المطلقة (لو الجولة قفلت فعلاً، أو مفيش مسودة محلية للجولة دي لسه):
+  // محاولة جلب التشكيلة الرسمية من سيرفر الفانتازي
   // (لو الديدلاين قفل، الفانتازي هيرجع الداتا الحقيقية وهنمسح بيها التشكيلة التجريبية)
   try{
     const picks = state.deviceId ? await fetchFplPicks(state.deviceId, picksGw) : null;
@@ -4063,25 +4087,25 @@ async function loadSquadOrDraft(){
     // الجولة لسه مقفلتش (الفانتازي مخبي التشكيلة) أو مفيش إنترنت
   }
 
-  // ٢. لو الفانتازي لسه مخبي التشكيلة: نعرض التشكيلة التجريبية اللي اليوزر عاملها جوه الأبلكيشن
-  try{
-    const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
-    if(savedRaw){
-      const saved = JSON.parse(savedRaw);
-      if(saved && saved.mySquadIds && saved.mySquadIds.length && saved.squadGw === gw){
-        state.mySquadIds = saved.mySquadIds;
-        state.captainId = saved.captainId;
-        state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
-        state.activeChip = null; // التشكيلة التجريبية مفيهاش شيب رسمي
-
-        state.freeTransfers = (gw === 1 && !isStarted) ? 'غير محدود' : 1;
-
-        state.seasonBaseline = saved.seasonBaseline || 0;
-        await syncDraftForGw(gw);
-        return;
+  // ٢. لو وصلنا هنا والجولة مقفولة (فشل الفتش لأسباب زي مفيش إنترنت): نرجع لآخر تشكيلة محفوظة محليًا
+  if(isStarted){
+    try{
+      const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
+      if(savedRaw){
+        const saved = JSON.parse(savedRaw);
+        if(saved && saved.mySquadIds && saved.mySquadIds.length && saved.squadGw === gw){
+          state.mySquadIds = saved.mySquadIds;
+          state.captainId = saved.captainId;
+          state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
+          state.activeChip = null;
+          state.freeTransfers = 1;
+          state.seasonBaseline = saved.seasonBaseline || 0;
+          await syncDraftForGw(gw);
+          return;
+        }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
 
   // ٣. لو مفيش داتا خالص: نبدأ بتشكيلة فاضية
   state.mySquadIds = [];
