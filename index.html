@@ -2002,7 +2002,14 @@ async function kvCall(payload){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }), 8000);
-  if(!res.ok) throw new Error('kv request failed: ' + res.status);
+  if(!res.ok){
+    // بنقرا جسم الرد عشان يبان السبب الحقيقي في الكونسول (مثلاً: مفتاح service ناقص،
+    // أو جدول mazareta_kv مفيهوش constraint على العمود key اللازم للـ upsert).
+    let detail = '';
+    try{ detail = await res.text(); }catch(_){}
+    console.warn('[kv] فشل الطلب', payload && payload.action, payload && payload.key, res.status, detail);
+    throw new Error('kv request failed: ' + res.status + ' ' + detail);
+  }
   return await res.json();
 }
 async function sGet(key, shared){
@@ -2015,7 +2022,7 @@ async function sSet(key, value, shared){
   try{
     const data = await kvCall({ action: 'set', key, value });
     return !!(data && data.ok);
-  } catch(e){ return false; }
+  } catch(e){ console.warn('[kv] sSet فشل', key, e && e.message); return false; }
 }
 async function sDelete(key){
   try{
@@ -2927,14 +2934,18 @@ function activeCaptainId(){ if(isGwLocked()){ ensureDraftLoaded(); return state.
 function activeBank(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftBank; } return state.bank; }
 function activeFreeTransfers(){ if(isGwLocked()){ ensureDraftLoaded(); return state.draftFreeTransfers; } return state.freeTransfers; }
 async function saveActive(){
+  let ok;
   if(isGwLocked()){
-    await sSet('mazareta_squad_next:'+state.deviceId, JSON.stringify({
+    ok = await sSet('mazareta_squad_next:'+state.deviceId, JSON.stringify({
       draftForGw: state.draftForGw, mySquadIds: state.draftSquadIds, captainId: state.draftCaptainId,
       bank: state.draftBank, freeTransfers: state.draftFreeTransfers
     }), false);
   } else {
-    await savePersonal();
+    ok = await savePersonal();
   }
+  // لو الحفظ فشل (مشكلة سيرفر/نت) نبلّغ المستخدم بدل ما التعديل يضيع في صمت
+  if(ok === false){ setFlash('error', 'لم يتم حفظ التعديل — تأكد من الاتصال وحاول تاني'); }
+  return ok;
 }
 
 // ===== قواعد الفانتازي الرسمية =====
@@ -3916,12 +3927,13 @@ function setFlash(type, text){
 
 // ===== persistence =====
 async function savePersonal(){
-  await sSet('mazareta_squad:'+state.deviceId, JSON.stringify({
+  const ok = await sSet('mazareta_squad:'+state.deviceId, JSON.stringify({
     mySquadIds:state.mySquadIds, captainId:state.captainId, bank:state.bank,
     freeTransfers:state.freeTransfers, seasonBaseline:state.seasonBaseline,
     squadGw: state.gwInfo && state.gwInfo.current // الجولة اللي التشكيلة دي خاصة بيها
   }), false);
   pushPublicEntry();
+  return ok;
 }
 async function pushPublicEntry(){
   await sSet('public_entry:'+state.deviceId, JSON.stringify({
