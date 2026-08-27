@@ -1496,7 +1496,16 @@
     background:rgba(255,255,255,0.92); border-radius:50%;
     box-shadow:0 1px 3px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(0,0,0,0.06);
   }
-  /* لو الصورة الحقيقية مش موجودة → قميص النادي (يتوسّط ويصغر شوية، من غير قص) */
+  /* لاعب مالوش صورة رسمية → سيلويت أنيق متسق مع باقي الكروت (بدل القميص الخام) */
+  .ptoken-img.ptoken-silhouette{
+    width:100%; height:100%; transform:none; object-fit:fill; filter:none;
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  .ptoken-silhouette svg{
+    width:92%; height:auto; display:block; margin-bottom:-4px;
+    fill:rgba(255,255,255,0.9); filter:drop-shadow(0 3px 4px rgba(0,0,0,0.35));
+  }
+  /* (متبقّي كاحتياط لو استُخدم القميص في مكان تاني) */
   .ptoken-img.is-shirt{
     width:60%; height:auto; margin:auto; object-fit:contain;
     transform:none; filter:drop-shadow(0 4px 5px rgba(0,0,0,0.4));
@@ -1690,17 +1699,21 @@ function clubTokenColor(clubKey){
   return 'hsl(' + (h % 360) + ',58%,46%)';
 }
 // عنصر <img> لصورة اللاعب: صورة حقيقية → لو فشلت قميص النادي → لو فشل كمان أول حرف
+// سيلويت لاعب عام (SVG بدون إنترنت) — يظهر بشكل متسق مع كروت الصور
+// للاعبين اللي لسه مالهمش صورة رسمية، بدل القميص الخام
+const SILHOUETTE_SVG = '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMax meet"><circle cx="50" cy="33" r="19"></circle><path d="M12 98 C12 73 30 59 50 59 C70 59 88 73 88 98 Z"></path></svg>';
+function pitchSilhouette(){ return '<div class="ptoken-img ptoken-silhouette">' + SILHOUETTE_SVG + '</div>'; }
 function pitchPhotoImg(p){
-  const shirt = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
-  const photo = p.code ? ('https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png') : shirt;
-  const isPhoto = !!p.code;
-  return '<img class="ptoken-img' + (isPhoto ? '' : ' is-shirt') + '" src="' + photo + '" data-shirt="' + shirt + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
+  if(!p.code) return pitchSilhouette();
+  const photo = 'https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png';
+  return '<img class="ptoken-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
 }
 function pitchPhotoFallback(img){
-  if(img.dataset.shirtTried){ img.onerror = null; imgFallback(img); return; }
-  img.dataset.shirtTried = '1';
-  img.classList.add('is-shirt');
-  img.src = img.dataset.shirt;
+  img.onerror = null;
+  const d = document.createElement('div');
+  d.className = 'ptoken-img ptoken-silhouette';
+  d.innerHTML = SILHOUETTE_SVG;
+  img.replaceWith(d);
 }
 // شعار النادي الحالي — بيتجاب لايف من داتا الفانتازي، فبيحسم "اللاعب في أي فريق دلوقتي"
 // حتى لو الصورة الرسمية قديمة وهو لابس قميص ناديه القديم
