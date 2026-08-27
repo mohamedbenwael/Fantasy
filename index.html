@@ -1991,30 +1991,40 @@ function withTimeout(promise, ms){
   });
 }
 
+// ===== kv proxy (/api/kv) — المتصفح بقى بيكلم السيرفر بتاعنا بس،
+// مش Supabase مباشرة. نفس أسماء الدوال والمخرجات القديمة بالظبط عشان
+// باقي الكود يفضل شغال من غير أي تعديل تاني. =====
+async function kvCall(payload){
+  const res = await withTimeout(fetch('/api/kv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }), 8000);
+  if(!res.ok) throw new Error('kv request failed: ' + res.status);
+  return await res.json();
+}
 async function sGet(key, shared){
   try{
-    const { data, error } = await withTimeout(supa.from('mazareta_kv').select('value').eq('key', key).maybeSingle(), 8000);
-    if(error || !data) return null;
-    return data.value;
+    const data = await kvCall({ action: 'get', key });
+    return (data && 'value' in data) ? data.value : null;
   } catch(e){ return null; }
 }
 async function sSet(key, value, shared){
   try{
-    const { error } = await withTimeout(supa.from('mazareta_kv').upsert({ key, value, updated_at: new Date().toISOString() }), 8000);
-    return !error;
+    const data = await kvCall({ action: 'set', key, value });
+    return !!(data && data.ok);
   } catch(e){ return false; }
 }
 async function sDelete(key){
   try{
-    const { error } = await withTimeout(supa.from('mazareta_kv').delete().eq('key', key), 8000);
-    return !error;
+    const data = await kvCall({ action: 'delete', key });
+    return !!(data && data.ok);
   } catch(e){ return false; }
 }
 async function sList(prefix, shared){
   try{
-    const { data, error } = await withTimeout(supa.from('mazareta_kv').select('key').like('key', prefix+'%'), 8000);
-    if(error || !data) return [];
-    return data.map(r=>r.key);
+    const data = await kvCall({ action: 'list', prefix });
+    return (data && Array.isArray(data.keys)) ? data.keys : [];
   } catch(e){ return []; }
 }
 function uid(){ return 'u' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
