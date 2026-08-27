@@ -1419,6 +1419,161 @@
     .header{ padding:20px 15px 6px !important; }
   }
 
+  /* ==================================================================
+     ★★★  تشكيلة جديدة بالكامل — كروت لاعبين بصور حقيقية + ملعب بروفيشنال
+     (Rebuilt lineup: real player-photo cards on a broadcast-grade pitch)
+     يأتي هذا البلوك في آخر الـ CSS ليتغلّب على أي قواعد سابقة.
+     ================================================================== */
+
+  /* ---------- الملعب: عشب أعمق + خطوط ملعب حقيقية ---------- */
+  .pitch-card{ overflow:hidden; border-radius:22px !important;
+    border:1px solid rgba(255,255,255,0.10) !important;
+    box-shadow:0 26px 54px -18px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06) !important; }
+  .pitch{
+    position:relative;
+    padding:30px 12px 24px !important;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 48px, rgba(0,0,0,0.04) 48px 96px),
+      radial-gradient(135% 78% at 50% 4%, #17A052 0%, #0C8040 46%, #06612F 100%) !important;
+    box-shadow:
+      inset 0 34px 70px -22px rgba(0,0,0,0.42),
+      inset 0 -30px 56px -26px rgba(0,0,0,0.55),
+      inset 0 0 0 1px rgba(255,255,255,0.04) !important;
+  }
+  /* خطوط الملعب (حدود + منطقة جزاء علوية/سفلية + خط المنتصف) — SVG يتمدّد مع الكارت */
+  .pitch::before{
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:1; border:none; border-radius:0;
+    background:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 380' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.42)' stroke-width='1.3'%3E%3Crect x='7' y='7' width='286' height='366' rx='4'/%3E%3Cline x1='7' y1='190' x2='293' y2='190'/%3E%3Crect x='92' y='7' width='116' height='52'/%3E%3Crect x='125' y='7' width='50' height='19'/%3E%3Crect x='92' y='321' width='116' height='52'/%3E%3Crect x='125' y='354' width='50' height='19'/%3E%3C/g%3E%3C/svg%3E") center/100% 100% no-repeat;
+    opacity:0.85;
+  }
+  /* دائرة المنتصف — بكسل ثابت تفضل دائرية مهما تغيّر ارتفاع الكارت */
+  .pitch::after{
+    content:''; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:70px; height:70px; border:1.3px solid rgba(255,255,255,0.42); border-radius:50%;
+    box-shadow:0 0 0 2px transparent; z-index:1;
+    background:radial-gradient(circle, rgba(255,255,255,0.5) 0 2px, transparent 2.6px);
+  }
+  .pitch .row{ position:relative; z-index:2; gap:8px !important; margin-bottom:16px !important; }
+  .pitch .row:last-child{ margin-bottom:2px !important; }
+
+  /* ---------- كارت اللاعب ---------- */
+  .player{ width:58px !important; }
+  .jersey.ptoken{
+    width:52px; height:60px; position:relative;
+    clip-path:none !important; background:transparent !important;
+    box-shadow:none !important; border:none; border-radius:0;
+    display:block; overflow:visible; cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .jersey.ptoken:active{ transform:scale(0.94); }
+  .ptoken-photo{
+    position:relative; width:100%; height:100%;
+    border-radius:14px; overflow:hidden;
+    display:flex; align-items:flex-end; justify-content:center;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.03) 46%, rgba(0,0,0,0.14)),
+      radial-gradient(96% 74% at 50% 122%, color-mix(in srgb, var(--club,#3AA0FF) 78%, transparent) 0%, transparent 72%),
+      rgba(10,2,16,0.30);
+    border:1px solid rgba(255,255,255,0.18);
+    box-shadow:
+      0 7px 15px rgba(0,0,0,0.38),
+      inset 0 1px 0 rgba(255,255,255,0.30),
+      inset 0 -14px 22px -14px color-mix(in srgb, var(--club,#3AA0FF) 60%, transparent);
+    -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+  }
+  .ptoken-img{
+    width:118%; height:auto; display:block; margin-top:3px;
+    filter:drop-shadow(0 5px 5px rgba(0,0,0,0.45));
+    pointer-events:none;
+  }
+  /* لو الصورة الحقيقية مش موجودة → قميص النادي (يتوسّط ويصغر شوية) */
+  .ptoken-img.is-shirt{ width:60%; margin:auto; filter:drop-shadow(0 4px 5px rgba(0,0,0,0.4)); }
+  /* لو حتى القميص فشل → بادج بأول حرف */
+  .ptoken-photo .img-fallback{
+    width:62%; height:auto; aspect-ratio:1/1; margin:auto; border-radius:50%;
+    font-size:15px; align-self:center;
+    background:linear-gradient(160deg, var(--club,#3AA0FF), color-mix(in srgb, var(--club,#3AA0FF) 40%, #000));
+    color:#fff; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.25);
+  }
+
+  /* اختيار / لايف */
+  .jersey.ptoken.selected .ptoken-photo{
+    border-color:var(--primary-soft);
+    box-shadow:0 0 0 2px var(--primary-soft), 0 0 0 6px rgba(255,77,139,0.20), 0 10px 20px rgba(0,0,0,0.45);
+  }
+  .jersey.ptoken.live-now .ptoken-photo{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent), 0 0 14px rgba(0,255,135,0.55), 0 7px 15px rgba(0,0,0,0.38);
+    animation:pulse-live-ring 1.8s infinite;
+  }
+
+  /* شارة الكابتن */
+  .jersey.ptoken .cap{
+    top:-6px; left:-6px; width:18px; height:18px; font-size:9.5px;
+    background:linear-gradient(160deg,#F6D77A,#D9A93F); color:#3A2A05;
+    border:2px solid #0C7C3E; box-shadow:0 2px 5px rgba(0,0,0,0.4);
+    z-index:3;
+  }
+  .jersey.ptoken .live-dot{
+    top:-4px; right:-4px; width:11px; height:11px;
+    background:var(--accent); border:2px solid #0C7C3E; z-index:3;
+  }
+
+  /* الاسم */
+  .player .pname{
+    margin-top:8px; font-size:9.5px; font-weight:700; color:#fff;
+    background:rgba(8,2,14,0.62); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);
+    border:1px solid rgba(255,255,255,0.10);
+    padding:2.5px 8px; border-radius:8px; max-width:66px;
+    box-shadow:0 3px 8px rgba(0,0,0,0.3); letter-spacing:0.2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; direction:ltr;
+  }
+  /* النقاط */
+  .player .ppts{
+    margin-top:5px; font-size:9.5px; font-weight:800;
+    padding:2.5px 9px; border-radius:999px; direction:ltr;
+    box-shadow:0 2px 6px rgba(0,0,0,0.22);
+  }
+  .player .ppts.upcoming{ background:rgba(255,255,255,0.13); color:var(--text); border:1px solid rgba(255,255,255,0.10); }
+  .player .ppts.played{ background:linear-gradient(160deg,#FF6FA6,#FF2E7E); color:#3A0018; box-shadow:0 3px 9px rgba(255,46,126,0.35); }
+  .player .ppts.live-playing{ background:linear-gradient(135deg,#e90052,#ff005a) !important; color:#fff !important; box-shadow:0 3px 10px rgba(233,0,82,0.5); }
+  .player .ppts.has-bonus{ background:linear-gradient(160deg,#F2D57A,#D9A93F); color:#3A2A05; }
+
+  /* المكان الفاضي */
+  .jersey.ptoken.placeholder, .jersey.placeholder{
+    width:52px; height:60px; border-radius:14px;
+    background:rgba(255,255,255,0.05) !important;
+    border:2px dashed rgba(255,255,255,0.22) !important;
+    display:flex; align-items:center; justify-content:center;
+    color:rgba(255,255,255,0.4); font-size:20px; font-weight:400; clip-path:none !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.05) !important; cursor:default;
+  }
+
+  /* ---------- الاحتياطي ---------- */
+  .bench{
+    background:linear-gradient(180deg, #1A0322, #100017) !important;
+    padding:12px 14px 14px !important; flex-direction:column !important; gap:9px !important;
+    border-top:1px solid rgba(255,255,255,0.07) !important;
+  }
+  .bench-head{
+    font-family:'Cairo'; font-weight:800; font-size:10px; letter-spacing:0.4px;
+    color:var(--muted); display:flex; align-items:center; gap:7px; padding:0 2px;
+  }
+  .bench-head::before, .bench-head::after{ content:''; height:1px; flex:1; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent); }
+  .bench-players{ display:flex; gap:8px; justify-content:space-between; }
+  .bench .player{ width:auto !important; opacity:0.94; }
+  .bench .jersey.ptoken{ width:44px; height:50px; }
+  .bench .jersey.placeholder{ width:44px; height:50px; }
+  .bench .pname{ font-size:8px; margin-top:6px; max-width:52px; }
+
+  /* شاشات صغيرة */
+  @media (max-width:360px){
+    .player{ width:52px !important; }
+    .jersey.ptoken{ width:47px; height:55px; }
+    .pitch .row{ gap:6px !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -1500,6 +1655,59 @@ function imgFallback(img){
   fb.className = img.className + ' img-fallback' + (isProfile ? ' img-fallback-profile' : '');
   fb.textContent = label;
   img.replaceWith(fb);
+}
+
+// ===================================================================
+// صور اللاعبين الحقيقية في التشكيلة — تتحدّث تلقائيًا من بيانات FPL
+// (كل لاعب معاه code من الـ API، وهو نفس مصدر صورة صفحة البروفايل)
+// ===================================================================
+// لون مميّز لكل نادي — يُستخدم كتوهّج ناعم أسفل كارت اللاعب
+const CLUB_ACCENT = {
+  liv:'#E01B2E', ars:'#EF0107', mci:'#6CABDD', mun:'#DA291C', che:'#2E6FD1',
+  new:'#3A3A3C', tot:'#1C2B57', avl:'#7A003C', bou:'#DA291C', bre:'#E30613',
+  bha:'#0057B8', bur:'#7A2148', crv:'#3C4EA0', cry:'#1B458F', eve:'#274488',
+  ful:'#3A3A3C', ips:'#1B58A6', lee:'#1D428A', lei:'#0053A0', nfo:'#DD0000',
+  sun:'#E8171F', whu:'#8A2A3E', wol:'#E8A400', sou:'#D71920', lut:'#F4610F',
+  shu:'#E8171F', gk:'#12A05A'
+};
+function clubTokenColor(clubKey){
+  if(clubKey && CLUB_ACCENT[clubKey]) return CLUB_ACCENT[clubKey];
+  if(!clubKey) return '#3AA0FF';
+  let h = 0;
+  for(let i=0;i<clubKey.length;i++){ h = (h*31 + clubKey.charCodeAt(i)) >>> 0; }
+  return 'hsl(' + (h % 360) + ',58%,46%)';
+}
+// عنصر <img> لصورة اللاعب: صورة حقيقية → لو فشلت قميص النادي → لو فشل كمان أول حرف
+function pitchPhotoImg(p){
+  const shirt = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
+  const photo = p.code ? ('https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png') : shirt;
+  const isPhoto = !!p.code;
+  return '<img class="ptoken-img' + (isPhoto ? '' : ' is-shirt') + '" src="' + photo + '" data-shirt="' + shirt + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
+}
+function pitchPhotoFallback(img){
+  if(img.dataset.shirtTried){ img.onerror = null; imgFallback(img); return; }
+  img.dataset.shirtTried = '1';
+  img.classList.add('is-shirt');
+  img.src = img.dataset.shirt;
+}
+// كارت اللاعب الموحّد المستخدم في كل الملاعب (تشكيلتي/دريم تيم/تقييم الخوارزمية)
+// o: { mode, selected, isCap, isLiveNow, showPts, pptsClass, bottomText }
+function renderPitchToken(p, o){
+  o = o || {};
+  const club = clubTokenColor(p.club);
+  let cls = 'jersey ptoken';
+  if(o.selected) cls += ' selected';
+  if(o.isLiveNow) cls += ' live-now';
+  const dataAttr = o.mode ? (' data-player="' + p.id + '" data-mode="' + o.mode + '"') : '';
+  return '<div class="player" data-viewprofile="' + p.id + '">' +
+    '<div class="' + cls + '"' + dataAttr + ' style="--club:' + club + '">' +
+      '<div class="ptoken-photo">' + pitchPhotoImg(p) + '</div>' +
+      (o.isCap ? '<div class="cap">C</div>' : '') +
+      (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
+    '</div>' +
+    '<div class="pname">' + escapeHtml(p.name) + '</div>' +
+    (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
+  '</div>';
 }
 
 // بتتملى فعليًا من بيانات FPL الحقيقية وقت الإقلاع — دي بس نقطة بداية فاضية
@@ -3324,15 +3532,13 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsFormatted;
   }
 
-  return '<div class="player" data-viewprofile="' + p.id + '">' +
-    '<div class="jersey jersey-photo">' +
-      '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-      (isCap ? '<div class="cap">C</div>' : '') +
-      (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
-    '</div>' +
-    '<div class="pname">' + p.name + '</div>' +
-    '<div class="' + pptsClass + '">' + displayBottom + '</div>' +
-  '</div>';
+  return renderPitchToken(p, {
+    isCap: isCap,
+    isLiveNow: isLiveNow,
+    showPts: true,
+    pptsClass: pptsClass,
+    bottomText: displayBottom
+  });
 }
 
 function renderDreamTeamCard(){
@@ -3447,15 +3653,13 @@ function renderAiEvaluationCard(){
       let pptsClass = 'ppts played';
       if (isLiveNow) pptsClass += ' live-playing';
 
-      return '<div class="player" data-viewprofile="' + p.id + '">' +
-        '<div class="jersey jersey-photo">' +
-          '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-          (isCap ? '<div class="cap">C</div>' : '') +
-          (isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
-        '</div>' +
-        '<div class="pname">' + p.name + '</div>' +
-        '<div class="' + pptsClass + '">pts ' + (isCap ? '(C) ' : '') + ptsFormatted + '</div>' +
-      '</div>';
+      return renderPitchToken(p, {
+        isCap: isCap,
+        isLiveNow: isLiveNow,
+        showPts: true,
+        pptsClass: pptsClass,
+        bottomText: 'pts ' + (isCap ? '(C) ' : '') + ptsFormatted
+      });
     }).join('') + '</div>';
   }
 
@@ -4256,15 +4460,15 @@ function renderJersey(p, opts){
     liveDotHtml = (p.isPlayingLive ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '');
   }
 
-  return '<div class="player" data-viewprofile="' + p.id + '">' +
-    '<div class="' + cls + '"' + dataAttr + '>' +
-      '<img class="jersey-shirt" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-      (isCap ? '<div class="cap">C</div>' : '') +
-      liveDotHtml +
-    '</div>' +
-    '<div class="pname">' + p.name + '</div>' +
-    (showPts ? '<div class="' + pptsClass + '">' + displayBottom + '</div>' : '') +
-  '</div>';
+  return renderPitchToken(p, {
+    mode: mode,
+    selected: !!opts.selected,
+    isCap: isCap,
+    isLiveNow: !opts.planningMode && !!p.isPlayingLive,
+    showPts: showPts,
+    pptsClass: pptsClass,
+    bottomText: displayBottom
+  });
 }
 function renderPlaceholder(pos, slot){
   const label = {GK:'حارس', DEF:'مدافع', MID:'وسط', FWD:'مهاجم'}[pos] || pos;
@@ -4359,7 +4563,7 @@ function renderPitchCard(interactive){
     rowHtml(defAll, defNeed, 'DEF') +
     rowHtml(midAll, midNeed, 'MID') +
     rowHtml(fwdAll, fwdNeed, 'FWD') +
-  '</div><div class="bench">' + benchHtml + '</div></div>';
+  '</div><div class="bench"><div class="bench-head">مقاعد البدلاء</div><div class="bench-players">' + benchHtml + '</div></div></div>';
 }
 
 // ===== TEAM TAB =====
