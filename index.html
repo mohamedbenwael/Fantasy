@@ -1482,17 +1482,29 @@
       inset 0 -14px 22px -14px color-mix(in srgb, var(--club,#3AA0FF) 60%, transparent);
     -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
   }
+  /* قص على الوش: بنكبّر الصورة ونظبّطها من فوق عشان الوش يبان والقميص القديم يتقص من تحت */
   .ptoken-img{
-    width:118%; height:auto; display:block; margin-top:3px;
-    filter:drop-shadow(0 5px 5px rgba(0,0,0,0.45));
-    pointer-events:none;
+    width:100%; height:100%; object-fit:cover; object-position:50% 12%;
+    transform:scale(1.46); transform-origin:50% 12%;
+    display:block; pointer-events:none;
+    filter:drop-shadow(0 4px 4px rgba(0,0,0,0.4));
   }
-  /* لو الصورة الحقيقية مش موجودة → قميص النادي (يتوسّط ويصغر شوية) */
-  .ptoken-img.is-shirt{ width:60%; margin:auto; filter:drop-shadow(0 4px 5px rgba(0,0,0,0.4)); }
+  /* شعار النادي الحالي على الكارت — بيحسم الفريق الصح مهما كانت الصورة قديمة */
+  .ptoken-badge{
+    position:absolute; bottom:3px; inset-inline-start:3px; z-index:2;
+    width:17px; height:17px; object-fit:contain; padding:1.5px;
+    background:rgba(255,255,255,0.92); border-radius:50%;
+    box-shadow:0 1px 3px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  /* لو الصورة الحقيقية مش موجودة → قميص النادي (يتوسّط ويصغر شوية، من غير قص) */
+  .ptoken-img.is-shirt{
+    width:60%; height:auto; margin:auto; object-fit:contain;
+    transform:none; filter:drop-shadow(0 4px 5px rgba(0,0,0,0.4));
+  }
   /* لو حتى القميص فشل → بادج بأول حرف */
   .ptoken-photo .img-fallback{
     width:62%; height:auto; aspect-ratio:1/1; margin:auto; border-radius:50%;
-    font-size:15px; align-self:center;
+    font-size:15px; align-self:center; transform:none; object-fit:fill;
     background:linear-gradient(160deg, var(--club,#3AA0FF), color-mix(in srgb, var(--club,#3AA0FF) 40%, #000));
     color:#fff; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,0.25);
   }
@@ -1690,6 +1702,12 @@ function pitchPhotoFallback(img){
   img.classList.add('is-shirt');
   img.src = img.dataset.shirt;
 }
+// شعار النادي الحالي — بيتجاب لايف من داتا الفانتازي، فبيحسم "اللاعب في أي فريق دلوقتي"
+// حتى لو الصورة الرسمية قديمة وهو لابس قميص ناديه القديم
+function pitchClubBadge(p){
+  if(!p.teamCode) return '';
+  return '<img class="ptoken-badge" src="https://resources.premierleague.com/premierleague/badges/t' + p.teamCode + '.png" alt="" onerror="this.style.display=\'none\'" loading="lazy">';
+}
 // كارت اللاعب الموحّد المستخدم في كل الملاعب (تشكيلتي/دريم تيم/تقييم الخوارزمية)
 // o: { mode, selected, isCap, isLiveNow, showPts, pptsClass, bottomText }
 function renderPitchToken(p, o){
@@ -1701,7 +1719,7 @@ function renderPitchToken(p, o){
   const dataAttr = o.mode ? (' data-player="' + p.id + '" data-mode="' + o.mode + '"') : '';
   return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="' + cls + '"' + dataAttr + ' style="--club:' + club + '">' +
-      '<div class="ptoken-photo">' + pitchPhotoImg(p) + '</div>' +
+      '<div class="ptoken-photo">' + pitchPhotoImg(p) + pitchClubBadge(p) + '</div>' +
       (o.isCap ? '<div class="cap">C</div>' : '') +
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
     '</div>' +
