@@ -1369,7 +1369,12 @@
     box-shadow:0 6px 16px -6px rgba(233,0,82,0.7); }
   .hx-dl-ic svg{ width:18px; height:18px; }
   .hx-dl-lbl{ font-size:10px; color:var(--muted); }
-  .hx-dl-val{ font-family:'Cairo'; font-weight:800; font-size:15px; color:#fff; margin-top:3px; letter-spacing:.2px; font-variant-numeric:tabular-nums; }
+  .hx-dl-val{ display:flex; align-items:flex-start; gap:3px; margin-top:5px; }
+  .hx-cd-seg{ display:inline-flex; flex-direction:column; align-items:center; }
+  .hx-cd-seg b{ font-family:'Cairo'; font-weight:800; font-size:17px; line-height:1; color:#fff; letter-spacing:.5px; font-variant-numeric:tabular-nums; }
+  .hx-cd-seg i{ font-style:normal; font-size:7.5px; font-weight:600; color:var(--muted); margin-top:3px; letter-spacing:.1px; }
+  .hx-cd-sep{ font-family:'Cairo'; font-weight:800; font-size:15px; line-height:1; color:var(--hx-pink); padding-top:1px; }
+  .hx-cd-locked{ font-family:'Cairo'; font-weight:800; font-size:14px; color:#fff; }
   .hx-dl-cta{ flex-shrink:0; font-family:'Cairo'; font-weight:800; font-size:11.5px; color:#fff; white-space:nowrap;
     background:linear-gradient(160deg, var(--primary), var(--primary-deep)); padding:10px 16px; border-radius:12px;
     box-shadow:0 8px 18px -6px rgba(233,0,82,0.6), inset 0 1px 0 rgba(255,255,255,0.2); }
@@ -1383,16 +1388,6 @@
   .gw-arrow:not(:disabled):active{ background:rgba(233,0,82,0.18) !important; transform:scale(.94); }
   .gw-nav-label{ font-size:13.5px !important; }
   .gw-cur-tag{ background:rgba(0,255,135,0.12) !important; border-color:rgba(0,255,135,0.30) !important; color:var(--accent) !important; }
-
-  /* ---------- FREE-TRANSFER NUDGE ---------- */
-  .hx-nudge{ display:flex; align-items:center; gap:12px; margin:12px var(--hx-gut) 20px; padding:14px 15px; border-radius:var(--hx-radius-sm);
-    background:linear-gradient(115deg, rgba(0,255,135,0.06), rgba(255,255,255,0.02));
-    border:1px solid rgba(0,255,135,0.16); box-shadow:var(--hx-shadow-sm); }
-  .hx-nudge-ic{ width:38px; height:38px; flex-shrink:0; border-radius:12px; display:flex; align-items:center; justify-content:center;
-    color:#7CFFC2; background:rgba(0,255,135,0.12); border:1px solid rgba(0,255,135,0.22); }
-  .hx-nudge-ic svg{ width:19px; height:19px; }
-  .hx-nudge-txt .t1{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
-  .hx-nudge-txt .t2{ font-size:10.5px; color:var(--muted); margin-top:3px; line-height:1.55; }
 
   /* ---------- SECTION TITLES (shared, refined) ---------- */
   .section-title{ margin:24px var(--hx-gut) 12px !important; align-items:center; }
@@ -1412,7 +1407,7 @@
   /* ---------- DESKTOP / TWO-COLUMN alignment for new cards ---------- */
   @media (min-width:820px){
     .home-side > .hx-hero:first-child{ margin-top:0 !important; }
-    .hx-hero, .hx-deadline, .hx-nudge{ margin-inline:0 !important; }
+    .hx-hero, .hx-deadline{ margin-inline:0 !important; }
     .hx-hero-num{ font-size:50px; }
   }
   /* very small phones */
@@ -3762,6 +3757,39 @@ function countdown(iso){
   return h+' ساعة و'+m+' دقيقة';
 }
 
+// ===== عدّاد تنازلي حي (بيتحدّث كل ثانية) لديدلاين الجولة =====
+// بيرجّع HTML بخانات (يوم/ساعة/دقيقة/ثانية)؛ الخانة "يوم" بتظهر بس لو فاضل أكتر من يوم.
+function countdownHtml(iso){
+  if(!iso) return '<span class="hx-cd-locked">غير متاح</span>';
+  const diff = new Date(iso).getTime() - Date.now();
+  if(isNaN(diff)) return '<span class="hx-cd-locked">غير متاح</span>';
+  if(diff <= 0) return '<span class="hx-cd-locked">التشكيلة مقفولة</span>';
+  const d = Math.floor(diff/86400000);
+  const h = Math.floor((diff%86400000)/3600000);
+  const m = Math.floor((diff%3600000)/60000);
+  const s = Math.floor((diff%60000)/1000);
+  const pad = n => String(n).padStart(2,'0');
+  const seg = (v,l) => '<span class="hx-cd-seg"><b>'+pad(v)+'</b><i>'+l+'</i></span>';
+  const sep = '<span class="hx-cd-sep">:</span>';
+  let out = '';
+  if(d > 0) out += seg(d,'يوم') + sep;
+  out += seg(h,'ساعة') + sep + seg(m,'دقيقة') + sep + seg(s,'ثانية');
+  return out;
+}
+// مؤقّت واحد فقط بيحدّث خانة العدّاد؛ بيتوقف تلقائيًا لو العنصر اختفى (تبويب تاني/إعادة رسم).
+let __hxCountdownTimer = null;
+function startCountdownTicker(){
+  if(__hxCountdownTimer){ clearInterval(__hxCountdownTimer); __hxCountdownTimer = null; }
+  if(!document.getElementById('hxCountdown')) return;
+  const tick = () => {
+    const el = document.getElementById('hxCountdown');
+    if(!el){ if(__hxCountdownTimer){ clearInterval(__hxCountdownTimer); __hxCountdownTimer = null; } return; }
+    el.innerHTML = countdownHtml(el.getAttribute('data-deadline'));
+  };
+  tick();
+  __hxCountdownTimer = setInterval(tick, 1000);
+}
+
 // ===== icons =====
 const ICON_CLOCK = '<svg class="i ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const ICON_UP = '<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>';
@@ -4083,25 +4111,18 @@ function renderHome(){
     '</div>' +
   '</div>' +
 
-  /* ===== كارت الموعد النهائي ===== */
+  /* ===== كارت الموعد النهائي (عدّاد تنازلي حي) ===== */
   '<div class="hx-deadline">' +
     '<div class="hx-dl-left">' +
       '<div class="hx-dl-ic">' + ICON_CLOCK + '</div>' +
-      '<div class="hx-dl-info"><div class="hx-dl-lbl">إغلاق تشكيلة الجولة ' + plannerGw() + '</div>' +
-      '<div class="hx-dl-val">' + countdown(plannerDeadline()) + '</div></div>' +
+      '<div class="hx-dl-info"><div class="hx-dl-lbl">ديدلاين الجولة ' + plannerGw() + '</div>' +
+      '<div class="hx-dl-val" id="hxCountdown" data-deadline="' + (plannerDeadline() || '') + '">' + countdownHtml(plannerDeadline()) + '</div></div>' +
     '</div>' +
     '<button class="hx-dl-cta" data-goto="transfers">تعديل التشكيلة</button>' +
   '</div>' +
 
   /* ===== شريط التنقّل بين الجولات ===== */
   renderGwNav() +
-
-  /* ===== تنبيه التبديلات المجانية ===== */
-  (isHistoricalView() ? '' :
-    '<div class="hx-nudge"><div class="hx-nudge-ic">' + ICON_BULB + '</div>' +
-      '<div class="hx-nudge-txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
-      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي.</div></div>' +
-    '</div>') +
   '</div>' +   /* إغلاق home-side */
 
   '<div class="home-main">' +
@@ -5350,6 +5371,9 @@ function bindMarketListItems(container){
 
 function bindBody(){
   const el = document.getElementById('app-body');
+
+  // تشغيل العدّاد التنازلي الحي لديدلاين الجولة (لو موجود على الشاشة)
+  startCountdownTicker();
 
   // ===== تحسينات إتاحة (Accessibility) — بتتطبّق مركزيًا بعد كل رسم =====
   // 1) أزرار الرجوع أيقونة بس من غير نص — نديها اسم يقراه قارئ الشاشة
