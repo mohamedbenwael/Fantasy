@@ -1595,6 +1595,131 @@
     .pitch .row{ gap:6px !important; }
   }
 
+  /* ==================================================================
+     ★★★  شاشة التوقعات — إعادة بناء كاملة، تصميم بروفيشنال ونضيف
+     صور لاعبين حقيقية في كل صف + هيرو فخم + كروت مرتبة، بدون شرح زايد
+     ================================================================== */
+
+  /* أفاتار الوش الدائري (يُعاد استخدامه في كل صفوف التوقعات) */
+  .face{
+    position:relative; flex-shrink:0; border-radius:50%; overflow:hidden; cursor:pointer;
+    background:radial-gradient(85% 85% at 50% 18%, color-mix(in srgb, var(--club,#3AA0FF) 42%, #1b0a22), #12001b);
+    box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--club,#3AA0FF) 72%, transparent), 0 3px 9px rgba(0,0,0,0.32);
+  }
+  .face-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 14%;
+    transform:scale(1.26); transform-origin:50% 14%; }
+  .face-silhouette{ position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:center; }
+  .face-silhouette svg{ width:74%; height:auto; margin-bottom:-2px; fill:rgba(255,255,255,0.9);
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
+
+  /* ---------- هيرو: توقع نقاط تشكيلتك ---------- */
+  .pred-hero{
+    position:relative; overflow:hidden; margin:6px 20px 4px; padding:22px 20px; border-radius:22px;
+    background:
+      radial-gradient(120% 80% at 88% -10%, rgba(233,0,82,0.28) 0%, transparent 55%),
+      radial-gradient(120% 90% at 0% 0%, rgba(0,255,135,0.10) 0%, transparent 46%),
+      linear-gradient(155deg, #2C0733 0%, #16002E 52%, #0B0016 100%);
+    border:1px solid rgba(255,255,255,0.09);
+    box-shadow:0 24px 48px -18px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+  .pred-hero .ph-lbl{ font-size:11px; color:var(--muted); font-weight:700; letter-spacing:0.2px; display:flex; align-items:center; gap:7px; }
+  .pred-hero .ph-live{ display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:800; color:#04321B;
+    background:var(--accent); padding:2px 8px; border-radius:999px; }
+  .pred-hero .ph-live .d{ width:5px; height:5px; border-radius:50%; background:#04321B; animation:pulse-live-dot 1.6s infinite; }
+  .pred-hero .ph-score{ font-family:'Cairo'; font-weight:900; font-size:44px; line-height:1; margin-top:8px;
+    background:linear-gradient(180deg,#ffffff 0%,#FFC2DA 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .pred-hero .ph-unit{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--muted); margin-inline-start:8px; -webkit-text-fill-color:var(--muted); }
+  .pred-hero .ph-pills{ display:flex; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  .ph-pill{ display:flex; align-items:center; gap:7px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.09);
+    border-radius:999px; padding:6px 12px; font-size:11px; color:var(--text); font-weight:700; }
+  .ph-pill .k{ color:var(--muted); font-weight:600; }
+  .ph-pill .cface{ width:20px; height:20px; }
+
+  /* ---------- صف لاعب بصورة ---------- */
+  .pl-row{ display:flex; align-items:center; gap:11px; padding:9px 13px; border-radius:15px; margin-bottom:8px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+    border:1px solid rgba(255,255,255,0.07); }
+  .pl-row .face{ width:40px; height:40px; }
+  .pl-main{ flex:1; min-width:0; cursor:pointer; }
+  .pl-name{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pl-meta{ font-size:9.5px; color:var(--muted); margin-top:2px; }
+  .pl-chip{ font-family:'Cairo'; font-weight:800; font-size:12px; padding:6px 12px; border-radius:11px; flex-shrink:0; white-space:nowrap;
+    background:rgba(233,0,82,0.14); color:var(--primary-soft); border:1px solid rgba(233,0,82,0.26); }
+  .pl-chip.warn, .pl-chip.mkt-out{ background:rgba(255,77,109,0.12); color:#ff6d84; border-color:rgba(255,77,109,0.26); }
+  .pl-chip.mkt-in{ background:rgba(0,255,135,0.10); color:#28DF89; border-color:rgba(0,255,135,0.22); }
+
+  /* ---------- كارت الكابتن المقترح ---------- */
+  .cap-sugg{ display:flex; align-items:center; gap:13px; margin:0 20px; padding:13px 15px; border-radius:18px;
+    background:linear-gradient(150deg, rgba(232,196,104,0.14), rgba(232,196,104,0.03));
+    border:1px solid rgba(232,196,104,0.26); box-shadow:0 14px 30px -16px rgba(0,0,0,0.6); }
+  .cap-sugg .face{ width:52px; height:52px; box-shadow:inset 0 0 0 2px var(--gold), 0 3px 9px rgba(0,0,0,0.35); }
+  .cap-sugg .cs-body{ flex:1; min-width:0; cursor:pointer; }
+  .cap-sugg .cs-kick{ display:flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:800; font-size:10px; color:var(--gold); letter-spacing:0.2px; }
+  .cap-sugg .cs-kick svg{ width:12px; height:12px; }
+  .cap-sugg .cs-name{ font-family:'Cairo'; font-weight:800; font-size:15px; color:var(--text); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cap-sugg .cs-val{ text-align:center; flex-shrink:0; }
+  .cap-sugg .cs-num{ font-family:'Cairo'; font-weight:900; font-size:19px; color:var(--gold); line-height:1; }
+  .cap-sugg .cs-numlbl{ font-size:8.5px; color:var(--muted); margin-top:3px; }
+
+  /* ---------- سطر تبديل مقترح في التشكيل ---------- */
+  .swap-line{ display:flex; align-items:center; gap:8px; margin:0 20px 8px; padding:10px 13px; border-radius:13px;
+    background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); }
+  .swap-line .sl-in, .swap-line .sl-out{ font-family:'Cairo'; font-weight:700; font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:34%; }
+  .swap-line .sl-in{ color:var(--accent); }
+  .swap-line .sl-in svg, .swap-line .sl-out svg{ width:11px; height:11px; vertical-align:-1px; }
+  .swap-line .sl-out{ color:var(--muted); }
+  .swap-line .sl-arrow{ color:var(--muted2); display:flex; }
+  .swap-line .sl-arrow svg{ width:14px; height:14px; }
+  .swap-line .sl-gain{ margin-inline-start:auto; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--primary-soft);
+    background:rgba(233,0,82,0.12); border:1px solid rgba(233,0,82,0.22); padding:3px 9px; border-radius:999px; flex-shrink:0; }
+
+  /* ---------- كارت مقترح انتقال (بيع/شراء) ---------- */
+  .tr-card{ margin:0 20px 10px; padding:13px 14px; border-radius:18px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+    border:1px solid rgba(255,255,255,0.08); box-shadow:0 14px 30px -18px rgba(0,0,0,0.55); }
+  .tr-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .tr-kick{ font-family:'Cairo'; font-weight:800; font-size:9.5px; color:var(--muted); letter-spacing:0.3px; }
+  .tr-gain{ display:inline-flex; align-items:center; gap:4px; font-family:'Cairo'; font-weight:900; font-size:12.5px; color:var(--accent);
+    background:rgba(0,255,135,0.10); border:1px solid rgba(0,255,135,0.22); padding:4px 11px; border-radius:999px; }
+  .tr-gain svg{ width:12px; height:12px; }
+  .tr-gain span{ font-size:9px; color:var(--muted); font-weight:600; margin-inline-start:2px; }
+  .tr-body{ display:flex; align-items:center; gap:8px; }
+  .tr-side{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .tr-side.buy{ flex-direction:row-reverse; }
+  .tr-side .face{ width:44px; height:44px; }
+  .tr-info{ min-width:0; }
+  .tr-side.buy .tr-info{ text-align:left; }
+  .tr-tag{ font-family:'Cairo'; font-weight:800; font-size:8.5px; letter-spacing:0.3px; margin-bottom:2px; }
+  .tr-side.sell .tr-tag{ color:var(--coral); }
+  .tr-side.buy .tr-tag{ color:var(--accent); }
+  .tr-nm{ font-family:'Cairo'; font-weight:700; font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tr-pr{ font-size:9.5px; color:var(--muted); margin-top:1px; }
+  .tr-swap{ flex-shrink:0; width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.09); display:flex; align-items:center; justify-content:center; color:var(--primary-soft); }
+  .tr-swap svg{ width:14px; height:14px; }
+
+  /* ---------- صف كلين شيت (نادي) ---------- */
+  .cs-row2{ display:flex; align-items:center; gap:11px; margin:0 20px 8px; padding:10px 14px; border-radius:15px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015)); border:1px solid rgba(255,255,255,0.07); }
+  .cs-row2 .cs-logo{ width:32px; height:32px; object-fit:contain; flex-shrink:0; }
+  .cs-row2 .cs-main{ flex:1; min-width:0; }
+  .cs-row2 .cs-nm{ font-family:'Cairo'; font-weight:700; font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cs-row2 .cs-mt{ font-size:9.5px; color:var(--muted); margin-top:2px; }
+  .cs-row2 .cs-pct{ font-family:'Cairo'; font-weight:900; font-size:15px; flex-shrink:0;
+    background:linear-gradient(180deg,#7BEFB0,#2BD98A); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+  /* عناوين أقسام شاشة التوقعات — نضيفة وبسيطة */
+  .pred-sec{ display:flex; align-items:center; justify-content:space-between; margin:24px 20px 11px; }
+  .pred-sec h2{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); letter-spacing:-0.2px; position:relative; padding-inline-start:12px; }
+  .pred-sec h2::before{ content:''; position:absolute; inset-inline-start:0; top:50%; transform:translateY(-50%);
+    width:4px; height:16px; border-radius:2px; background:linear-gradient(180deg,var(--primary-soft),var(--primary-deep)); }
+  .pred-sec .tag{ font-family:'Cairo'; font-weight:800; font-size:10px; color:var(--muted); }
+
+  @media (max-width:360px){
+    .pred-hero .ph-score{ font-size:38px; }
+    .pl-chip, .swap-line .sl-in, .swap-line .sl-out{ font-size:11px; }
+  }
+
 </style>
 </head>
 <body>
@@ -1720,6 +1845,22 @@ function pitchPhotoFallback(img){
 function pitchClubBadge(p){
   if(!p.teamCode) return '';
   return '<img class="ptoken-badge" src="https://resources.premierleague.com/premierleague/badges/t' + p.teamCode + '.png" alt="" onerror="this.style.display=\'none\'" loading="lazy">';
+}
+// أفاتار وش دائري للاعب (يُستخدم في صفوف شاشة التوقعات) — صورة حقيقية أو سيلويت
+function facePhoto(p){
+  if(!p.code) return '<div class="face-silhouette">' + SILHOUETTE_SVG + '</div>';
+  const photo = 'https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png';
+  return '<img class="face-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="facePhotoFail(this)" loading="lazy">';
+}
+function facePhotoFail(img){
+  img.onerror = null;
+  const d = document.createElement('div');
+  d.className = 'face-silhouette';
+  d.innerHTML = SILHOUETTE_SVG;
+  img.replaceWith(d);
+}
+function faceCircle(p, cls){
+  return '<div class="face ' + (cls||'') + '" style="--club:' + clubTokenColor(p.club) + '">' + facePhoto(p) + '</div>';
 }
 // كارت اللاعب الموحّد المستخدم في كل الملاعب (تشكيلتي/دريم تيم/تقييم الخوارزمية)
 // o: { mode, selected, isCap, isLiveNow, showPts, pptsClass, bottomText }
@@ -3694,20 +3835,15 @@ function renderAiEvaluationCard(){
     }).join('') + '</div>';
   }
 
-  const titleText = '<span class="h2-icon" style="color:#8FCBF2;">' + ICON_BOT + ' أداء الخوارزمية (AI Performance)</span>';
-  const scoreText = dt.isLive ? dt.total + ' نقطة فعلية' : 'توقع ' + fmt(dt.total) + ' نقطة';
-  const descText = dt.isLive
-    ? 'التشكيلة المتوقعة مسبقاً بواسطة خوارزمياتنا، مقارنةً بالنقاط الفعلية المحققة.'
-    : 'أفضل تشكيلة متوقعة من كل اللاعبين بناءً على خوارزمياتنا.';
+  const scoreText = dt.isLive ? dt.total + ' فعلية' : 'توقع ' + fmt(dt.total);
 
   return '' +
-  '<div class="section-title"><h2>' + titleText + '</h2>' +
-    '<span class="hint" style="font-size:11px;white-space:nowrap;">' + dt.formation + ' • ' + scoreText + '</span>' +
+  '<div class="pred-sec"><h2>تشكيلة الخوارزمية</h2>' +
+    '<span class="tag">' + dt.formation + ' · ' + scoreText + '</span>' +
   '</div>' +
-  '<div class="pitch-card"><div class="pitch">' +
+  '<div class="pitch-card" style="margin-bottom:2px;"><div class="pitch">' +
     row(gk) + row(def) + row(mid) + row(fwd) +
-  '</div></div>' +
-  '<div class="hint" style="margin:6px 20px 16px;">' + descText + '</div>';
+  '</div></div>';
 }
 
 // اسم الشيب بالعربي (أو null لو مفيش شيب مُفعّل)
@@ -5111,14 +5247,15 @@ function renderPlayerBreakdownModal() {
 
 // ===== PREDICTIONS & ADVICE =====
 function predRow(p, chipText, chipClass, metaExtra, showBonus){
-  const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
   const hasBonus = showBonus!==false && (p.provisionalBonus||0) > 0;
-  return '<div class="p-row"><div class="p-left" data-viewprofile="' + p.id + '">' +
-    '<img class="p-mini jersey-photo" src="' + shirtSrc + '" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-    '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
-    '<div class="p-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+metaExtra):'') + '</div></div></div>' +
-    '<div class="pred-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div>' +
+  return '<div class="pl-row" data-viewprofile="' + p.id + '">' +
+    faceCircle(p) +
+    '<div class="pl-main">' +
+      '<div class="pl-name">' + escapeHtml(p.name) + '</div>' +
+      '<div class="pl-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+escapeHtml(String(metaExtra))):'') + '</div>' +
+    '</div>' +
     (hasBonus ? '<div class="bonus-badge">' + ICON_STAR + ' +' + p.provisionalBonus + '</div>' : '') +
+    '<div class="pl-chip' + (chipClass?(' '+chipClass):'') + '">' + chipText + '</div>' +
   '</div>';
 }
 
@@ -5224,26 +5361,30 @@ function renderPredictions(){
   const bannerScoreText = isLive ? squadScore + ' نقطة فعلية' : fmt(squadScore) + ' نقطة متوقعة';
 
   const suggCap = suggestedCaptain();
+  const isCapAlready = suggCap && suggCap.id===state.captainId;
   const captainCardHtml = (!isStarted && suggCap) ? ('' +
-    '<div class="section-title"><h2 class="h2-icon" style="color:var(--gold);">' + ICON_CROWN + ' كابتن الجولة المقترح من فريقك</h2></div>' +
-    '<div style="margin:0 20px;">' +
-      predRow(
-        suggCap,
-        fmt(predictedPoints(suggCap)) + ' نقطة متوقعة',
-        null,
-        (suggCap.id===state.captainId ? 'هو كابتنك الحالي بالفعل ✅' : 'أعلى توقع نقاط في فريقك')
-      ) +
+    '<div class="pred-sec"><h2>الكابتن المقترح</h2></div>' +
+    '<div class="cap-sugg" data-viewprofile="' + suggCap.id + '">' +
+      faceCircle(suggCap) +
+      '<div class="cs-body">' +
+        '<div class="cs-kick">' + ICON_CROWN + (isCapAlready ? 'كابتنك الحالي' : 'الأعلى توقعًا في فريقك') + '</div>' +
+        '<div class="cs-name">' + escapeHtml(suggCap.name) + '</div>' +
+      '</div>' +
+      '<div class="cs-val"><div class="cs-num">' + fmt(predictedPoints(suggCap)) + '</div><div class="cs-numlbl">نقطة متوقعة</div></div>' +
     '</div>'
   ) : '';
 
   const lineupSwaps = suggestedLineupSwaps();
   const lineupSwapsHtml = (!isStarted && lineupSwaps.length) ? ('' +
-    '<div class="section-title"><h2 class="h2-icon" style="color:var(--primary-soft);">' + ICON_SWAP_ALT + ' تبديلات مقترحة في التشكيل</h2></div>' +
-    '<div style="margin:0 20px;">' +
-      lineupSwaps.map(s=>
-        '<div class="hint" style="margin-bottom:8px;">ننصح بمشاركة <b style="color:var(--text);">' + s.inP.name + '</b> بدلاً من <b style="color:var(--text);">' + s.outP.name + '</b> بناءً على توقعات النقاط (+' + fmt(s.diff) + ' نقطة)</div>'
-      ).join('') +
-    '</div>'
+    '<div class="pred-sec"><h2>تبديلات مقترحة</h2></div>' +
+    lineupSwaps.map(s=>
+      '<div class="swap-line">' +
+        '<span class="sl-in">' + ICON_UP + escapeHtml(s.inP.name) + '</span>' +
+        '<span class="sl-arrow">' + ICON_SWAP_ALT + '</span>' +
+        '<span class="sl-out">' + escapeHtml(s.outP.name) + '</span>' +
+        '<span class="sl-gain">+' + fmt(s.diff) + '</span>' +
+      '</div>'
+    ).join('')
   ) : '';
 
   const squadRowsArr = starters().slice().sort((a,b) => {
@@ -5261,38 +5402,32 @@ function renderPredictions(){
   const topSwaps = bestTransferSuggestions(5);
 
   const suggestionsHtml = topSwaps.length ? topSwaps.map(sug=>
-    '<div class="swap-card">' +
-      '<div class="swap-head">' +
-        '<div class="swap-gain">' + ICON_UP + '+' + fmt(sug.diff) + ' <span>نقطة · ' + (sug.horizon||5) + ' جولات</span></div>' +
-        '<div class="swap-kicker">مقترح انتقال</div>' +
+    '<div class="tr-card">' +
+      '<div class="tr-top">' +
+        '<div class="tr-kick">مقترح انتقال</div>' +
+        '<div class="tr-gain">' + ICON_UP + '+' + fmt(sug.diff) + '<span>' + (sug.horizon||5) + ' جولات</span></div>' +
       '</div>' +
-      '<div class="swap-body">' +
-        '<div class="swap-side sell" data-viewprofile="' + sug.sellP.id + '">' +
-          '<div class="swap-tag">بيع</div>' +
-          '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.sellP.teamCode + (sug.sellP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.sellP.name + '" onerror="imgFallback(this)" loading="lazy">' +
-          '<div class="swap-name">' + sug.sellP.name + '</div>' +
-          '<div class="swap-price">£' + fmt(sug.sellP.price) + 'm</div>' +
-          renderMiniFixtures(sug.sellP) +
+      '<div class="tr-body">' +
+        '<div class="tr-side sell" data-viewprofile="' + sug.sellP.id + '">' +
+          faceCircle(sug.sellP) +
+          '<div class="tr-info"><div class="tr-tag">بيع</div><div class="tr-nm">' + escapeHtml(sug.sellP.name) + '</div><div class="tr-pr">£' + fmt(sug.sellP.price) + 'm</div></div>' +
         '</div>' +
-        '<div class="swap-icon">' + ICON_SWAP_ALT + '</div>' +
-        '<div class="swap-side buy" data-viewprofile="' + sug.buyP.id + '">' +
-          '<div class="swap-tag">شراء</div>' +
-          '<img class="swap-photo jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + sug.buyP.teamCode + (sug.buyP.pos==='GK'?'_1':'') + '-66.webp" alt="' + sug.buyP.name + '" onerror="imgFallback(this)" loading="lazy">' +
-          '<div class="swap-name">' + sug.buyP.name + '</div>' +
-          '<div class="swap-price">£' + fmt(sug.buyP.price) + 'm</div>' +
-          renderMiniFixtures(sug.buyP) +
+        '<div class="tr-swap">' + ICON_SWAP_ALT + '</div>' +
+        '<div class="tr-side buy" data-viewprofile="' + sug.buyP.id + '">' +
+          faceCircle(sug.buyP) +
+          '<div class="tr-info"><div class="tr-tag">شراء</div><div class="tr-nm">' + escapeHtml(sug.buyP.name) + '</div><div class="tr-pr">£' + fmt(sug.buyP.price) + 'm</div></div>' +
         '</div>' +
       '</div>' +
     '</div>'
-  ).join('') : '<div class="hint">لا توجد ترشيحات انتقال ملحة حالياً.</div>';
+  ).join('') : '<div class="hint" style="margin:0 20px;">لا توجد ترشيحات انتقال ملحة حالياً.</div>';
 
   const csRowsArr = topCleanSheetTeams(8).map(x=>{
     const logoSrc = CLUB_CODE[x.club] ? `https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[x.club]}.png` : '';
-    return '<div class="cs-row"><div class="p-left" style="cursor:default;">' +
-      '<img src="' + logoSrc + '" alt="' + CLUB_NAME[x.club] + '" onerror="this.style.display=\'none\'" style="width:34px;height:34px;object-fit:contain;margin-left:10px;">' +
-      '<div class="p-info"><div class="p-name" style="font-size:13px;">' + CLUB_NAME[x.club] + '</div>' +
-      '<div class="p-meta">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + (x.avg3!=null ? (' · متوسط 3 جولات ' + x.avg3 + '%') : '') + '</div></div></div>' +
-      '<div class="cs-prob">' + x.prob + '%</div></div>';
+    return '<div class="cs-row2">' +
+      '<img class="cs-logo" src="' + logoSrc + '" alt="" onerror="this.style.display=\'none\'">' +
+      '<div class="cs-main"><div class="cs-nm">' + escapeHtml(CLUB_NAME[x.club]||'') + '</div>' +
+      '<div class="cs-mt">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div>' +
+      '<div class="cs-pct">' + x.prob + '%</div></div>';
   });
 
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.total) + ' نقطة', null, (x.count>1 ? ('~' + fmt(x.score) + ' لكل جولة · ' + x.count + ' جولات') : null), false) );
@@ -5303,42 +5438,46 @@ function renderPredictions(){
   const topOut = topTransfersOut(5).map(x => predRow(x, '-' + fmtCount(x.transfersOutEvent), 'mkt-out', 'بيع', false));
 
   const nextGwNum = plannerGw(); // الجولة اللي بتخطّط لها (مش الحالية+1 — عشان يشتغل صح بعد التقدّم)
-  const noteText = isLive 
-    ? 'النقاط الفعلية المحققة لتشكيلتك حتى الآن في هذه الجولة.' 
-    : 'ملاحظة: التوقعات إحصائية ومبنية على xG/xA وموديل Poisson للكلين شيت وصعوبة الخصم لكل مباراة وتوقعات FPL الرسمية. مقترحات الانتقال واللاعبين الأعلى توقعاً محسوبة على أقرب 5 جولات.';
-
   return '' +
-  '<div class="topbar"><div class="spacer"></div><h1>التوقعات والنصائح</h1><div class="spacer"></div></div>' +
-  '<div class="pred-banner"><div class="lbl">' + bannerLabel + '</div>' +
-    '<div class="big">' + bannerScoreText + '</div>' +
-    '<div class="sub">متوسط ملكية لاعبيك: ' + ownAvg + '%' + (c?(' · الكابتن: '+c.name):'') + '</div></div>' +
-  '<div class="pred-note">' + noteText + '</div>' +
+  '<div class="topbar"><div class="spacer"></div><h1>التوقعات</h1><div class="spacer"></div></div>' +
+
+  '<div class="pred-hero">' +
+    '<div class="ph-lbl">' + (isLive
+        ? ('نقاط تشكيلتك · الجولة ' + state.gwInfo.current + ' <span class="ph-live"><span class="d"></span>لايف</span>')
+        : ('توقع نقاط تشكيلتك · الجولة ' + state.gwInfo.current)) + '</div>' +
+    '<div class="ph-score">' + (isLive ? squadScore : fmt(squadScore)) +
+      '<span class="ph-unit">' + (isLive ? 'نقطة' : 'متوقعة') + '</span></div>' +
+    '<div class="ph-pills">' +
+      (c ? ('<span class="ph-pill">' + faceCircle(c, 'cface') + '<span class="k">الكابتن</span> ' + escapeHtml(c.name) + '</span>') : '') +
+      '<span class="ph-pill"><span class="k">متوسط الملكية</span> ' + ownAvg + '%</span>' +
+    '</div>' +
+  '</div>' +
 
   captainCardHtml +
   lineupSwapsHtml +
-  
-  '<div style="margin-top: 14px;">' + (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') + '</div>' +
 
-  '<div class="section-title"><h2>' + (isLive ? 'نقاط لاعبين تشكيلتك' : 'توقع نقاط لاعبين تشكيلتك') + '</h2></div>' +
-  limitedListHtml(squadRowsArr, 'predSquadMore', 'league-list', 'gap:8px;') +
+  (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') +
 
-  '<div class="section-title"><h2>أفضل مقترحات الانتقال</h2></div>' +
-  '<div style="margin:0 20px;">' + suggestionsHtml + '</div>' +
+  '<div class="pred-sec"><h2>' + (isLive ? 'نقاط لاعبيك' : 'توقع نقاط لاعبيك') + '</h2></div>' +
+  limitedListHtml(squadRowsArr, 'predSquadMore', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2><span class="h2-icon" style="color:var(--gold);">' + ICON_STAR + ' الأكثر شراءً هذه الجولة</span></h2></div>' +
-  limitedListHtml(topIn, 'predTopIn', 'league-list', 'gap:8px;') +
+  '<div class="pred-sec"><h2>أفضل مقترحات الانتقال</h2></div>' +
+  suggestionsHtml +
 
-  '<div class="section-title"><h2><span class="h2-icon" style="color:var(--muted);">' + ICON_CLOSE + ' الأكثر بيعاً هذه الجولة</span></h2></div>' +
-  limitedListHtml(topOut, 'predTopOut', 'league-list', 'gap:8px;') +
+  '<div class="pred-sec"><h2>الأكثر شراءً</h2></div>' +
+  limitedListHtml(topIn, 'predTopIn', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2>أفضل ترشيحات الشباك النظيفة (الجولة ' + nextGwNum + ') <span style="font-size:10px;color:var(--gold);opacity:0.9;">• ' + ((state.oddsByClub && Object.keys(state.oddsByClub).length) ? 'أودز مفعّلة ✓' : 'محرك v7') + '</span></h2></div>' +
+  '<div class="pred-sec"><h2>الأكثر بيعاً</h2></div>' +
+  limitedListHtml(topOut, 'predTopOut', '', 'margin:0 20px;') +
+
+  '<div class="pred-sec"><h2>أفضل شباك نظيفة</h2><span class="tag">الجولة ' + nextGwNum + '</span></div>' +
   limitedListHtml(csRowsArr, 'predCsMore', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2>اللاعبون الأعلى توقعاً (أقرب 5 جولات)</h2></div>' +
-  limitedListHtml(informRowsArr, 'predInformMore', 'league-list', 'gap:8px;') +
+  '<div class="pred-sec"><h2>الأعلى توقعًا</h2><span class="tag">أقرب 5 جولات</span></div>' +
+  limitedListHtml(informRowsArr, 'predInformMore', '', 'margin:0 20px;') +
 
-  '<div class="section-title"><h2>الأعلى نسبة ملكية</h2></div>' +
-  limitedListHtml(ownRowsArr, 'predOwnMore', 'league-list', 'gap:8px; margin-bottom:14px;');
+  '<div class="pred-sec"><h2>الأعلى ملكية</h2></div>' +
+  limitedListHtml(ownRowsArr, 'predOwnMore', '', 'margin:0 20px 16px;');
 }
 
 // ===== توقع تغيير الأسعار =====
