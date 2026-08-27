@@ -1,0 +1,34 @@
+# ============================================================
+# .github/workflows/loadtest.yml
+# يشغّل اختبار k6 من سيرفرات GitHub نفسها (مش من جهازك) —
+# بكده النتيجة بتاعة الشبكة/السيرفر الحقيقي، مش شبكة البيت.
+#
+# طريقة الاستخدام:
+# 1. حط الملف ده في الريبو بتاعك بالظبط في المسار:
+#    .github/workflows/loadtest.yml
+# 2. حط ملف loadtest-squad-save.js في جذر الريبو (نفس المستوى
+#    اللي فيه package.json أو المجلد الرئيسي)
+# 3. اعمل commit و push
+# 4. روح لتاب "Actions" في صفحة الريبو على GitHub
+# 5. هتلاقي في الشمال workflow اسمه "Load Test - Squad Save"
+#    دوس عليه، وهيظهرلك زرار "Run workflow" على اليمين — دوسه
+# 6. استنى 4-5 دقايق، وافتح الـ run اللي شغال عشان تشوف النتيجة
+#    كاملة (نفس الشكل اللي شفته على جهازك بالظبط)
+# ============================================================
+
+name: Load Test - Squad Save
+
+on:
+  workflow_dispatch:  # تشغيل يدوي بس من تاب Actions، مش تلقائي
+
+jobs:
+  k6-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run k6 load test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: loadtest-squad-save.js
