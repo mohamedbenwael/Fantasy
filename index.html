@@ -176,52 +176,8 @@
   .bonus-badge{ font-family:'Cairo'; font-weight:800; font-size:9px; color:#241A08; background:var(--gold); padding:1px 6px; border-radius:6px; white-space:nowrap; flex-shrink:0; margin-inline-start:5px; }
   .ppts.has-bonus{ background:var(--gold); color:#241A08; }
 
-  /* ===== deadline strip ===== */
-  .deadline{
-    margin:14px 20px 0; padding:13px 16px; border-radius:14px;
-    background:linear-gradient(90deg, rgba(55,0,60,0.32), rgba(55,0,60,0.06));
-    border:1px solid rgba(124,0,138,0.32);
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-  }
-  .deadline .left{ display:flex; align-items:center; gap:10px; }
-  .deadline .ic{ color:var(--primary-soft); flex-shrink:0; }
-  .deadline .lbl{ font-size:10px; color:var(--muted); }
-  .deadline .val{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--text); margin-top:2px; }
-  .deadline .cta{
-    font-family:'Cairo'; font-weight:800; font-size:11px; color:#04321B;
-    background:linear-gradient(160deg,var(--primary-soft),var(--primary-deep));
-    padding:9px 15px; border-radius:11px; white-space:nowrap; letter-spacing:0.2px;
-  }
-
-  /* ===== points summary ===== */
-  .summary{
-    margin:14px 20px 0; padding:20px; border-radius:18px;
-    background:linear-gradient(165deg, #460A52 0%, #1A0322 100%);
-    border:1px solid rgba(255,255,255,0.06);
-    position:relative; overflow:hidden;
-  }
-  .summary::after{
-    content:''; position:absolute; width:200px; height:200px; border-radius:50%;
-    background:radial-gradient(circle, rgba(233,0,82,0.10), transparent 70%);
-    top:-90px; left:-60px; pointer-events:none;
-  }
-  .summary-top{ display:flex; justify-content:space-between; align-items:flex-start; position:relative; }
-  .summary-top .lbl{ font-size:10.5px; color:var(--muted); letter-spacing:0.2px; }
-  .summary-top .big{ font-family:'Cairo'; font-weight:900; font-size:32px; color:var(--text); margin-top:4px; }
-  .summary-top .big span{ font-size:13px; color:var(--muted); font-weight:500; }
-  .badge-rank{
-    display:flex; align-items:center; gap:4px;
-    font-family:'Cairo'; font-weight:700; font-size:10px; color:var(--primary-soft);
-    background:rgba(233,0,82,0.12); border:1px solid rgba(233,0,82,0.28);
-    padding:6px 10px 6px 8px; border-radius:20px; white-space:nowrap;
-  }
-  .badge-rank svg{ width:11px; height:11px; }
-  .summary-grid{
-    display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:18px; position:relative;
-  }
-  .summary-grid .cell{ text-align:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.07); }
-  .summary-grid .cell .v{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); }
-  .summary-grid .cell .k{ font-size:9.5px; color:var(--muted); margin-top:3px; }
+  /* (ستايل الديدلاين والملخص القديم اتشال — اتبنى من جديد في بلوك HOME v2 أسفل الملف:
+     .hx-deadline / .hx-hero) */
 
   /* ===== section title ===== */
   .section-title{ display:flex; align-items:center; justify-content:space-between; margin:22px 20px 10px; }
@@ -397,11 +353,7 @@
   .standing-row .s-pts{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--primary-soft); }
   .standing-row.me{ border-color:rgba(233,0,82,0.35); background:rgba(233,0,82,0.06); }
 
-  /* ===== transfer nudge ===== */
-  .nudge{ margin:20px 20px 4px; padding:15px; border-radius:16px; background:linear-gradient(120deg, rgba(55,0,60,0.28), rgba(55,0,60,0.03)); border:1px solid rgba(124,0,138,0.26); display:flex; align-items:center; gap:12px; }
-  .nudge .ic{ width:36px; height:36px; border-radius:11px; background:rgba(233,0,82,0.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--primary-soft); }
-  .nudge .txt .t1{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text); }
-  .nudge .txt .t2{ font-size:10px; color:var(--muted); margin-top:3px; line-height:1.5; }
+  /* (ستايل التنبيه القديم .nudge اتشال — اتبنى من جديد كـ .hx-nudge أسفل الملف) */
 
   /* ===== transfers screen ===== */
   .stat-strip{ margin:10px 20px 0; display:flex; gap:8px; }
@@ -1298,6 +1250,180 @@
     /* الأونبوردينج position:fixed بيملا الشاشة بالكامل — نلغي أي تقييد للعرض عليه */
     .onboard{ max-width:none !important; width:100% !important; margin:0 !important; }
   }
+
+  /* ==================================================================
+     ██  الشاشة الرئيسية — إعادة بناء كاملة (HOME v2 · Premium)  ██
+     تصميم جديد من الصفر: هيدر فخم · كارت نقاط هيرو · موعد نهائي ·
+     شريط جولات · تنبيه · عناوين أقسام · كارت ملعب — بهوية البريميرليج.
+     مكتوب في آخر الستايل عشان يسبق أي قواعد قديمة (source order wins).
+     ================================================================== */
+
+  :root{
+    --hx-gut:20px;                         /* هامش جانبي موحّد */
+    --hx-radius:22px;
+    --hx-radius-sm:16px;
+    --hx-line:rgba(255,255,255,0.09);
+    --hx-line-soft:rgba(255,255,255,0.055);
+    --hx-glass:rgba(255,255,255,0.045);
+    --hx-glass-2:rgba(255,255,255,0.025);
+    --hx-pink:#FF4D8B;
+    --hx-pink-deep:#E90052;
+    --hx-shadow:0 22px 48px -14px rgba(0,0,0,0.62);
+    --hx-shadow-sm:0 12px 26px -12px rgba(0,0,0,0.55);
+  }
+
+  /* ---------- HEADER (home) ---------- */
+  .header{ padding:24px var(--hx-gut) 8px !important; align-items:center; }
+  .brand{ gap:12px !important; }
+  .crest{
+    width:44px !important; height:44px !important; border-radius:50% !important; overflow:hidden;
+    background:radial-gradient(circle at 32% 24%, #5A0F68, #16021D 76%) !important;
+    box-shadow:0 0 0 1.5px rgba(233,0,82,0.55), 0 8px 20px -6px rgba(233,0,82,0.5),
+               inset 0 1px 0 rgba(255,255,255,0.14) !important;
+    position:relative;
+  }
+  .crest::before{ content:''; position:absolute; inset:-3px; border-radius:50%; padding:1.5px;
+    background:conic-gradient(from 210deg, rgba(233,0,82,0.9), rgba(0,255,135,0.4), rgba(124,0,138,0.6), rgba(233,0,82,0.9));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.75; pointer-events:none; }
+  .crest img{ position:relative; z-index:1; }
+  .greet .hi{ font-size:11px; color:var(--muted); letter-spacing:.2px; }
+  .greet .name{ font-family:'Cairo'; font-weight:800; font-size:16.5px; margin-top:2px;
+    color:#F8F4FB !important; background:none !important; -webkit-text-fill-color:#F8F4FB !important; letter-spacing:.1px; }
+  .header-actions{ gap:9px !important; }
+  .icon-btn{
+    width:40px !important; height:40px !important; border-radius:13px !important; color:var(--text);
+    background:linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)) !important;
+    border:1px solid var(--hx-line) !important;
+    box-shadow:0 6px 14px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+  }
+  .icon-btn svg{ width:18px; height:18px; }
+  .icon-btn:active{ transform:scale(.94); background:rgba(233,0,82,0.16) !important; color:var(--hx-pink); }
+  .icon-btn .dot{ box-shadow:0 0 0 2px #200a1a, 0 0 8px rgba(255,77,109,0.8); }
+
+  /* ---------- LIVE PILL (compact, sits inside hero) ---------- */
+  .hx-hero .live-pill{
+    margin:0 !important; padding:5px 11px !important; border-radius:999px !important;
+    font-size:9.5px !important; letter-spacing:.2px; backdrop-filter:blur(4px);
+    background:rgba(0,255,135,0.10) !important; border:1px solid rgba(0,255,135,0.30) !important; color:#7CFFC2 !important;
+    box-shadow:none !important; align-self:flex-start; white-space:nowrap;
+  }
+  .hx-hero .live-pill .dotpulse{ background:var(--accent) !important; box-shadow:0 0 0 0 rgba(0,255,135,0.6) !important; }
+  .hx-hero .live-pill.warn{ background:rgba(255,77,109,0.12) !important; border-color:rgba(255,77,109,0.32) !important; color:var(--coral) !important; }
+  .hx-hero .live-pill.warn .dotpulse{ background:var(--coral) !important; }
+
+  /* ---------- HERO POINTS CARD ---------- */
+  .hx-hero{
+    position:relative; margin:14px var(--hx-gut) 0; border-radius:var(--hx-radius); overflow:hidden;
+    background:
+      linear-gradient(158deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 42%),
+      linear-gradient(168deg, #55106A 0%, #340B44 46%, #1B0524 100%);
+    border:1px solid rgba(255,255,255,0.10);
+    box-shadow:var(--hx-shadow), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+  .hx-hero-orb{ position:absolute; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(58% 48% at 88% -8%, rgba(0,255,135,0.14), transparent 60%),
+      radial-gradient(70% 60% at 6% -10%, rgba(233,0,82,0.30), transparent 62%),
+      radial-gradient(40% 40% at 100% 108%, rgba(124,0,138,0.34), transparent 70%); }
+  .hx-hero::after{ content:''; position:absolute; left:0; right:0; top:0; height:3px; z-index:2;
+    background:linear-gradient(90deg, var(--primary), var(--accent) 60%, #7C008A); opacity:.9; }
+  .hx-hero-body{ position:relative; z-index:1; padding:18px 20px 18px; }
+  .hx-hero-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .hx-hero-eyebrow{ font-family:'Cairo'; font-weight:800; font-size:10.5px; letter-spacing:.4px;
+    color:rgba(255,255,255,0.62); text-transform:uppercase; }
+  .hx-hero-score{ display:flex; align-items:baseline; gap:8px; margin-top:6px; }
+  .hx-hero-num{ font-family:'Cairo'; font-weight:900; font-size:clamp(40px,13vw,52px); line-height:1;
+    color:#fff; letter-spacing:-1.2px; font-variant-numeric:tabular-nums;
+    text-shadow:0 4px 22px rgba(233,0,82,0.35); }
+  .hx-hero-unit{ font-family:'Cairo'; font-weight:700; font-size:14px; color:rgba(255,255,255,0.55); }
+  .hx-hero-rank{ display:flex; align-items:center; gap:9px; margin-top:12px; flex-wrap:wrap; }
+  .hx-rank-chip{ display:inline-flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:800; font-size:12.5px;
+    color:#fff; background:rgba(233,0,82,0.20); border:1px solid rgba(255,77,139,0.42); padding:5px 11px; border-radius:999px;
+    font-variant-numeric:tabular-nums; box-shadow:0 4px 12px -4px rgba(233,0,82,0.5); }
+  .hx-rank-chip svg{ width:13px; height:13px; color:var(--accent); }
+  .hx-rank-chip .rank-live-badge{ background:var(--accent) !important; color:#04321B !important; font-size:7.5px; margin-inline-start:3px; }
+  .hx-rank-label{ font-size:11px; color:var(--muted); font-weight:600; }
+  .hx-stats{ display:grid; grid-template-columns:repeat(3,1fr); margin-top:16px;
+    background:rgba(0,0,0,0.22); border:1px solid var(--hx-line-soft); border-radius:15px; overflow:hidden; }
+  .hx-stat{ text-align:center; padding:13px 6px 12px; position:relative; }
+  .hx-stat + .hx-stat::before{ content:''; position:absolute; inset-inline-start:0; top:22%; height:56%; width:1px;
+    background:linear-gradient(180deg, transparent, rgba(255,255,255,0.14), transparent); }
+  .hx-stat .v{ font-family:'Cairo'; font-weight:800; font-size:15px; color:#fff; font-variant-numeric:tabular-nums; letter-spacing:-.2px; }
+  .hx-stat .k{ font-size:9.5px; color:var(--muted); margin-top:4px; font-weight:600; }
+  .hx-hero .live-synced{ margin:11px 0 0 !important; font-size:9.5px; color:var(--muted2); text-align:center; }
+
+  /* ---------- DEADLINE CARD ---------- */
+  .hx-deadline{
+    position:relative; margin:12px var(--hx-gut) 0; padding:14px 15px; border-radius:var(--hx-radius-sm);
+    display:flex; align-items:center; justify-content:space-between; gap:12px; overflow:hidden;
+    background:linear-gradient(100deg, rgba(233,0,82,0.14) 0%, rgba(55,0,60,0.20) 55%, rgba(255,255,255,0.02) 100%);
+    border:1px solid rgba(255,77,139,0.22);
+    box-shadow:var(--hx-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .hx-deadline::before{ content:''; position:absolute; inset-inline-start:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(180deg, var(--primary), var(--primary-deep)); }
+  .hx-dl-left{ display:flex; align-items:center; gap:12px; min-width:0; }
+  .hx-dl-ic{ width:38px; height:38px; flex-shrink:0; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    color:#fff; background:linear-gradient(160deg, var(--primary), var(--primary-deep));
+    box-shadow:0 6px 16px -6px rgba(233,0,82,0.7); }
+  .hx-dl-ic svg{ width:18px; height:18px; }
+  .hx-dl-lbl{ font-size:10px; color:var(--muted); }
+  .hx-dl-val{ font-family:'Cairo'; font-weight:800; font-size:15px; color:#fff; margin-top:3px; letter-spacing:.2px; font-variant-numeric:tabular-nums; }
+  .hx-dl-cta{ flex-shrink:0; font-family:'Cairo'; font-weight:800; font-size:11.5px; color:#fff; white-space:nowrap;
+    background:linear-gradient(160deg, var(--primary), var(--primary-deep)); padding:10px 16px; border-radius:12px;
+    box-shadow:0 8px 18px -6px rgba(233,0,82,0.6), inset 0 1px 0 rgba(255,255,255,0.2); }
+  .hx-dl-cta:active{ transform:scale(.96); }
+
+  /* ---------- GW NAV (shared, refined) ---------- */
+  .gw-nav{ margin:12px var(--hx-gut) 12px !important; border-radius:14px !important;
+    background:var(--hx-glass) !important; border:1px solid var(--hx-line) !important;
+    box-shadow:var(--hx-shadow-sm); padding:8px 10px !important; }
+  .gw-arrow{ border-radius:11px !important; background:rgba(255,255,255,0.05) !important; border:1px solid var(--hx-line) !important; }
+  .gw-arrow:not(:disabled):active{ background:rgba(233,0,82,0.18) !important; transform:scale(.94); }
+  .gw-nav-label{ font-size:13.5px !important; }
+  .gw-cur-tag{ background:rgba(0,255,135,0.12) !important; border-color:rgba(0,255,135,0.30) !important; color:var(--accent) !important; }
+
+  /* ---------- FREE-TRANSFER NUDGE ---------- */
+  .hx-nudge{ display:flex; align-items:center; gap:12px; margin:12px var(--hx-gut) 20px; padding:14px 15px; border-radius:var(--hx-radius-sm);
+    background:linear-gradient(115deg, rgba(0,255,135,0.06), rgba(255,255,255,0.02));
+    border:1px solid rgba(0,255,135,0.16); box-shadow:var(--hx-shadow-sm); }
+  .hx-nudge-ic{ width:38px; height:38px; flex-shrink:0; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    color:#7CFFC2; background:rgba(0,255,135,0.12); border:1px solid rgba(0,255,135,0.22); }
+  .hx-nudge-ic svg{ width:19px; height:19px; }
+  .hx-nudge-txt .t1{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
+  .hx-nudge-txt .t2{ font-size:10.5px; color:var(--muted); margin-top:3px; line-height:1.55; }
+
+  /* ---------- SECTION TITLES (shared, refined) ---------- */
+  .section-title{ margin:24px var(--hx-gut) 12px !important; align-items:center; }
+  .section-title h2{ font-family:'Cairo'; font-weight:800; font-size:14.5px !important; color:var(--text); position:relative; padding-inline-start:13px; letter-spacing:-.2px; }
+  .section-title h2::before{ content:''; position:absolute; inset-inline-start:0; top:50%; transform:translateY(-50%);
+    width:4px; height:16px; border-radius:3px; background:linear-gradient(180deg, var(--primary), #7C008A); box-shadow:0 0 10px rgba(233,0,82,0.5); }
+  .section-title a{ font-size:11px !important; color:var(--hx-pink) !important; font-weight:700; display:inline-flex; align-items:center; gap:3px;
+    background:rgba(233,0,82,0.10); border:1px solid rgba(233,0,82,0.22); padding:5px 10px; border-radius:999px; }
+  .section-title a:active{ transform:scale(.96); }
+
+  /* ---------- PITCH / LINEUP CARD (shared, refined) ---------- */
+  .pitch-card{ margin:0 var(--hx-gut) !important; border-radius:var(--hx-radius) !important;
+    border:1px solid rgba(255,255,255,0.08) !important; box-shadow:var(--hx-shadow) !important; }
+  .pitch{ box-shadow:inset 0 40px 80px -30px rgba(0,0,0,0.5), inset 0 -30px 50px -30px rgba(0,0,0,0.4) !important; }
+  .bench{ background:linear-gradient(180deg, #16021E, #100017) !important; }
+
+  /* ---------- DESKTOP / TWO-COLUMN alignment for new cards ---------- */
+  @media (min-width:820px){
+    .home-side > .hx-hero:first-child{ margin-top:0 !important; }
+    .hx-hero, .hx-deadline, .hx-nudge{ margin-inline:0 !important; }
+    .hx-hero-num{ font-size:50px; }
+  }
+  /* very small phones */
+  @media (max-width:360px){
+    .hx-hero-body{ padding:16px 15px; }
+    .hx-hero-num{ font-size:38px; }
+    .hx-stat .v{ font-size:13.5px; }
+    .hx-dl-cta{ padding:9px 12px; font-size:11px; }
+    .header{ padding:20px 15px 6px !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -3931,34 +4057,50 @@ function renderHome(){
 
   '<div class="home-grid">' +
   '<div class="home-side">' +
-  renderLivePill() +
-  renderLiveSyncedAt() +
 
-  '<div class="deadline">' +
-    '<div class="left">' + ICON_CLOCK +
-      '<div><div class="lbl">إغلاق تشكيلة الجولة ' + plannerGw() + '</div><div class="val">' + countdown(plannerDeadline()) + '</div></div>' +
+  /* ===== كارت النقاط الرئيسي (الهيرو) ===== */
+  '<div class="hx-hero">' +
+    '<div class="hx-hero-orb"></div>' +
+    '<div class="hx-hero-body">' +
+      '<div class="hx-hero-top">' +
+        '<div class="hx-hero-eyebrow">إجمالي نقاط الموسم</div>' +
+        renderLivePill() +
+      '</div>' +
+      '<div class="hx-hero-score">' +
+        '<span class="hx-hero-num">' + (state.seasonBaseline + displayRoundPoints()).toLocaleString() + '</span>' +
+        '<span class="hx-hero-unit">نقطة</span>' +
+      '</div>' +
+      '<div class="hx-hero-rank">' +
+        '<span class="hx-rank-chip">' + ICON_UP + '#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</span>' +
+        '<span class="hx-rank-label">الترتيب العام</span>' +
+      '</div>' +
+      '<div class="hx-stats">' +
+        '<div class="hx-stat"><div class="v">' + rp + '</div><div class="k">نقاط الجولة</div></div>' +
+        '<div class="hx-stat"><div class="v">' + (state.eventRank ? '#' + state.eventRank.toLocaleString() : '—') + '</div><div class="k">ترتيب الجولة</div></div>' +
+        '<div class="hx-stat"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
+      '</div>' +
+      renderLiveSyncedAt() +
     '</div>' +
-    '<button class="cta" data-goto="transfers">تعديل التشكيلة</button>' +
   '</div>' +
 
-  '<div class="summary">' +
-    '<div class="summary-top">' +
-      '<div><div class="lbl">إجمالي النقاط</div><div class="big">' + (state.seasonBaseline + displayRoundPoints()).toLocaleString() + ' <span>نقطة</span></div></div>' +
-      '<div class="badge-rank">' + ICON_UP + 'الدوري العام' + '</div>' +
+  /* ===== كارت الموعد النهائي ===== */
+  '<div class="hx-deadline">' +
+    '<div class="hx-dl-left">' +
+      '<div class="hx-dl-ic">' + ICON_CLOCK + '</div>' +
+      '<div class="hx-dl-info"><div class="hx-dl-lbl">إغلاق تشكيلة الجولة ' + plannerGw() + '</div>' +
+      '<div class="hx-dl-val">' + countdown(plannerDeadline()) + '</div></div>' +
     '</div>' +
-    '<div class="summary-grid">' +
-      '<div class="cell"><div class="v">' + rp + '</div><div class="k">نقاط الجولة</div></div>' +
-      '<div class="cell"><div class="v">#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</div><div class="k">الترتيب العام</div>' + renderEventRankLine() + '</div>' +
-      '<div class="cell"><div class="v">£' + fmt(squadValue()) + 'm</div><div class="k">قيمة الفريق</div></div>' +
-    '</div>' +
+    '<button class="hx-dl-cta" data-goto="transfers">تعديل التشكيلة</button>' +
   '</div>' +
 
+  /* ===== شريط التنقّل بين الجولات ===== */
   renderGwNav() +
 
+  /* ===== تنبيه التبديلات المجانية ===== */
   (isHistoricalView() ? '' :
-    '<div class="nudge" style="margin-bottom: 20px;"><div class="ic">' + ICON_BULB + '</div>' +
-      '<div class="txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
-      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي</div></div>' +
+    '<div class="hx-nudge"><div class="hx-nudge-ic">' + ICON_BULB + '</div>' +
+      '<div class="hx-nudge-txt"><div class="t1">التبديلات المجانية المتاحة: ' + state.freeTransfers + '</div>' +
+      '<div class="t2">يمكنك استبدال لاعبين دون خصم من النقاط قبل الموعد النهائي.</div></div>' +
     '</div>') +
   '</div>' +   /* إغلاق home-side */
 
