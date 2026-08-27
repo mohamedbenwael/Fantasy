@@ -8,7 +8,6 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
 
-// ⚠️ غيّر ده لدومينك الحقيقي
 const BASE_URL = 'https://mazareta.app';
 
 const failedSaves = new Counter('failed_saves');
@@ -21,8 +20,8 @@ export const options = {
       startVUs: 0,
       stages: [
         { duration: '20s', target: 10 },
-        { duration: '40s', target: 500 },
-        { duration: '3m', target: 500 },
+        { duration: '40s', target: 1000 },
+        { duration: '3m', target: 1000 },
         { duration: '30s', target: 0 },
       ],
     },
