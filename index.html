@@ -2020,13 +2020,17 @@ async function sGet(key, shared){
 }
 async function sSet(key, value, shared){
   try{
-    const data = await kvCall({ action: 'set', key, value });
+    const payload = { action: 'set', key, value };
+    if(needsOwnerToken(key)) payload.owner = getOwnerToken();
+    const data = await kvCall(payload);
     return !!(data && data.ok);
   } catch(e){ console.warn('[kv] sSet فشل', key, e && e.message); return false; }
 }
 async function sDelete(key){
   try{
-    const data = await kvCall({ action: 'delete', key });
+    const payload = { action: 'delete', key };
+    if(needsOwnerToken(key)) payload.owner = getOwnerToken();
+    const data = await kvCall(payload);
     return !!(data && data.ok);
   } catch(e){ return false; }
 }
@@ -2042,6 +2046,23 @@ function uid(){ return 'u' + Math.random().toString(36).slice(2,10) + Date.now()
 // so their save/load calls hit rows keyed by their FPL ID instead of a random uid
 function getLocalDeviceId(){
   try{ return localStorage.getItem('mazareta_fpl_id'); } catch(e){ return null; }
+}
+
+// ===== owner token — بيتولّد مرة واحدة بس على الجهاز ويتخزن محليًا =====
+// السيرفر (/api/kv) بيستخدمه عشان يتأكد إن اللي بيعدّل تشكيلة FPL ID معيّن
+// هو نفسه اللي حفظها أول مرة، مش أي حد عارف نفس الـ ID (اللي رقم عام أصلاً).
+function getOwnerToken(){
+  try{
+    let t = localStorage.getItem('mazareta_owner_token');
+    if(!t){ t = uid() + uid(); localStorage.setItem('mazareta_owner_token', t); }
+    return t;
+  } catch(e){ return uid() + uid(); } // fallback مؤقت لو localStorage مش متاح
+}
+
+// نفس البادئات المحمية في kv.js — لازم تتطابق
+const OWNER_PROTECTED_PREFIXES = ['mazareta_squad:', 'mazareta_squad_next:', 'mazareta_manager:'];
+function needsOwnerToken(key){
+  return OWNER_PROTECTED_PREFIXES.some(p => key.startsWith(p));
 }
 
 // ===== FPL live data (via /api/fpl proxy) =====
@@ -6174,9 +6195,12 @@ async function scheduleLiveTick(){
     }
     if(state.tab==='home' || state.tab==='fixtures') renderBody();
   }
-  setTimeout(scheduleLiveTick, (state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 45000 : 60000);
+  // jitter بسيط (±5 ثواني) عشان كل الأجهزة ميطلبوش في نفس اللحظة بالظبط —
+  // ده بيوزّع الحمل على السيرفر بدل ما يتركّز في نبضة واحدة كل 45 ثانية.
+  const jitter = () => Math.floor(Math.random()*10000) - 5000;
+  setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 45000 : 60000) + jitter());
 }
-setTimeout(scheduleLiveTick, state.hasLiveFixtures ? 45000 : 60000);
+setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 45000 : 60000) + (Math.floor(Math.random()*10000) - 5000));
 
 boot();
 </script>
