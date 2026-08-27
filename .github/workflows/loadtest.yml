@@ -1,0 +1,16 @@
+name: Load Test - Squad Save
+
+on:
+  workflow_dispatch:  # تشغيل يدوي بس من تاب Actions، مش تلقائي
+
+jobs:
+  k6-load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Run k6 load test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: loadtest-squad-save.js
