@@ -1,8 +1,11 @@
 // ============================================================
 // functions/api/fpl.js  —  Cloudflare Pages Function
 // بروكسي بين الموقع والـ API الرسمي لفانتازي البريميرليج (fantasy.premierleague.com)
-// المسار في الريبو: functions/api/fpl.js  →  بيتخدم على /api/fpl (نفس اللينك القديم)
-// (نفس منطق نسخة Vercel بالظبط — اتحوّل بس لصيغة Cloudflare: onRequest + Response)
+// المسار في الريبو: functions/api/fpl.js  →  بيتخدم على /api/fpl
+//
+// التعديل الجديد: استخدام صريح لـ Cloudflare Cache API (caches.default)
+// عشان نضمن إن الكاش فعلاً بيشتغل على مستوى الـ edge، مش معتمدين بس على
+// Cache-Control header اللي ممكن Cloudflare ميحترموش تلقائيًا لردود الـ Functions.
 //
 // أمثلة الاستخدام:
 //   /api/fpl?type=bootstrap
@@ -26,7 +29,7 @@ const CACHE_SECONDS = {
 
 const UPSTREAM_TIMEOUT_MS = 8000;
 
-// رد JSON موحّد مع هيدر CORS
+// رد JSON موحّد مع هيدر CORS + Cache-Control (بيفيد كمان أي كاش وسيط زي المتصفح نفسه)
 function jsonResponse(obj, status, extraHeaders) {
   return new Response(JSON.stringify(obj), {
     status: status || 200,
@@ -98,6 +101,28 @@ export async function onRequest(context) {
     return jsonResponse({ error: "نوع غير معروف. استخدم type=bootstrap أو type=fixtures أو type=live أو type=entry أو type=picks أو type=standings" }, 400);
   }
 
+  const secs = CACHE_SECONDS[cacheBucket] || 120;
+
+  // ===== الكاش الصريح (الإضافة الأساسية) =====
+  // مفتاح الكاش = نفس رابط الطلب بتاعنا (بما فيه ?type=...&id=...) — ده معناه
+  // إن bootstrap/fixtures/live (اللي مالهاش id) بيتشارك في نفس النسخة بين كل اليوزرز،
+  // وإن entry/picks/standings (اللي فيها id) بتتخزن نسخة منفصلة لكل id، وده كويس
+  // لأن نفس اليوزر لو عمل refresh كذا مرة مش هيضرب FPL كل مرة.
+  const cache = caches.default;
+  const cacheKey = new Request(reqUrl.toString(), { method: 'GET' });
+
+  try {
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      // HIT — رجّع النسخة المخزنة من غير ما نكلم FPL خالص
+      const hitHeaders = new Headers(cached.headers);
+      hitHeaders.set('X-Cache-Status', 'HIT');
+      return new Response(cached.body, { status: cached.status, headers: hitHeaders });
+    }
+  } catch (e) {
+    // لو حصل أي خطأ في القراءة من الكاش، كمّل عادي زي إنه MISS
+  }
+
   try {
     const upstream = await fetchWithTimeout(target, {
       headers: {
@@ -109,14 +134,22 @@ export async function onRequest(context) {
     }, UPSTREAM_TIMEOUT_MS);
 
     if (!upstream.ok) {
+      // ردود الخطأ ماتتخزنش في الكاش عشان ميفضلش الخطأ متكرر لكل اليوزرز
       return jsonResponse({ error: 'فشل الاتصال بـ FPL API', status: upstream.status }, upstream.status);
     }
 
     const body = await upstream.text(); // بنمرّر الـ JSON زي ما هو
-    const secs = CACHE_SECONDS[cacheBucket] || 120;
-    return jsonResponse(JSON.parse(body), 200, {
-      'Cache-Control': `s-maxage=${secs}, stale-while-revalidate=${secs * 5}`,
+
+    const response = jsonResponse(JSON.parse(body), 200, {
+      'Cache-Control': `public, max-age=${secs}`,
+      'X-Cache-Status': 'MISS',
     });
+
+    // بنخزن نسخة في الكاش من غير ما نستنى (waitUntil بتخلي ده يحصل في الخلفية
+    // ومايأخرش الرد اللي راجع لليوزر دلوقتي)
+    context.waitUntil(cache.put(cacheKey, response.clone()));
+
+    return response;
   } catch (err) {
     const timedOut = err && err.name === 'AbortError';
     return jsonResponse({
