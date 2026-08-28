@@ -631,6 +631,132 @@
     line-height:1.7; text-align:center; animation:obUp .6s .34s ease both; }
   .onboard .ob-hint code{ font-family:monospace; color:var(--primary-soft); background:rgba(233,0,82,0.1); padding:1px 5px; border-radius:5px; direction:ltr; display:inline-block; }
 
+  /* ===== "how to find your ID" help button (onboarding) ===== */
+  .ob-help-btn{ display:flex; align-items:center; justify-content:center; gap:9px; width:100%; max-width:440px;
+    margin:14px auto 0; padding:13px 16px; cursor:pointer;
+    font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text);
+    background:linear-gradient(180deg, rgba(233,0,82,0.14), rgba(233,0,82,0.06));
+    border:1.4px solid rgba(255,77,139,0.4); border-radius:14px;
+    animation:obUp .6s .34s ease both; transition:filter .15s ease, transform .1s ease; }
+  .ob-help-btn:hover{ filter:brightness(1.1); }
+  .ob-help-btn:active{ transform:scale(.985); }
+  .ob-help-btn .qmark{ flex-shrink:0; width:22px; height:22px; border-radius:50%;
+    background:linear-gradient(135deg,var(--primary-soft),var(--primary)); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px;
+    box-shadow:0 3px 9px rgba(233,0,82,0.45); }
+
+  /* ===== ID guide modal ===== */
+  .idg-overlay{ position:fixed; inset:0; z-index:200; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(6,1,10,0.82); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    opacity:0; pointer-events:none; transition:opacity .28s ease; }
+  .idg-overlay.open{ opacity:1; pointer-events:auto; }
+  .idg-sheet{ width:100%; max-width:520px; max-height:92vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    background:linear-gradient(180deg,#2A0430 0%, var(--ink) 42%);
+    border:1px solid var(--card-line); border-top:1.5px solid rgba(255,77,139,0.4);
+    border-radius:22px 22px 0 0; padding:0 0 32px;
+    transform:translateY(100%); transition:transform .34s cubic-bezier(.18,.89,.32,1.28); }
+  .idg-overlay.open .idg-sheet{ transform:translateY(0); }
+  .idg-grip{ width:42px; height:5px; border-radius:99px; background:rgba(255,255,255,0.2); margin:10px auto 0; }
+  .idg-head{ position:sticky; top:0; z-index:4; padding:14px 20px 12px;
+    background:linear-gradient(180deg,#2A0430 62%, rgba(42,4,48,0)); }
+  .idg-head-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .idg-title{ font-family:'Cairo'; font-weight:900; font-size:16.5px; color:var(--text); }
+  .idg-close{ width:34px; height:34px; flex-shrink:0; border-radius:11px; background:var(--card);
+    border:1px solid var(--card-line); color:var(--text); display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .idg-close svg{ width:16px; height:16px; stroke:currentColor; stroke-width:2.3; fill:none; stroke-linecap:round; }
+  .idg-sub{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); margin-top:5px; line-height:1.65; }
+  .idg-body{ padding:2px 20px 0; }
+
+  .idg-tip{ display:flex; gap:10px; align-items:flex-start; background:rgba(0,255,135,0.08);
+    border:1px solid rgba(0,255,135,0.3); border-radius:14px; padding:12px 13px; margin:4px 0 20px; }
+  .idg-tip .tic{ flex-shrink:0; width:27px; height:27px; border-radius:9px; background:rgba(0,255,135,0.16);
+    display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .idg-tip p{ font-family:'Tajawal'; font-size:11.5px; line-height:1.75; color:var(--text); }
+  .idg-tip b{ font-weight:700; color:var(--accent); }
+  .idg-tip code{ font-family:monospace; direction:ltr; display:inline-block; color:var(--accent);
+    background:rgba(0,255,135,0.1); padding:0 5px; border-radius:5px; font-size:10.5px; }
+
+  .idg-step{ display:flex; gap:12px; margin-bottom:22px; }
+  .idg-step-num{ flex-shrink:0; width:30px; height:30px; border-radius:50%;
+    background:linear-gradient(135deg,var(--primary-soft),var(--primary)); color:#fff;
+    font-family:'Cairo'; font-weight:900; font-size:14px;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(233,0,82,0.42); }
+  .idg-step-body{ flex:1; min-width:0; }
+  .idg-step-txt{ font-family:'Tajawal'; font-size:12.5px; line-height:1.75; color:var(--text); margin-bottom:10px; }
+  .idg-step-txt b{ font-weight:700; color:var(--primary-soft); }
+
+  /* --- mockups --- */
+  .mock{ background:linear-gradient(180deg,#150020,#0B0010); border:1px solid var(--card-line);
+    border-radius:14px; padding:14px; direction:ltr; position:relative; }
+  .mk-cue{ display:inline-flex; align-items:center; gap:4px; font-family:'Cairo'; font-weight:800; font-size:9.5px;
+    direction:rtl; color:#04321B; background:var(--accent); padding:3px 9px; border-radius:99px; white-space:nowrap;
+    box-shadow:0 4px 10px rgba(0,255,135,0.35); }
+
+  /* step1: app icon */
+  .mock-app{ display:flex; align-items:center; gap:14px; justify-content:center; padding:18px 14px; }
+  .mk-appicon{ width:56px; height:56px; border-radius:15px; background:linear-gradient(140deg,#37003C 0%,#E90052 100%);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(233,0,82,0.4); }
+  .mk-appicon span{ font-family:'Cairo'; font-weight:900; font-size:19px; color:#fff; letter-spacing:1px; }
+  .mk-app-name{ font-family:Arial,Helvetica,sans-serif; font-weight:800; font-size:13px; color:#fff; line-height:1.25; }
+
+  /* step2: bottom nav */
+  .mk-nav{ display:flex; align-items:flex-end; justify-content:space-between; gap:2px;
+    background:#1A0524; border:1px solid rgba(255,255,255,0.05); border-radius:11px; padding:9px 4px; margin-top:22px; }
+  .mk-tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; padding:5px 2px; border-radius:9px;
+    font-family:Arial,Helvetica,sans-serif; font-size:8px; font-weight:700; color:rgba(255,255,255,0.42); position:relative; }
+  .mk-tab svg{ width:17px; height:17px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .mk-tab.active{ color:#fff; background:rgba(233,0,82,0.16); box-shadow:0 0 0 1.6px var(--primary-soft); }
+  .mk-tab .mk-cue{ position:absolute; top:-30px; left:50%; transform:translateX(-50%); }
+
+  /* step3: header with share */
+  .mk-header{ display:flex; align-items:center; justify-content:space-between; padding:4px 2px 12px; }
+  .mk-header .mk-h-title{ font-family:Arial,Helvetica,sans-serif; font-weight:800; font-size:13px; color:#fff; }
+  .mk-header svg{ width:18px; height:18px; stroke:rgba(255,255,255,0.5); stroke-width:1.9; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .mk-share{ position:relative; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    background:rgba(233,0,82,0.16); box-shadow:0 0 0 2px var(--primary-soft); }
+  .mk-share svg{ stroke:#fff; }
+  .mk-share .mk-cue{ position:absolute; top:-30px; right:-6px; }
+  .mk-skel{ height:10px; border-radius:6px; background:rgba(255,255,255,0.06); margin:8px 0; }
+  .mk-skel.s2{ width:70%; } .mk-skel.s3{ width:85%; }
+
+  /* step4: share sheet */
+  .mk-sheet{ background:#211026; border:1px solid rgba(255,255,255,0.06); border-radius:13px; padding:12px; }
+  .mk-sheet-title{ font-family:Arial,Helvetica,sans-serif; font-weight:800; font-size:11px; color:rgba(255,255,255,0.6); margin-bottom:10px; }
+  .mk-apps{ display:flex; gap:12px; margin-bottom:12px; }
+  .mk-apps i{ width:34px; height:34px; border-radius:50%; display:block; }
+  .mk-apps i:nth-child(1){ background:#25D366; } .mk-apps i:nth-child(2){ background:#1DA1F2; }
+  .mk-apps i:nth-child(3){ background:#8E8E93; } .mk-apps i:nth-child(4){ background:#5856D6; }
+  .mk-copy{ position:relative; display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:10px;
+    background:rgba(233,0,82,0.16); box-shadow:0 0 0 2px var(--primary-soft); }
+  .mk-copy svg{ width:18px; height:18px; stroke:#fff; stroke-width:1.9; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .mk-copy span{ font-family:Arial,Helvetica,sans-serif; font-weight:700; font-size:11.5px; color:#fff; }
+  .mk-copy .mk-cue{ position:absolute; top:-28px; right:12px; }
+
+  /* web nav tabs (browser method) */
+  .mk-webnav{ display:flex; gap:4px; justify-content:space-between; background:#1A0524; border:1px solid rgba(255,255,255,0.05);
+    border-radius:11px; padding:7px 6px; margin-top:26px; overflow:visible; }
+  .mk-webtab{ flex:0 1 auto; padding:8px 10px; border-radius:8px; font-family:Arial,Helvetica,sans-serif;
+    font-size:10px; font-weight:700; color:rgba(255,255,255,0.45); white-space:nowrap; position:relative; }
+  .mk-webtab.active{ color:#fff; background:rgba(233,0,82,0.16); box-shadow:0 0 0 1.6px var(--primary-soft); }
+  .mk-webtab .mk-cue{ position:absolute; top:-30px; left:50%; transform:translateX(-50%); }
+
+  /* url bar */
+  .mk-urlwrap{ padding-top:22px; }
+  .mk-url{ display:flex; align-items:center; gap:7px; background:#211026; border:1px solid rgba(255,255,255,0.08);
+    border-radius:10px; padding:10px 12px; font-family:monospace; font-size:11px; color:rgba(255,255,255,0.72);
+    overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch; }
+  .mk-url .lock{ flex-shrink:0; opacity:.55; }
+  .mk-url .lock svg{ width:12px; height:12px; stroke:currentColor; stroke-width:1.8; fill:none; }
+  .mk-url .idnum{ position:relative; color:#fff; font-weight:700; background:var(--primary);
+    padding:2px 7px; border-radius:6px; margin:0 1px; box-shadow:0 3px 10px rgba(233,0,82,0.5); }
+  .mk-url-cue{ display:flex; justify-content:center; margin-top:12px; }
+  .mk-url-cue .mk-cue{ font-size:10.5px; padding:5px 12px; }
+
+  @media (min-width:900px){
+    .idg-overlay{ align-items:center; padding:24px; }
+    .idg-sheet{ border-radius:22px; max-height:88vh; }
+  }
+
   @media (max-width:360px){
     .ob-title{ font-size:26px; }
     .ob-stage{ height:210px; }
@@ -4346,8 +4472,74 @@ function renderOnboard(){
         '</div>' +
       '</div>' +
 
-      '<div class="hint ob-hint">مش عارف رقمك؟ سجّل دخول على موقع FPL من المتصفح وافتح صفحة Points — الرقم اللي في الرابط <code>/entry/1234567/</code> هو معرفك.</div>' +
+      '<button type="button" class="ob-help-btn" id="obHelpBtn">' +
+        '<span class="qmark">؟</span>' +
+        '<span>مش عارف الـ ID بتاعك؟ اضغط هنا للشرح بالصور</span>' +
+      '</button>' +
 
+    '</div>' +
+
+    renderIdGuide() +
+
+  '</div>';
+}
+
+// ===== "how to find your FPL Team ID" visual guide (modal) =====
+function renderIdGuide(){
+  return '<div class="idg-overlay" id="idgOverlay">' +
+    '<div class="idg-sheet" onclick="event.stopPropagation()">' +
+      '<div class="idg-grip"></div>' +
+
+      '<div class="idg-head">' +
+        '<div class="idg-head-row">' +
+          '<div class="idg-title">إزاي تجيب رقم الـ FPL Team ID؟</div>' +
+          '<button type="button" class="idg-close" id="idgClose"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+        '</div>' +
+        '<div class="idg-sub">رقمك ده مكوّن من 6 لـ 8 أرقام وخاص بفريقك على الفانتازي الرسمي. اتبع الخطوات دي من متصفح موبايلك أو الكمبيوتر.</div>' +
+      '</div>' +
+
+      '<div class="idg-body">' +
+
+        // Step 1 — open the website
+        '<div class="idg-step">' +
+          '<div class="idg-step-num">1</div>' +
+          '<div class="idg-step-body">' +
+            '<div class="idg-step-txt">افتح المتصفح وادخل على موقع <b>fantasy.premierleague.com</b> وسجّل دخولك بحسابك.</div>' +
+            '<div class="mock">' +
+              '<div class="mk-url"><span class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><span>fantasy.premierleague.com</span></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Step 2 — Points tab
+        '<div class="idg-step">' +
+          '<div class="idg-step-num">2</div>' +
+          '<div class="idg-step-body">' +
+            '<div class="idg-step-txt">من التبويبات اللي فوق، اضغط على تبويب <b>Points</b> (النقاط).</div>' +
+            '<div class="mock">' +
+              '<div class="mk-webnav">' +
+                '<div class="mk-webtab">Status</div>' +
+                '<div class="mk-webtab active"><span class="mk-cue">اضغط هنا 👆</span>Points</div>' +
+                '<div class="mk-webtab">Transfers</div>' +
+                '<div class="mk-webtab">Leagues</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+        // Step 3 — read the number from the URL
+        '<div class="idg-step">' +
+          '<div class="idg-step-num">3</div>' +
+          '<div class="idg-step-body">' +
+            '<div class="idg-step-txt">بصّ على رابط الصفحة فوق في المتصفح — هتلاقي الرقم اللي بعد كلمة <b>entry/</b> هو الـ ID بتاعك. انسخه وحطه هنا في التطبيق.</div>' +
+            '<div class="mock mk-urlwrap">' +
+              '<div class="mk-url"><span class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><span>fantasy.premierleague.com/entry/</span><span class="idnum">1234567</span><span>/event/3</span></div>' +
+              '<div class="mk-url-cue"><span class="mk-cue">☝️ ده رقمك (الـ ID)</span></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+      '</div>' +
     '</div>' +
   '</div>';
 }
@@ -5901,6 +6093,20 @@ function bindBody(){
   if(obInput){
     obInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); submitOnboard(); } });
     setTimeout(()=>{ try{ obInput.focus(); }catch(e){} }, 350);
+  }
+
+  // ID guide modal (open / close)
+  const obHelp = el.querySelector('#obHelpBtn');
+  const idgOverlay = el.querySelector('#idgOverlay');
+  const idgClose = el.querySelector('#idgClose');
+  if(obHelp && idgOverlay){
+    obHelp.addEventListener('click', ()=>{ idgOverlay.classList.add('open'); });
+  }
+  if(idgClose && idgOverlay){
+    idgClose.addEventListener('click', ()=>{ idgOverlay.classList.remove('open'); });
+  }
+  if(idgOverlay){
+    idgOverlay.addEventListener('click', (e)=>{ if(e.target === idgOverlay) idgOverlay.classList.remove('open'); });
   }
 
   // bell / refresh
