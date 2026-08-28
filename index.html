@@ -2249,11 +2249,18 @@ async function fetchWithTimeout(url, options, timeoutMs){
 // وقت الماتش بيفضل بس type=live هو اللي بيروح للشبكة كل تيك.
 const _rawMem = {}; // { memKey: { at, data } }
 const _RAW_TTL = { bootstrap: 120000, fixtures: 300000 }; // نفس مدد كاش الـedge
+// وقت فيه ماتشات شغّالة، الفكسترز (النتيجة + دقيقة الماتش + حالة "بدأ/خلص") لازم
+// تتحدّث بسرعة زي اللايف بالظبط — مش تفضل متخزّنة 5 دقايق. من غير كده بيحصل اللي
+// اليوزر شافه: نقط اللاعب بتتحدّث (جول/دقايق) بس النتيجة ودقيقة الماتش على الكارت
+// بيفضلوا قدام (0-0 والدقيقة 13) لأنهم جايين من كاش الفكسترز القديم.
+const _RAW_TTL_LIVE = { fixtures: 15000 }; // 15 ثانية وقت اللايف
 
 async function fplFetch(type, event){
   const url = FPL_ENDPOINT + '?type=' + type + (event ? '&event=' + event : '');
   const memKey = type + (event ? (':'+event) : '');
-  const ttl = _RAW_TTL[type];
+  // لو فيه ماتشات شغّالة دلوقتي، نقصّر مدة كاش الفكسترز جدًا عشان النتيجة/الدقيقة تفضل حيّة
+  const liveNow = (typeof state !== 'undefined') && state.hasLiveFixtures;
+  const ttl = (liveNow && _RAW_TTL_LIVE[type] != null) ? _RAW_TTL_LIVE[type] : _RAW_TTL[type];
   if(ttl && _rawMem[memKey] && (Date.now()-_rawMem[memKey].at) < ttl){
     return _rawMem[memKey].data;
   }
