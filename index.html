@@ -2972,6 +2972,8 @@ let state = {
   totalManagers:0,     // إجمالي عدد مديري الفانتازي (لمؤشر توقع تغيير الأسعار)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
+  mazaretaTeam:null,    // تشكيلة المزاريطة المشتركة (من السيرفر): {gw, frozen, picks, captainId, formation}
+  _aiSig:null,          // بصمة آخر تشكيلة اتعرضت (عشان مانعملش render من غير داعي)
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   oddsByClub:{}, oddsSyncedAt:null,   // 🎯 أودز الرهان المشتقة لكل نادي (لو المفتاح/البروكسي متوفر)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
@@ -4075,8 +4077,123 @@ function aiEvaluationTeam(){
   };
 }
 
+// ===== تشكيلة المزاريطة: تُرشَّح قبل الجولة، تتجمّد عند الديدلاين، وتتحسبلها النقط لايف لحد ما تخلص =====
+
+// اختيار أفضل 11 حسب التوقّع (للجولة اللي بنخطّط لها) — بيرجّع ids + كابتن + خطة (من غير نقط)
+function aiPickXI(){
+  const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
+  state.players.forEach(p=>{
+    const predScore = predictedPoints(p);
+    if(predScore <= 0 || availabilityMultiplier(p) <= 0) return;
+    if(!byPos[p.pos]) return;
+    byPos[p.pos].push({ p:p, pred:predScore });
+  });
+  Object.keys(byPos).forEach(k => byPos[k].sort((a,b)=> b.pred - a.pred || a.p.price - b.p.price));
+  if(byPos.GK.length < 1) return null;
+  let best = null;
+  for(let def=FORMATION_RULES.DEF.min; def<=FORMATION_RULES.DEF.max; def++){
+    for(let mid=FORMATION_RULES.MID.min; mid<=FORMATION_RULES.MID.max; mid++){
+      const fwd = 10 - def - mid;
+      if(fwd < FORMATION_RULES.FWD.min || fwd > FORMATION_RULES.FWD.max) continue;
+      if(byPos.DEF.length<def || byPos.MID.length<mid || byPos.FWD.length<fwd) continue;
+      const picks = [].concat(byPos.GK.slice(0,1), byPos.DEF.slice(0,def), byPos.MID.slice(0,mid), byPos.FWD.slice(0,fwd));
+      const totalPred = picks.reduce((s,x)=>s+x.pred, 0);
+      if(!best || totalPred > best.totalPred) best = { totalPred, picks, formation: def+'-'+mid+'-'+fwd };
+    }
+  }
+  if(!best) return null;
+  const capEntry = best.picks.slice().sort((a,b)=>b.pred-a.pred)[0];
+  return { picks: best.picks.map(x=>x.p.id), captainId: capEntry ? capEntry.p.id : null, formation: best.formation };
+}
+
+// قراءة/كتابة التشكيلة المشتركة من Supabase (عبر /api/kv) — عشان تبقى واحدة لكل المستخدمين
+async function sGetAiTeam(gw){
+  try{ const raw = await sGet('ai_team:'+gw); if(!raw) return null;
+    const o = JSON.parse(raw); return (o && o.picks && o.picks.length) ? o : null; }catch(e){ return null; }
+}
+async function sSetAiTeam(gw, pick){
+  try{ await sSet('ai_team:'+gw, JSON.stringify({ picks:pick.picks, captainId:pick.captainId, formation:pick.formation, savedAt:Date.now() })); }catch(e){}
+}
+
+// هل فيه جولة شغّالة دلوقتي (اتقفل ديدلاينها وماخلصتش مبارياتها)؟ لو آه بنجمّد تشكيلتها.
+function mazaretaLiveGw(){
+  const gi = state.gwInfo; if(!gi) return null;
+  if(!isGwLocked()) return null;                       // قبل الديدلاين → تخطيط
+  const fx = state.fixturesList || [];
+  const allDone = fx.length > 0 && fx.every(f=>f.finished);
+  return allDone ? null : gi.current;                  // شغّالة → الحالية؛ خلصت → تخطيط الجاية
+}
+
+// مزامنة التشكيلة المشتركة مع السيرفر — بتتنده على البوت وكل تيك لايف.
+// وقت الجولة: بنقرا التشكيلة المجمّدة من السيرفر (متطابقة للكل).
+// وقت التخطيط: بنحسب محليًا ونكتب على السيرفر (كل 5 دقايق بحد أقصى) عشان آخر توصية تتجمّد عند الديدلاين.
+let _aiWriteAt = {};
+async function syncMazaretaTeam(){
+  try{
+    if(!state.gwInfo || !state.players || !state.players.length) return;
+    const liveGw = mazaretaLiveGw();
+    let changed = false;
+    if(liveGw != null){
+      let shared = await sGetAiTeam(liveGw);
+      if(!shared){
+        const pick = aiPickXI();                       // fallback نادر: محدش جمّدها قبل الديدلاين
+        if(pick){ await sSetAiTeam(liveGw, pick); shared = pick; }
+      }
+      if(shared){
+        const sig = liveGw + '|live|' + shared.picks.join(',') + '|' + shared.captainId;
+        if(state._aiSig !== sig){
+          state.mazaretaTeam = { gw:liveGw, frozen:true, picks:shared.picks, captainId:shared.captainId, formation:shared.formation };
+          state._aiSig = sig; changed = true;
+        }
+      }
+    } else {
+      const planGw = plannerGw();
+      const pick = aiPickXI();
+      if(pick){
+        const sig = planGw + '|plan|' + pick.picks.join(',') + '|' + pick.captainId;
+        if(state._aiSig !== sig){
+          state.mazaretaTeam = { gw:planGw, frozen:false, picks:pick.picks, captainId:pick.captainId, formation:pick.formation };
+          state._aiSig = sig; changed = true;
+        }
+        const now = Date.now();
+        if(!_aiWriteAt[planGw] || now - _aiWriteAt[planGw] > 300000){
+          _aiWriteAt[planGw] = now;
+          sSetAiTeam(planGw, pick);                    // في الخلفية (من غير await)
+        }
+      }
+    }
+    if(changed && state.phase==='app' && state.tab==='predictions') renderBody();
+  }catch(e){}
+}
+
+// التشكيلة المعروضة (من الحالة المشتركة، مع حساب محلي مؤقت لحد ما تتزامن مع السيرفر)
+function mazaretaTeamView(){
+  const t = state.mazaretaTeam;
+  let isLive, gw, picks, captainId, formation;
+  if(t && t.picks && t.picks.length){
+    isLive = t.frozen; gw = t.gw; picks = t.picks; captainId = t.captainId; formation = t.formation;
+  } else {
+    const local = aiPickXI(); if(!local) return null;  // لسه ماتزامنتش — عرض مؤقت
+    isLive = mazaretaLiveGw() != null;
+    gw = isLive ? (state.gwInfo && state.gwInfo.current) : plannerGw();
+    picks = local.picks; captainId = local.captainId; formation = local.formation;
+  }
+  const xi = picks.map(id=>findPlayer(id)).filter(Boolean);
+  if(!xi.length) return null;
+  const scoreById = {};
+  let total = 0;
+  xi.forEach(p=>{
+    let pts = isLive ? currentGwPoints(p) : predictedPoints(p);
+    if(captainId && p.id === captainId) pts *= 2;
+    scoreById[p.id] = pts;
+    total += pts;
+  });
+  return { xi, formation, captainId, scoreById, isLive,
+           total: isLive ? total : Math.round(total*10)/10, gw };
+}
+
 function renderAiEvaluationCard(){
-  const dt = aiEvaluationTeam();
+  const dt = mazaretaTeamView();
   if(!dt) return '';
   const gk  = dt.xi.filter(p=>p.pos==='GK');
   const def = dt.xi.filter(p=>p.pos==='DEF');
@@ -6557,7 +6674,8 @@ async function scheduleLiveTick(){
       }
       if(wasStale && !state.liveDataStale && !state.liveDataError) renderBody(); // نجح التحديث — نحدّث الشاشة
     }
-    if(state.tab==='home' || state.tab==='fixtures' || state.tab==='leagues') renderBody();
+    try{ syncMazaretaTeam(); }catch(e){}   // حدّث تشكيلة المزاريطة المشتركة (بتعمل render لوحدها لو اتغيرت)
+    if(state.tab==='home' || state.tab==='fixtures' || state.tab==='leagues' || state.tab==='predictions') renderBody();
   }
   // jitter بسيط (±5 ثواني) عشان كل الأجهزة ميطلبوش في نفس اللحظة بالظبط —
   // ده بيوزّع الحمل على السيرفر بدل ما يتركّز في نبضة واحدة كل 45 ثانية.
@@ -6747,6 +6865,10 @@ function updateNotifBanner(){
 window.addEventListener('appinstalled', ()=>{ setTimeout(updateNotifBanner, 900); }); // أول ما يثبّت، اعرض تشغيل الإشعارات علطول
 setTimeout(updateNotifBanner, 1600);
 setInterval(updateNotifBanner, 1600);
+
+// مزامنة تشكيلة المزاريطة المشتركة: أول تحميل + كل دقيقة (بتقرا/تكتب من السيرفر حسب الحالة)
+setTimeout(()=>{ try{ syncMazaretaTeam(); }catch(e){} }, 4000);
+setInterval(()=>{ try{ syncMazaretaTeam(); }catch(e){} }, 60000);
 
 /* ============================================================
    المرحلة 2 — اشتراك إشعارات Web Push (تسجيل الجهاز + لاعيبة المستخدم)
