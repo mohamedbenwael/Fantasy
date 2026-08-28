@@ -37,7 +37,10 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ===== إشعارات Push — استقبال حدث جديد من السيرفر وعرضه كإشعار نظام حقيقي =====
+// ===== إشعارات Push — استقبال حدث جديد من السيرفر =====
+// - التطبيق مفتوح وظاهر قدام المستخدم → نسيبه لصوت/تنبيه الأحداث اللي جوه التطبيق
+//   (من غير بانر نظام مكرر). آمن لأن فيه نافذة ظاهرة، فكروم مش هيعرض إشعار افتراضي.
+// - مقفول / في الخلفية / الموبايل مقفّل → بانر النظام الكامل + اهتزاز حسب نوع الحدث.
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
@@ -46,20 +49,36 @@ self.addEventListener('push', (event) => {
     payload = { title: 'المزاريطة فانتازي', body: event.data ? event.data.text() : '' };
   }
 
-  const title = payload.title || 'المزاريطة فانتازي';
-  const options = {
-    body: payload.body || '',
-    icon: payload.icon || '/icon-192.png',
-    badge: payload.badge || '/icon-192.png',
-    dir: 'rtl',
-    lang: 'ar',
-    tag: payload.tag || undefined,       // لو فيه tag، الإشعارات الجديدة بتستبدل القديمة بدل ما تتكوم
-    renotify: !!payload.tag,
-    data: { url: payload.url || '/' },   // نستخدمه لما اليوزر يدوس على الإشعار
-    vibrate: payload.vibrate || [80, 40, 80],
-  };
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const visible = wins.some((c) => c.visibilityState === 'visible');
 
-  event.waitUntil(self.registration.showNotification(title, options));
+    if (visible) {
+      // التطبيق مفتوح وظاهر — سيبه لصوت الأحداث اللي جوه التطبيق، وبلاش بانر مكرر
+      wins.forEach((c) => { try { c.postMessage({ type: 'mz-push', data: payload }); } catch (e) {} });
+      return;
+    }
+
+    const kind = payload.kind;
+    const vibrate = payload.vibrate || (
+      kind === 'goal'   ? [80, 40, 120, 40, 180] :
+      kind === 'red'    ? [200, 80, 200] :
+      kind === 'csleak' ? [60, 40, 60] :
+                          [80, 40, 80]
+    );
+
+    await self.registration.showNotification(payload.title || 'المزاريطة فانتازي', {
+      body: payload.body || '',
+      icon: payload.icon || '/icon-192.png',
+      badge: payload.badge || '/icon-192.png',
+      dir: 'rtl',
+      lang: 'ar',
+      tag: payload.tag || undefined,       // لو فيه tag، الإشعارات الجديدة بتستبدل القديمة بدل ما تتكوم
+      renotify: !!payload.tag,
+      data: { url: payload.url || '/' },   // نستخدمه لما اليوزر يدوس على الإشعار
+      vibrate,
+    });
+  })());
 });
 
 // ===== لما اليوزر يدوس على الإشعار — نفتحله التطبيق (أو نركز على تاب مفتوح أصلاً) =====
@@ -80,7 +99,7 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ===== لو الاشتراك انتهت صلاحيته (نادر) — نحاول نجدده تلقائيًا =====
-// التطبيق (index.html) هيحدث النسخة الجديدة عند أول فتح بعد كده عن طريق initPushSupport()
+// التطبيق (index.html) هيحدّث النسخة الجديدة عند أول فتح بعد كده
 self.addEventListener('pushsubscriptionchange', (event) => {
   event.waitUntil(
     self.registration.pushManager
