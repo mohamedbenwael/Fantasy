@@ -3656,8 +3656,12 @@ function predictedPoints(p){
     for(let i=1;i<dgw.length;i++){ pts += Math.max(0, fixtureExpectedPoints(p, dgw[i]) * avail); }
     return Math.max(0, Math.round(pts * 10) / 10);
   }
-  // الوضع العادي (مباراة واحدة) — أو fallback لو حقل الجولة مش متوفر
-  const nextFix = look[0] || null;
+  // الوضع العادي (مباراة واحدة). مهم: بنجيب ماتش الجولة اللي بنخطّط لها (nextGw) بالتحديد،
+  // مش أقرب ماتش (look[0]) — لأن بعد الديدلاين، الفرق اللي لسه هتلعب الجولة الحالية
+  // ماتشها بيفضل هو "الأقرب"، فالتوقع كان بيخلط بين جولتين ويطلّع تشكيلة عبثية.
+  // كده كل اللاعبين بيتوقّعوا لنفس الجولة (nextGw) فالمقارنة عادلة. لو الفريق ملوش
+  // ماتش في nextGw (بلانك) بيرجع null → توقع ~0 (وده صح، مش هيلعب فمايبانش في الأفضل).
+  const nextFix = (nextGw != null ? look.find(f=>f.event===nextGw) : look[0]) || null;
   const pts = blendedFixturePoints(p, nextFix, true);
   return Math.max(0, Math.round(pts * 10) / 10);
 }
@@ -4044,7 +4048,11 @@ function aiEvaluationTeam(){
 
   const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
   const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
-  const isLive = isStarted && hasLivePoints;
+  // نعرض النقط اللايف بس لو التشكيلة المتوقّعة دي للجولة اللي بتتلعب دلوقتي فعلاً
+  // (nextGw == الحالية، يعني قبل الديدلاين). بعد الديدلاين بتبقى توقّع للجولة اللي بعدها،
+  // فمنحطّش عليها نقط لايف الجولة الحالية (اللي مش بتخصها) — نسيبها توقّع نضيف.
+  const predIsCurrentGw = !!(state.gwInfo && state.gwInfo.nextGw === state.gwInfo.current);
+  const isLive = isStarted && hasLivePoints && predIsCurrentGw;
 
   let actualTotal = 0;
   const scoreById = {};
@@ -6701,6 +6709,44 @@ window.addEventListener('appinstalled', ()=>{
 });
 setTimeout(updateInstallBanner, 1200);
 setInterval(updateInstallBanner, 1500);
+
+/* ============================================================
+   بانر بارز لتشغيل الإشعارات (بدل ما يكون مدفون في تاب "المزيد")
+   بيظهر في الهوم لو المستخدم لسه مفعّلش الإشعارات، ويختفي أول ما يفعّل،
+   وبيظهر تلقائيًا أول ما يثبّت التطبيق. ما بيتكوّمش فوق بانر التثبيت.
+   ============================================================ */
+let _notifDismissed = false;
+function _buildNotifBanner(){
+  if(document.getElementById('notifBanner')) return;
+  const b = document.createElement('div');
+  b.className = 'pwa-banner'; b.id = 'notifBanner';
+  b.innerHTML =
+    '<div class="pwa-x" id="notifX" aria-label="إغلاق">✕</div>' +
+    '<div class="pwa-ic" style="display:flex;align-items:center;justify-content:center;background:rgba(0,255,135,0.16);font-size:24px;">🔔</div>' +
+    '<div class="pwa-tx"><b>مش عايز تفوّت جول للاعيبتك؟</b>' +
+      '<span>شغّل الإشعارات — واعرف أول واحد لما لاعبك يعمل حاجة، حتى والتطبيق مقفول</span></div>' +
+    '<button class="pwa-cta" id="notifCta">تشغيل</button>';
+  document.body.appendChild(b);
+  b.querySelector('#notifX').addEventListener('click',(e)=>{ e.stopPropagation(); _notifDismissed = true; b.remove(); });
+  b.querySelector('#notifCta').addEventListener('click', async ()=>{
+    const ok = await enablePush();
+    if(ok){ _notifDismissed = true; const el=document.getElementById('notifBanner'); if(el) el.remove(); }
+  });
+}
+function updateNotifBanner(){
+  const shown = document.getElementById('notifBanner');
+  const supported = (typeof state!=='undefined') && state.pushStatus !== 'unsupported';
+  const shouldShow = (typeof state!=='undefined') && state.phase==='app' &&
+                     supported && state.pushStatus==='default' && !!state.deviceId &&
+                     !_notifDismissed &&
+                     (_isStandalone() || !_isIOS()) &&        // على آيفون-متصفح سيب بانر التثبيت هو اللي يظهر (لازم يثبّت الأول)
+                     !document.getElementById('pwaBanner');    // مانكوّمش بانرين فوق بعض
+  if(shouldShow && !shown) _buildNotifBanner();
+  else if(!shouldShow && shown) shown.remove();
+}
+window.addEventListener('appinstalled', ()=>{ setTimeout(updateNotifBanner, 900); }); // أول ما يثبّت، اعرض تشغيل الإشعارات علطول
+setTimeout(updateNotifBanner, 1600);
+setInterval(updateNotifBanner, 1600);
 
 /* ============================================================
    المرحلة 2 — اشتراك إشعارات Web Push (تسجيل الجهاز + لاعيبة المستخدم)
