@@ -34,8 +34,8 @@ const BASE = 'https://fantasy.premierleague.com/api';
 // مدة "الطزاجة" — قبلها بنرجع الكاش من غير ما نفكر نحدّثه خالص.
 const CACHE_SECONDS = {
   bootstrap: 120,
-  fixtures: 300,
-  live: 60,
+  fixtures: 60,   // كان 300 — نزّلناه عشان النتيجة/بداية الماتش تبان أسرع في خانة المباريات
+  live: 25,       // كان 60 — نقط اللاعبين تتحدّث أسرع لما الفانتازي تنزّلها
   entry: 60,
   picks: 300,
   standings: 120,
