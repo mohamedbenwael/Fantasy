@@ -1846,6 +1846,41 @@
     .pl-chip, .swap-line .sl-in, .swap-line .sl-out{ font-size:11px; }
   }
 
+  /* ===== بانر تحميل التطبيق (PWA) ===== */
+  .pwa-banner{ position:fixed; left:12px; right:12px; bottom:calc(90px + env(safe-area-inset-bottom,0px)); z-index:70;
+    display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:18px;
+    background:linear-gradient(135deg, rgba(35,6,55,.98), rgba(22,0,33,.98));
+    border:1px solid rgba(232,196,104,.35);
+    box-shadow:0 14px 40px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.03);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    animation:pwaUp .45s cubic-bezier(.2,.9,.25,1); direction:rtl; }
+  @keyframes pwaUp{ from{ transform:translateY(34px); opacity:0 } to{ transform:translateY(0); opacity:1 } }
+  .pwa-banner .pwa-ic{ width:44px; height:44px; border-radius:12px; flex:0 0 auto; object-fit:cover;
+    box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  .pwa-banner .pwa-tx{ flex:1; min-width:0; }
+  .pwa-banner .pwa-tx b{ display:block; font-size:13px; font-weight:800; color:#fff; line-height:1.35; }
+  .pwa-banner .pwa-tx span{ display:block; font-size:10.5px; color:var(--muted,#b9a9c9); line-height:1.5; margin-top:2px; }
+  .pwa-banner .pwa-cta{ flex:0 0 auto; background:linear-gradient(135deg,#E8C468,#d9a93f); color:#2a1500;
+    font-weight:900; font-size:12.5px; border:none; border-radius:12px; padding:10px 16px; cursor:pointer;
+    font-family:inherit; box-shadow:0 6px 16px rgba(232,196,104,.35); }
+  .pwa-banner .pwa-cta:active{ transform:scale(.96); }
+  .pwa-banner .pwa-x{ position:absolute; top:-9px; left:-9px; width:24px; height:24px; border-radius:50%;
+    background:#2a0a3d; border:1px solid rgba(255,255,255,.18); color:#cbb8db; font-size:13px; line-height:22px;
+    text-align:center; cursor:pointer; padding:0; }
+  /* شيت تعليمات الآيفون */
+  .pwa-ios{ position:fixed; inset:0; z-index:210; display:flex; align-items:flex-end; justify-content:center;
+    background:rgba(0,0,0,.6); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); direction:rtl; }
+  .pwa-ios .sheet{ width:100%; max-width:520px; background:#1a0426; border-top-left-radius:22px;
+    border-top-right-radius:22px; padding:22px 20px calc(26px + env(safe-area-inset-bottom,0px));
+    border:1px solid rgba(255,255,255,.08); animation:pwaUp .4s cubic-bezier(.2,.9,.25,1); }
+  .pwa-ios h4{ margin:0 0 14px; color:#fff; font-size:16px; font-weight:800; }
+  .pwa-ios .step{ display:flex; gap:10px; align-items:flex-start; margin-bottom:13px; color:#eee; font-size:13px; line-height:1.7; }
+  .pwa-ios .step b{ color:#E8C468; }
+  .pwa-ios .step .n{ flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:rgba(232,196,104,.16);
+    color:#E8C468; font-weight:800; text-align:center; line-height:24px; font-size:12px; }
+  .pwa-ios .close{ width:100%; margin-top:6px; background:rgba(255,255,255,.06); color:#fff;
+    border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:13px; font-weight:800; font-family:inherit;
+    font-size:14px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -2738,6 +2773,8 @@ function pushLiveNotif(entry){
   entry.ts = Date.now();
   state.liveEventNotifs.unshift(entry);
   if(state.liveEventNotifs.length > 40) state.liveEventNotifs.length = 40;
+  // صوت الحدث (فورجراوند بس) — بيحترم إعدادات الإشعارات ووضع منع الحرق
+  try{ playEventSound(entry.kind); }catch(e){}
 }
 
 // نقط الهدف حسب المركز (نفس قاعدة فانتازي البريميرليج الرسمية: حراس/مدافعين 6، وسط 5، مهاجمين 4)
@@ -6417,6 +6454,150 @@ async function scheduleLiveTick(){
   setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 45000 : 60000) + jitter());
 }
 setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 45000 : 60000) + (Math.floor(Math.random()*10000) - 5000));
+
+/* ============================================================
+   المرحلة 1 — أصوات الأحداث (فورجراوند) + بانر تحميل التطبيق
+   ============================================================ */
+
+// ---- محرك الصوت (Web Audio) — بيتفعّل بعد أول لمسة من المستخدم ----
+let _actx = null;
+function _ensureAudio(){
+  if(_actx) return _actx;
+  try{
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return null;
+    _actx = new AC();
+  }catch(e){ _actx = null; }
+  return _actx;
+}
+// إلغاء قفل الصوت على iOS/Chrome: لازم أول تشغيل يبدأ جوه إيماءة من المستخدم
+['pointerdown','touchstart','click','keydown'].forEach(ev=>{
+  window.addEventListener(ev, ()=>{
+    const c = _ensureAudio();
+    if(c && c.state==='suspended') c.resume().catch(()=>{});
+  }, { passive:true });
+});
+
+function _tone(ctx, freq, t0, dur, type, peak){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type||'sine';
+  o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(peak||0.22, t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t0); o.stop(t0+dur+0.03);
+}
+// ضجيج قصير يشبه هتاف الجمهور (للجول)
+function _cheer(ctx, t0){
+  const dur = 0.7, buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate*dur), ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){ const p=i/d.length; d[i] = (Math.random()*2-1) * Math.pow(1-p,1.3) * 0.5; }
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1100; bp.Q.value=0.7;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001,t0);
+  g.gain.exponentialRampToValueAtTime(0.16,t0+0.08);
+  g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+  src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+  src.start(t0); src.stop(t0+dur);
+}
+function _soundAllowed(kind){
+  const t = (typeof state!=='undefined' && state.toggles) ? state.toggles : {};
+  if(t.antiSpoiler) return false;                         // وضع منع الحرق = كتم كامل
+  if(kind==='goal'||kind==='assist'||kind==='bonus') return t.notifGoals !== false;
+  if(kind==='csleak') return t.notifCS !== false;
+  if(kind==='yellow'||kind==='red') return t.notifCards === true; // الكروت افتراضيًا مكتومة
+  return false;
+}
+function playEventSound(kind){
+  if(!_soundAllowed(kind)) return;
+  const ctx = _ensureAudio();
+  if(!ctx) return;
+  if(ctx.state==='suspended') ctx.resume().catch(()=>{});
+  const t = ctx.currentTime + 0.02;
+  const vib = (p)=>{ try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} };
+  if(kind==='goal'){
+    [523.25,659.25,783.99,1046.5].forEach((f,i)=> _tone(ctx,f,t+i*0.10,0.30,'triangle',0.28));
+    _cheer(ctx, t+0.14); vib([60,40,120]);
+  } else if(kind==='assist'){
+    _tone(ctx,659.25,t,0.16,'triangle',0.24);
+    _tone(ctx,987.77,t+0.12,0.22,'triangle',0.24); vib([40,30,70]);
+  } else if(kind==='bonus'){
+    [1046.5,1318.5,1568].forEach((f,i)=> _tone(ctx,f,t+i*0.07,0.16,'sine',0.18));
+  } else if(kind==='yellow'){
+    _tone(ctx,220,t,0.22,'square',0.16); vib([130]);
+  } else if(kind==='red'){
+    _tone(ctx,180,t,0.22,'square',0.18);
+    _tone(ctx,150,t+0.24,0.32,'square',0.18); vib([180,80,180]);
+  } else if(kind==='csleak'){
+    _tone(ctx,392,t,0.22,'sine',0.20);
+    _tone(ctx,311.13,t+0.18,0.28,'sine',0.20);
+    _tone(ctx,246.94,t+0.40,0.42,'sine',0.20); vib([90,60,90]);
+  }
+}
+
+// ---- بانر تحميل التطبيق (Add to Home Screen) ----
+let _pwaDismissed = false;
+function _isStandalone(){
+  return (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+          window.matchMedia('(display-mode: fullscreen)').matches)) ||
+         window.navigator.standalone === true;
+}
+function _isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+         (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+}
+function _showInstallGuideSheet(){
+  if(document.querySelector('.pwa-ios')) return;
+  const ov = document.createElement('div');
+  ov.className = 'pwa-ios';
+  ov.innerHTML =
+    '<div class="sheet">' +
+      '<h4>ضيف المزاريطة على شاشتك 📲</h4>' +
+      '<div class="step"><div class="n">1</div><div>دوس على زر المشاركة <b>Share</b> تحت في المتصفح (المربع اللي طالع منه سهم لفوق).</div></div>' +
+      '<div class="step"><div class="n">2</div><div>انزل تحت واختار <b>«إضافة إلى الشاشة الرئيسية»</b> (Add to Home Screen).</div></div>' +
+      '<div class="step"><div class="n">3</div><div>دوس <b>«إضافة»</b> — وهتلاقي أيقونة المزاريطة على موبايلك زي أي تطبيق. ومن هنا بس بتشتغل الإشعارات على الآيفون.</div></div>' +
+      '<button class="close">تمام</button>' +
+    '</div>';
+  ov.addEventListener('click',(e)=>{ if(e.target===ov || e.target.classList.contains('close')) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function _buildInstallBanner(){
+  if(document.getElementById('pwaBanner')) return;
+  const b = document.createElement('div');
+  b.className = 'pwa-banner'; b.id = 'pwaBanner';
+  b.innerHTML =
+    '<div class="pwa-x" id="pwaX" aria-label="إغلاق">✕</div>' +
+    '<img class="pwa-ic" src="/icon-192.png" alt="">' +
+    '<div class="pwa-tx"><b>نزّل المزاريطة كتطبيق</b>' +
+      '<span>أسرع وبدون متصفح — وييجيلك إشعار بكل جول وأسيست للاعيبتك</span></div>' +
+    '<button class="pwa-cta" id="pwaCta">تحميل</button>';
+  document.body.appendChild(b);
+  b.querySelector('#pwaX').addEventListener('click',(e)=>{ e.stopPropagation(); _pwaDismissed = true; b.remove(); });
+  b.querySelector('#pwaCta').addEventListener('click', async ()=>{
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch(e){}
+      deferredInstallPrompt = null; state.canInstall = false;
+    } else {
+      _showInstallGuideSheet();   // آيفون/سفاري أو متصفح ملهوش prompt
+    }
+  });
+}
+function updateInstallBanner(){
+  const shown = document.getElementById('pwaBanner');
+  const shouldShow = !_isStandalone() && !_pwaDismissed &&
+                     (typeof state!=='undefined') && state.phase==='app';
+  if(shouldShow && !shown) _buildInstallBanner();
+  else if(!shouldShow && shown) shown.remove();
+}
+window.addEventListener('appinstalled', ()=>{
+  _pwaDismissed = true;
+  const el = document.getElementById('pwaBanner'); if(el) el.remove();
+});
+setTimeout(updateInstallBanner, 1200);
+setInterval(updateInstallBanner, 1500);
 
 boot();
 </script>
