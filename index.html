@@ -1943,7 +1943,7 @@ let adminPinPlain = '';
 const FPL_ENDPOINT = '/api/fpl'; // البروكسي — شوف api/fpl.js
 const LIVE_CACHE_KEY = 'fpl_cache_v2';
 const LIVE_CACHE_TTL = 5 * 60 * 1000; // 5 دقايق — لما مفيش مباريات شغالة دلوقتي
-const LIVE_CACHE_TTL_ACTIVE = 45 * 1000; // 45 ثانية — لما فيه مباريات شغالة فعليًا (بونص/نقط لحظية)
+const LIVE_CACHE_TTL_ACTIVE = 25 * 1000; // 25 ثانية — لما فيه مباريات شغالة فعليًا (نقط أسرع)
 
 // لو صورة جاية من fantasy.premierleague.com/resources.premierleague.com فشلت (لينك اتغيّر، مفيش نت، إلخ)
 // بيستبدلها ببادج بسيط فيه أول حرف من اسم اللاعب، بدل ما يظهر أيقونة صورة مكسورة.
@@ -6481,9 +6481,9 @@ async function scheduleLiveTick(){
   // jitter بسيط (±5 ثواني) عشان كل الأجهزة ميطلبوش في نفس اللحظة بالظبط —
   // ده بيوزّع الحمل على السيرفر بدل ما يتركّز في نبضة واحدة كل 45 ثانية.
   const jitter = () => Math.floor(Math.random()*10000) - 5000;
-  setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 45000 : 60000) + jitter());
+  setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 25000 : 60000) + jitter());
 }
-setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 45000 : 60000) + (Math.floor(Math.random()*10000) - 5000));
+setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 25000 : 60000) + (Math.floor(Math.random()*10000) - 5000));
 
 /* ============================================================
    المرحلة 1 — أصوات الأحداث (فورجراوند) + بانر تحميل التطبيق
