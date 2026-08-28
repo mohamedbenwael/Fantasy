@@ -6460,6 +6460,29 @@ document.querySelectorAll('.nav-item').forEach(btn=>{
   });
 });
 
+// ===== تحديث فوري لما التطبيق يرجع قدّام المستخدم =====
+// على الموبايل (خصوصًا كتطبيق PWA أو مع قفل الشاشة / تبديل التطبيقات) المتصفح
+// بيجمّد مؤقتات setTimeout وهو في الخلفية، فالنقط اللحظية والماتشات اللي بدأت
+// بتفضل واقفة على آخر قيمة اتحدّثت لحد ما المؤقت يشتغل تاني (ممكن يوصل دقيقة أو أكتر،
+// وأحيانًا الصفحة بترجع من الـ bfcache متجمّدة تمامًا). ده سبب أساسي إن اللاب بيحدّث
+// كويس والتليفون لأ. الحل: أول ما التطبيق يبقى ظاهر تاني (رجوع من الخلفية / فتح
+// الشاشة / رجوع النت) نعمل تحديث فوري للبيانات بدل ما نستنّى المؤقت الجاي.
+let _lastFgRefresh = 0;
+async function foregroundRefresh(){
+  if(typeof state === 'undefined' || state.phase !== 'app') return;
+  if(state.refreshing) return;
+  const now = Date.now();
+  if(now - _lastFgRefresh < 5000) return; // نمنع التكرار السريع لو أكتر من حدث اتظبط مع بعض
+  _lastFgRefresh = now;
+  try{ await refreshLiveData(); }catch(e){}
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') foregroundRefresh();
+});
+window.addEventListener('pageshow', ()=>{ foregroundRefresh(); });  // رجوع الصفحة من الـ bfcache (iOS بالذات)
+window.addEventListener('focus', ()=>{ foregroundRefresh(); });     // رجوع التركيز للتطبيق
+window.addEventListener('online', ()=>{ foregroundRefresh(); });    // أول ما النت يرجع
+
 // refresh deadline text + overall standings periodically
 // وقت مفيش مباريات شغالة: نعيد الرسم بس كل دقيقة (للعدّاد التنازلي وغيره).
 // وقت فيه مباريات شغالة فعليًا: نعيد الجلب من فانتازي البريميرليج كل 45 ثانية عشان
