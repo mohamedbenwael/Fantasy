@@ -2255,12 +2255,39 @@ const _RAW_TTL = { bootstrap: 120000, fixtures: 300000 }; // نفس مدد كا�
 // بيفضلوا قدام (0-0 والدقيقة 13) لأنهم جايين من كاش الفكسترز القديم.
 const _RAW_TTL_LIVE = { fixtures: 15000 }; // 15 ثانية وقت اللايف
 
-async function fplFetch(type, event){
-  const url = FPL_ENDPOINT + '?type=' + type + (event ? '&event=' + event : '');
-  const memKey = type + (event ? (':'+event) : '');
-  // لو فيه ماتشات شغّالة دلوقتي، نقصّر مدة كاش الفكسترز جدًا عشان النتيجة/الدقيقة تفضل حيّة
+// مدة "البكت الزمني" وقت اللايف — كل 20 ثانية بنغيّر الرابط (بإضافة رقم يتغير كل 20 ثانية)
+// للطلبات اللايف الحسّاسة. ليه؟ لأن كاش Cloudflare على الـ edge بيرجّع "نسخة قديمة فورًا
+// ويحدّث في الخلفية" (stale-while-revalidate)، ولو التحديث في الخلفية فشل أو اتأخر على
+// data-center معيّن، الجهاز بيفضل "معلّق" على لقطة قديمة (النتيجة 0-0 والدقيقة واقفة) حتى
+// بعد الريستارت — وكل جهاز على كولو مختلف بيعلّق على لقطة مختلفة (جهاز 13 وجهاز 22).
+// لما بنغيّر الرابط كل 20 ثانية، الرابط الجديد مالوش نسخة في الكاش خالص، فالسيرفر *مجبور*
+// يجيب نسخة طازة حقيقية من الفانتازي. وفي نفس الـ20 ثانية كل الأجهزة بتطلب نفس الرابط،
+// فالكاش بيتشارك بينهم (حماية للسيرفر من الضغط) وكلهم بيشوفوا نفس القيمة الطازة.
+const LIVE_BUCKET_MS = 20000;
+
+// معرّف النسخة — بيظهر تحت النقاط عشان تتأكد إن الجهاز محمّل النسخة الجديدة (مش نسخة قديمة من الكاش)
+const BUILD_ID = 'v3-live';
+try{ console.log('[المزاريطة] BUILD_ID =', BUILD_ID); }catch(e){}
+
+async function fplFetch(type, event, opts){
+  opts = opts || {};
   const liveNow = (typeof state !== 'undefined') && state.hasLiveFixtures;
-  const ttl = (liveNow && _RAW_TTL_LIVE[type] != null) ? _RAW_TTL_LIVE[type] : _RAW_TTL[type];
+  // الفكسترز: بنعمله بكت زمني *دايمًا* — 20 ثانية وقت اللايف، ودقيقتين وقت الهدوء.
+  // ليه دايمًا؟ عشان "حالة إن فيه ماتش شغّال" (hasLiveFixtures) نفسها بتتحسب من الفكسترز،
+  // فلو الفكسترز علّق على نسخة قديمة بتقول "الماتش ماابتداش"، التطبيق عمره ما هيدخل وضع
+  // اللايف. البكت الدائم بيضمن إن الفكسترز طازة على طول، فأول ما ماتش يبدأ التطبيق ياخد باله.
+  // اللايف: بنعمله بكت بس للجولة الحالية (opts.liveBucket) عشان نقطها بتتغير أثناء الماتش.
+  const bucketFixtures = (type === 'fixtures');
+  const bucketed = bucketFixtures || !!opts.liveBucket;
+  let bucketMs = LIVE_BUCKET_MS;                       // 20 ثانية
+  if(bucketFixtures && !liveNow) bucketMs = 120000;    // وقت الهدوء: دقيقتين تكفي (وتوفّر على السيرفر)
+  let url = FPL_ENDPOINT + '?type=' + type + (event ? '&event=' + event : '');
+  if(bucketed){
+    url += '&_t=' + Math.floor(Date.now() / bucketMs);
+  }
+  const memKey = type + (event ? (':'+event) : '');
+  // وقت البكت مفيش كاش محلي خالص (الرابط نفسه بيتغير مع البكت فهو الحامي)، غير كده المدة العادية.
+  const ttl = bucketed ? 0 : _RAW_TTL[type];
   if(ttl && _rawMem[memKey] && (Date.now()-_rawMem[memKey].at) < ttl){
     return _rawMem[memKey].data;
   }
@@ -2533,7 +2560,9 @@ async function buildLiveDataset(){
   const explainByElementGw = {};
   for(const evId of liveIds){
     try{
-      const live = await fplFetch('live', evId);
+      // للجولة الحالية بس بنفعّل البكت الزمني (نسخة طازة كل 20 ثانية) — الجولات القديمة
+      // نقطها ثابتة فمش محتاجة، وكده مانضغطش على السيرفر من غير داعي.
+      const live = await fplFetch('live', evId, { liveBucket: evId === gwId });
       (live.elements || []).forEach(row=>{
         const pts = row.stats ? row.stats.total_points : 0;
         if(!historyByElement[row.id]) historyByElement[row.id] = [];
@@ -4604,7 +4633,8 @@ function renderLivePill(){
 function renderLiveSyncedAt(){
   if(!state.liveSyncedAt) return '';
   const timeText = new Date(state.liveSyncedAt).toLocaleTimeString('ar-EG', { hour:'2-digit', minute:'2-digit' });
-  return '<div class="live-synced">آخر تحديث للنقاط: ' + timeText + '</div>';
+  // BUILD_ID ظاهر جنب وقت التحديث عشان نتأكد إن الجهاز شغّال على النسخة الجديدة فعلاً
+  return '<div class="live-synced">آخر تحديث للنقاط: ' + timeText + ' · ' + BUILD_ID + '</div>';
 }
 // ===== مركز المباريات (Fixtures Hub) =====
 function renderFixturesList(onlyLive) {
