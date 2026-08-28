@@ -18,6 +18,10 @@
 
 const KV_KEY = 'fpl_odds_cache_v1';
 
+// رابط Supabase مكتوب مباشرة زي ما هو في kv.js — عشان منحتاجش نضيف متغيّر SUPABASE_URL
+// في إعدادات الـ Pages (اللي محتاجينه بس هو SUPABASE_SERVICE_KEY، وهو موجود أصلاً).
+const SUPABASE_URL = 'https://mizlabuyvllveverurai.supabase.co';
+
 // كاش على مستوى الـ edge — الأودز الأصلية بتتحدّث كل 6 ساعات بس، فـ 15 دقيقة كاش
 // بتقلّل قراءات Supabase لأقصى درجة من غير ما البيانات تبقى قديمة فعليًا.
 const EDGE_FRESH_SECONDS = 900;      // 15 دقيقة "طزاجة"
@@ -34,7 +38,7 @@ function jsonResponse(obj, status) {
 
 // بيقرأ قيمة الأودز المخزّنة من Supabase، يبنيها كـ Response، يخزّنها في كاش الـ edge، ويرجّعها.
 async function readFromSupabaseAndStore(env, cache, cacheKey) {
-  const url = env.SUPABASE_URL + '/rest/v1/mazareta_kv?key=eq.' + encodeURIComponent(KV_KEY) + '&select=value';
+  const url = SUPABASE_URL + '/rest/v1/mazareta_kv?key=eq.' + encodeURIComponent(KV_KEY) + '&select=value';
   const res = await fetch(url, {
     headers: {
       apikey: env.SUPABASE_SERVICE_KEY,
@@ -91,8 +95,8 @@ export async function onRequest(context) {
     });
   }
 
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) {
-    return jsonResponse({ error: 'إعدادات السيرفر ناقصة (Supabase)' }, 500);
+  if (!env.SUPABASE_SERVICE_KEY) {
+    return jsonResponse({ error: 'إعدادات السيرفر ناقصة (SUPABASE_SERVICE_KEY)' }, 500);
   }
 
   const reqUrl = new URL(req.url);
