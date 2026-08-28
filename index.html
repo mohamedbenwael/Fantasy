@@ -2948,6 +2948,9 @@ let state = {
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
+  pushStatus:'default',   // حالة إذن الإشعارات: default | granted | denied | unsupported
+  _pushKey:null,          // مفتاح الاشتراك المحفوظ في Supabase
+  _pushPlayersHash:'',    // بصمة لاعيبة المستخدم آخر مرة اتسجّلت (عشان نحدّث بس لو اتغيّرت)
   flash:null,
   viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null, viewBreakdownGw:null,
   activeChip:null,      // الشيب المُفعّل في الجولة الحالية (من الفانتازي): 3xc/bboost/wildcard/freehit
@@ -5309,6 +5312,21 @@ function renderMore(){
     '<div class="more-section">' +
       '<div class="more-group-label">إعدادات الإشعارات اللايف</div>' +
       '<div class="grouped-card">' +
+        '<button class="grouped-row" id="pushEnableRow">' +
+          '<div class="gr-left"><div class="gr-icon" style="background:rgba(0,255,135,0.16);color:#00FF87;font-size:18px;">🔔</div>' +
+          '<div class="gr-text"><span>' +
+            (state.pushStatus==='granted' ? 'الإشعارات مفعّلة ✓' :
+             state.pushStatus==='denied' ? 'الإشعارات متمنوعة من المتصفح' :
+             state.pushStatus==='unsupported' ? 'متصفحك مايدعمش الإشعارات' :
+             'فعّل إشعارات لاعيبتك') + '</span>' +
+            '<div class="gr-sub">' +
+            (state.pushStatus==='granted' ? 'بتوصلك أحداث لاعيبتك حتى والتطبيق مقفول' :
+             state.pushStatus==='denied' ? 'فعّلها من إعدادات الموقع في المتصفح' :
+             state.pushStatus==='unsupported' ? 'جرّب من كروم أو سفاري بعد تثبيت التطبيق' :
+             'اعرف أول واحد لما لاعبك يجيب جون — حتى والتطبيق مقفول') + '</div>' +
+          '</div></div>' +
+          (state.pushStatus==='granted' ? '<div style="color:#00FF87;font-weight:800;font-size:15px;">✓</div>' : '<div class="gr-chev">' + ICON_CHEV + '</div>') +
+        '</button>' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(255,77,109,0.16);color:var(--coral);">' + ICON_MUTE + '</div><div class="gr-text"><span>وضع منع الحرق (Anti-Spoiler)</span><div class="gr-sub">كتم جميع إشعارات المباريات أثناء المشاهدة</div></div></div>' +
           '<div class="switch ' + (state.toggles.antiSpoiler?'on':'') + '" data-toggle="antiSpoiler"><div class="knob"></div></div></div>' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(0,255,135,0.16);color:#00FF87;">' + ICON_GOAL + '</div><div class="gr-text"><span>أهداف وأسيستات فريقي</span><div class="gr-sub">صوت احتفال الجماهير</div></div></div>' +
@@ -6299,6 +6317,18 @@ function bindBody(){
     if(confirm('هل تريد تسجيل الخروج؟ هتحتاج تدخل الـ FPL Team ID تاني عشان تدخل')) logout();
   });
 
+  // more tab: تفعيل/إيقاف إشعارات Web Push
+  const pushRow = el.querySelector('#pushEnableRow');
+  if(pushRow) pushRow.addEventListener('click', ()=>{
+    if(state.pushStatus==='granted'){
+      if(confirm('توقف الإشعارات على الجهاز ده؟')) disablePush();
+    } else if(state.pushStatus==='denied'){
+      alert('الإشعارات متمنوعة من المتصفح. افتح إعدادات الموقع (🔒 جنب اللينك) وفعّل الإشعارات، وبعدين جرّب تاني.');
+    } else if(state.pushStatus!=='unsupported'){
+      enablePush();
+    }
+  });
+
   // more tab: install app
   const installBtn = el.querySelector('#installBtn');
   if(installBtn) installBtn.addEventListener('click', async ()=>{
@@ -6598,6 +6628,116 @@ window.addEventListener('appinstalled', ()=>{
 });
 setTimeout(updateInstallBanner, 1200);
 setInterval(updateInstallBanner, 1500);
+
+/* ============================================================
+   المرحلة 2 — اشتراك إشعارات Web Push (تسجيل الجهاز + لاعيبة المستخدم)
+   ============================================================ */
+
+// ⚠️ لازم يبقى نفس مفتاح VAPID العام الموجود في الـ push-worker (env.VAPID_PUBLIC)
+const VAPID_PUBLIC_KEY = 'BFl4KjtCGoeltFOKGVtIDo2r0FOtn68lw1wFGcLgXi45UONxOTFXqbk2fAM5vryS3AG7ndn_Syl6bgV50KMBCIo';
+
+function urlB64ToUint8Array(b64){
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const base = (b64 + pad).replace(/-/g,'+').replace(/_/g,'/');
+  const raw = atob(base); const arr = new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+function _abToB64url(buf){
+  const b = new Uint8Array(buf); let s='';
+  for(let i=0;i<b.length;i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function _currentSquadIds(){
+  return (state.mySquadIds||[]).map(e=>e.id).filter(x=>x!=null);
+}
+
+// بيحفظ الاشتراك في Supabase تحت push_sub:<fplId>:<hash>، ومعاه لاعيبة المستخدم
+async function savePushSub(sub){
+  const fplId = state.deviceId || 'anon';
+  const hash = (await sha256Hex(sub.endpoint)).slice(0,16);
+  const key = 'push_sub:' + fplId + ':' + hash;
+  const ids = _currentSquadIds();
+  const payload = {
+    endpoint: sub.endpoint,
+    keys: {
+      p256dh: _abToB64url(sub.getKey('p256dh')),
+      auth:   _abToB64url(sub.getKey('auth')),
+    },
+    playerIds: ids,
+    fplId: fplId,
+    ts: Date.now(),
+  };
+  await sSet(key, JSON.stringify(payload));   // push_sub مش محمي بـ owner token
+  state._pushKey = key;
+  state._pushPlayersHash = JSON.stringify(ids);
+}
+
+async function enablePush(){
+  if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)){
+    alert('متصفحك مايدعمش الإشعارات.'); return false;
+  }
+  if(!state.deviceId){
+    alert('ادخل رقم فريقك (FPL ID) الأول عشان نعرف لاعيبتك ونبعتلك إشعاراتهم.'); return false;
+  }
+  // على الآيفون لازم التطبيق يكون متثبّت الأول
+  if(_isIOS() && !_isStandalone()){ _showInstallGuideSheet(); return false; }
+  let perm;
+  try{ perm = await Notification.requestPermission(); }catch(e){ perm = Notification.permission; }
+  state.pushStatus = perm;
+  if(perm !== 'granted'){ if(state.tab==='more') renderBody(); return false; }
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    await savePushSub(sub);
+  }catch(e){
+    alert('حصلت مشكلة وإحنا بنفعّل الإشعارات. جرّب تاني.');
+    return false;
+  }
+  if(state.tab==='more') renderBody();
+  return true;
+}
+
+async function disablePush(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub) await sub.unsubscribe();
+  }catch(e){}
+  try{ if(state._pushKey) await sDelete(state._pushKey); }catch(e){}
+  state._pushKey = null; state._pushPlayersHash = '';
+  // ملاحظة: الإذن نفسه بيفضل granted على مستوى المتصفح؛ إحنا بنوقف التسجيل بس
+  if(state.tab==='more') renderBody();
+}
+
+// بيحدّث لاعيبة المستخدم في الاشتراك المحفوظ لو التشكيلة اتغيّرت (بعد انتقالات مثلاً)
+async function refreshPushSquad(){
+  try{
+    if(state.pushStatus !== 'granted' || !state.deviceId) return;
+    const ids = _currentSquadIds();
+    if(!ids.length) return;
+    const h = JSON.stringify(ids);
+    if(h === state._pushPlayersHash) return; // مفيش تغيير
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(!sub) return;
+    await savePushSub(sub);
+  }catch(e){}
+}
+
+// تهيئة حالة الإذن عند الفتح
+try{ state.pushStatus = ('Notification' in window) ? Notification.permission : 'unsupported'; }
+catch(e){ state.pushStatus = 'unsupported'; }
+
+// حدّث لاعيبة الاشتراك بعد ما التشكيلة تتحمّل، وكل شوية (بيتخطّى لو مفيش تغيير)
+setTimeout(refreshPushSquad, 8000);
+setInterval(refreshPushSquad, 120000);
 
 boot();
 </script>
