@@ -6496,6 +6496,7 @@ window.addEventListener('online', ()=>{ foregroundRefresh(); });    // أول م
 // النقط والبونص اللحظي يفضلوا لحظة بلحظة قد الإمكان (حسب سرعة تحديث الـ API الرسمي نفسه).
 // (بنستخدم setTimeout بيعيد جدولة نفسه بدل setInterval، عشان مدة الانتظار تتغيّر لايف
 // حسب state.hasLiveFixtures بدل ما تفضل ثابتة زي ما setInterval بيعمل).
+let _lastRankTick = 0;
 async function scheduleLiveTick(){
   if(state.phase==='app'){
     // بنحدّث لو فيه ماتشات شغّالة (نقط لايف)، أو لو آخر تحديث فشل/اتأخر — عشان الرسالة
@@ -6503,10 +6504,22 @@ async function scheduleLiveTick(){
     const needsRetry = state.liveDataStale || state.liveDataError;
     if(state.hasLiveFixtures || needsRetry){
       const wasStale = needsRetry;
-      try{ await loadLiveData(needsRetry); }catch(e){} // force=true وقت إعادة المحاولة عشان يتخطى الكاش
+      // مهم: وقت اللايف بنجبر إعادة الجلب فعليًا كل تيك (force=true) بدل ما نرجّع نسخة
+      // من الكاش المحلي — عشان النتيجة والدقيقة والنقط يفضلوا حيّين بنفس السرعة على كل
+      // الأجهزة، ومايحصلش إن جهاز يبقى في الدقيقة 22 وجهاز في الدقيقة 13.
+      try{ await loadLiveData(true); }catch(e){}
+      // كمان بنحدّث الترتيب العام تلقائيًا وقت اللايف (كل ~دقيقتين) من غير تحديث يدوي،
+      // عشان مايفضلش الترتيب قديم على جهاز وجديد على التاني.
+      if(state.hasLiveFixtures){
+        const now = Date.now();
+        if(now - _lastRankTick > 120000){
+          _lastRankTick = now;
+          try{ await ensureLeagues(true); }catch(e){}
+        }
+      }
       if(wasStale && !state.liveDataStale && !state.liveDataError) renderBody(); // نجح التحديث — نحدّث الشاشة
     }
-    if(state.tab==='home' || state.tab==='fixtures') renderBody();
+    if(state.tab==='home' || state.tab==='fixtures' || state.tab==='leagues') renderBody();
   }
   // jitter بسيط (±5 ثواني) عشان كل الأجهزة ميطلبوش في نفس اللحظة بالظبط —
   // ده بيوزّع الحمل على السيرفر بدل ما يتركّز في نبضة واحدة كل 45 ثانية.
