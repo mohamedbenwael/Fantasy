@@ -1,6 +1,11 @@
 // Service Worker — بيخلي الموقع "قابل للتثبيت" (شرط أساسي لتغليفه كتطبيق أندرويد)
 // + بيستقبل إشعارات Push حقيقية حتى لو التطبيق مقفول
-const CACHE_NAME = 'mazareta-fpl-v1';
+//
+// ملاحظة عن التعديل: رفعنا رقم النسخة (v2) عشان أول ما الـ SW الجديد يتفعّل يمسح
+// الكاش القديم، فالتليفون يجيب نسخة index.html الجديدة من الشبكة بدل ما يفضل ماسك
+// نسخة قديمة. وكمان وسّعنا استثناء الكاش ليشمل كل /api/ (مش /api/fpl بس) — عشان
+// أي بيانات لايف (النقط/الماتشات) متتخزنش أبدًا وتفضل حيّة على طول.
+const CACHE_NAME = 'mazareta-fpl-v2';
 const CORE_ASSETS = ['/'];
 
 self.addEventListener('install', (event) => {
@@ -23,8 +28,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // متعملش كاش لطلبات الـ API — لازم تفضل لايف دايمًا
-  if (event.request.url.includes('/api/fpl')) return;
+  // متعملش كاش لأي طلب API — لازم يفضل لايف دايمًا (النقط/الماتشات/اللاعب اللي بيلعب)
+  if (event.request.url.includes('/api/')) return;
 
   event.respondWith(
     fetch(event.request)
