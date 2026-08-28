@@ -34,6 +34,7 @@ const ALLOWED_PREFIXES = [
   'public_entry:',
   'mazareta_manager:',
   'push_sub:',            // اشتراكات إشعارات Web Push (endpoint + مفاتيح + لاعيبة المستخدم)
+  'ai_team:',             // تشكيلة المزاريطة المشتركة لكل جولة (مجمّدة عند الديدلاين، متطابقة للكل)
 ];
 
 function isAllowedKey(key) {
