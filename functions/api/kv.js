@@ -33,6 +33,7 @@ const ALLOWED_PREFIXES = [
   'mazareta_squad_next:',
   'public_entry:',
   'mazareta_manager:',
+  'push_sub:',            // اشتراكات إشعارات Web Push (endpoint + مفاتيح + لاعيبة المستخدم)
 ];
 
 function isAllowedKey(key) {
