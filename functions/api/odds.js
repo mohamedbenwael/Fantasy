@@ -101,8 +101,12 @@ export async function onRequest(context) {
 
   const reqUrl = new URL(req.url);
   const cache = caches.default;
-  const cacheKey = new Request(reqUrl.origin + reqUrl.pathname, { method: 'GET' });
-  const lockKeyStr = reqUrl.origin + reqUrl.pathname;
+  // نسخة الكاش — لو غيّرناها بيتجاهل الكود أي إدخالات قديمة اتخزّنت بنسخة سابقة
+  // (بدل ما نعتمد على Purge اللي ممكن يتأخر). زوّد الرقم ده لو احتجت "تصفير" الكاش تاني.
+  const CACHE_VERSION = 'v2';
+  const cacheKeyUrl = reqUrl.origin + reqUrl.pathname + '?__cv=' + CACHE_VERSION;
+  const cacheKey = new Request(cacheKeyUrl, { method: 'GET' });
+  const lockKeyStr = cacheKeyUrl;
 
   // ===== شوف كاش الـ edge الأول =====
   let cached;
