@@ -1013,8 +1013,8 @@
   .card-icon.red { background: #e74c3c; }
   .h2-icon { display: flex; align-items: center; gap: 6px; }
   .h2-icon svg { width: 16px; height: 16px; stroke-width: 2.5px; }
-  .bonus-star { display: inline-block; width: 10px; color: var(--gold); vertical-align: text-top; margin-inline-start: 2px; }
-  .bonus-star svg { width: 10px; height: 10px; stroke-width: 2px; }
+  .bonus-star { display: inline-block; width: 9px; color: var(--gold); vertical-align: text-top; margin-inline-start: 1px; }
+  .bonus-star svg { width: 9px; height: 9px; stroke-width: 2px; }
   .swap-tag { display: flex; align-items: center; justify-content: center; gap: 4px; font-family: 'Cairo'; font-weight: 800; font-size: 9.5px; margin-bottom: 6px; }
   /* ===== ستايلات بروفايل اللاعب الجديدة وتفاصيل النقاط ===== */
   .pp-next-fix { flex:1; background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:12px 6px; text-align:center; position:relative; overflow:hidden; border-top: 3px solid transparent; }
@@ -1667,6 +1667,22 @@
     background:var(--accent); border:2px solid #0C7C3E; z-index:3;
   }
 
+  /* ★ علامة "لاعب النار" — لاعب فرق في ترتيبك العام (نقط كتير + ملكية قليلة) */
+  .jersey.ptoken .flame{
+    position:absolute; top:-9px; right:-9px; z-index:5;
+    width:21px; height:21px; display:flex; align-items:center; justify-content:center;
+    font-size:13px; line-height:1; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle at 50% 32%, rgba(255,190,70,0.45), rgba(255,70,0,0.12) 70%, transparent);
+    filter:drop-shadow(0 0 5px rgba(255,120,0,0.8));
+    animation:flame-flicker 1.4s ease-in-out infinite;
+  }
+  @keyframes flame-flicker{
+    0%,100%{ transform:scale(1) rotate(-3deg); filter:drop-shadow(0 0 4px rgba(255,110,0,0.65)); }
+    50%{ transform:scale(1.14) rotate(3deg); filter:drop-shadow(0 0 9px rgba(255,160,0,0.95)); }
+  }
+  /* لو فيه نار، ننقل نقطة اللايف للركن التاني عشان ما يتخبطوش */
+  .jersey.ptoken:has(.flame) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
+
   /* الاسم */
   .player .pname{
     margin-top:8px; font-size:9.5px; font-weight:700; color:#fff;
@@ -1678,14 +1694,15 @@
   }
   /* النقاط */
   .player .ppts{
-    margin-top:5px; font-size:9.5px; font-weight:800;
-    padding:2.5px 9px; border-radius:999px; direction:ltr;
+    margin-top:5px; font-size:9px; font-weight:800;
+    padding:2px 7px; border-radius:999px; direction:ltr;
+    white-space:nowrap; line-height:1.25;
     box-shadow:0 2px 6px rgba(0,0,0,0.22);
   }
   .player .ppts.upcoming{ background:rgba(255,255,255,0.13); color:var(--text); border:1px solid rgba(255,255,255,0.10); }
   .player .ppts.played{ background:linear-gradient(160deg,#FF6FA6,#FF2E7E); color:#3A0018; box-shadow:0 3px 9px rgba(255,46,126,0.35); }
   .player .ppts.live-playing{ background:linear-gradient(135deg,#e90052,#ff005a) !important; color:#fff !important; box-shadow:0 3px 10px rgba(233,0,82,0.5); }
-  .player .ppts.has-bonus{ background:linear-gradient(160deg,#F2D57A,#D9A93F); color:#3A2A05; }
+  .player .ppts.has-bonus{ background:linear-gradient(160deg,#FF6FA6,#FF2E7E); color:#3A0018; box-shadow:0 3px 9px rgba(255,46,126,0.35); }
 
   /* المكان الفاضي */
   .jersey.ptoken.placeholder, .jersey.placeholder{
@@ -2037,6 +2054,7 @@ function renderPitchToken(p, o){
       '<div class="ptoken-photo">' + pitchPhotoImg(p) + pitchClubBadge(p) + '</div>' +
       (o.isCap ? '<div class="cap">C</div>' : '') +
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
+      (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية قليلة)">🔥</div>' : '') +
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
@@ -5074,6 +5092,10 @@ function renderNotifPanel(){
 }
 
 // ===== PITCH =====
+// حد "لاعب النار": تأثير اللاعب على ترتيبك العام = نقطه × (١ − نسبة ملكيته).
+// يعني اللي جاب نقط كتير وقليل اللي شايله بيطلّعك في الترتيب أكتر — مش النقط لوحدها.
+// عدّل الرقم لو عايز النار تبان لناس أكتر (قلّله) أو أقل (كبّره).
+const HOT_RANK_IMPACT = 6;
 function renderJersey(p, opts){
   opts = opts || {};
   let cls = 'jersey jersey-photo';
@@ -5091,6 +5113,7 @@ function renderJersey(p, opts){
   let pptsClass = 'ppts';
   let displayBottom = '';
   let liveDotHtml = '';
+  let isHot = false;
 
   if(opts.planningMode){
     // ده عرض مسودة تشكيلة الجولة الجاية — منعرضش نقط ولا حالة لايف خالص، بس مباراة كل لاعب الجاية
@@ -5103,8 +5126,11 @@ function renderJersey(p, opts){
       if (status.isLive) pptsClass += ' live-playing';
       if (hasBonus) pptsClass += ' has-bonus';
       // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
-      const bonusIcon = '<span class="bonus-star">' + ICON_STAR + '</span>';
-      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal + (hasBonus ? bonusIcon : '');
+      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal;
+      // لاعب النار: تأثيره على ترتيبك العام = نقطه × (١ − نسبة ملكيته). للأساسيين اللي لعبوا بس.
+      const own = Math.min(Math.max(p.ownership || 0, 0), 100);
+      const rankImpact = currentGwPoints(p) * (1 - own / 100);
+      isHot = !opts.isBench && rankImpact >= HOT_RANK_IMPACT;
     } else {
       pptsClass += ' upcoming';
       displayBottom = status.fixtureText; // مثال: BOU (H)
@@ -5117,6 +5143,7 @@ function renderJersey(p, opts){
     selected: !!opts.selected,
     isCap: isCap,
     isLiveNow: !opts.planningMode && !!p.isPlayingLive,
+    isHot: isHot,
     showPts: showPts,
     pptsClass: pptsClass,
     bottomText: displayBottom
@@ -5203,7 +5230,7 @@ function renderPitchCard(interactive){
   const benchPositions = ['GK','DEF','MID','FWD'];
   let benchHtml = '';
   benchAll.forEach(p => {
-    const o = Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id });
+    const o = Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id, isBench: true });
     benchHtml += renderJersey(p, o);
   });
   for(let i = benchAll.length; i < 4; i++){
