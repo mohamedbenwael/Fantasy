@@ -1684,6 +1684,11 @@
   .jersey.ptoken:has(.flame) .live-dot,
   .jersey.ptoken:has(.frost) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
 
+  /* رقم حركة اللاعب في ترتيبك (زي LiveFPL) — أخضر لو طلّعك، أحمر لو نزّلك */
+  .player .rankdelta{ margin-top:3px; font-size:8.5px; font-weight:800; direction:ltr; letter-spacing:0.2px; }
+  .player .rankdelta.up{ color:#2fe38a; }
+  .player .rankdelta.down{ color:#ff6a6a; }
+
   /* 🔻 علامة "بيسحبك لتحت" — عكس النار (EO عالية وانت مش مكبتنه) */
   .jersey.ptoken .frost{
     position:absolute; top:-9px; right:-9px; z-index:5;
@@ -2069,6 +2074,7 @@ function renderPitchToken(p, o){
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
+    (o.rankDeltaHtml || '') +
   '</div>';
 }
 
@@ -3011,6 +3017,7 @@ let state = {
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   oddsByClub:{}, oddsSyncedAt:null,   // 🎯 أودز الرهان المشتقة لكل نادي (لو المفتاح/البروكسي متوفر)
   eoByElement:{}, eoSyncedAt:null, eoGw:null, eoSampled:0,   // 🔥 الملكية الفعّالة لكل لاعب (من الـsampling عبر /api/eo)
+  eoDist:null, eoDistN:0, eoTotalPlayers:0,   // توزيع نقط المديرين + إجماليهم (لتحويل النقط لمراكز فعلية)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
   realLeagues: [], overallRank: 0, eventRank: null,
@@ -3498,9 +3505,37 @@ async function loadEO(){
     state.eoByElement = map;
     state.eoGw = raw.gw || null;
     state.eoSampled = raw.sampled || 0;
+    state.eoDist = raw.dist || null;                 // توزيع نقط المديرين (نقطة → عدد)
+    state.eoDistN = raw.distN || 0;                  // حجم عيّنة التوزيع
+    state.eoTotalPlayers = raw.total_players || 0;   // إجمالي عدد المديرين (~11 مليون)
     state.eoSyncedAt = Date.now();
     return Object.keys(map).length > 0;
   }catch(e){ return false; }
+}
+
+// كام مركز بتتحرّك مقابل كل نقطة عند ترتيبك الحالي = كثافة المديرين حوالين نقطك.
+// بنحسبها من توزيع نقط العيّنة (dist) حوالين نقطك الإجمالي، ونكبّرها لكل المديرين.
+function ranksPerPoint(){
+  const dist = state.eoDist, N = state.eoDistN, TP = state.eoTotalPlayers;
+  const userTotal = state.overallPoints;
+  if(!dist || !N || !TP || userTotal==null) return null;
+  let W = 2, count = 0;
+  for(; W<=8; W+=2){                       // نوسّع الشباك لو العيّنة رفيعة عند نقطك
+    count = 0;
+    for(let t=Math.round(userTotal)-W; t<=Math.round(userTotal)+W; t++){ count += (dist[t]||0); }
+    if(count >= 8) break;
+  }
+  if(count<=0) return null;
+  const perPointInSample = count / (2*W+1);   // مديرين لكل نقطة في العيّنة
+  return perPointInSample * (TP / N);         // × نسبة التكبير لكل المديرين
+}
+
+// تنسيق رقم المراكز: 382000 → "382k" ، 1400000 → "1.4M"
+function fmtRanks(n){
+  n = Math.abs(Math.round(n));
+  if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if(n >= 1e3) return Math.round(n/1e3) + 'k';
+  return String(n);
 }
 
 // بترجع أودز المباراة لنادي معيّن *بشرط إنها نفس المباراة الجاية* (تطابق الخصم)، وإلا null
@@ -5164,6 +5199,7 @@ function renderJersey(p, opts){
   let liveDotHtml = '';
   let isHot = false;
   let isCold = false;
+  let rankDeltaHtml = '';
 
   if(opts.planningMode){
     // ده عرض مسودة تشكيلة الجولة الجاية — منعرضش نقط ولا حالة لايف خالص، بس مباراة كل لاعب الجاية
@@ -5193,6 +5229,17 @@ function renderJersey(p, opts){
         if(rankImpact >= HOT_RANK_IMPACT) isHot = true;
         else if(rankImpact <= -COLD_RANK_IMPACT) isCold = true;
       }
+      // حركة اللاعب في ترتيبك الفعلي = (نقط مقابل المتوسط) × قيمة النقطة عند ترتيبك
+      if(haveEO){
+        const rpp = ranksPerPoint();
+        if(rpp){
+          const moved = rankImpact * rpp;         // موجب = طلّعك (climbed) ، سالب = نزّلك
+          if(Math.abs(moved) >= 1000){
+            rankDeltaHtml = '<div class="rankdelta ' + (moved>0?'up':'down') + '">' +
+              (moved>0?'▲':'▼') + ' ' + fmtRanks(moved) + '</div>';
+          }
+        }
+      }
     } else {
       pptsClass += ' upcoming';
       displayBottom = status.fixtureText; // مثال: BOU (H)
@@ -5207,6 +5254,7 @@ function renderJersey(p, opts){
     isLiveNow: !opts.planningMode && !!p.isPlayingLive,
     isHot: isHot,
     isCold: isCold,
+    rankDeltaHtml: rankDeltaHtml,
     showPts: showPts,
     pptsClass: pptsClass,
     bottomText: displayBottom
