@@ -1681,7 +1681,17 @@
     50%{ transform:scale(1.14) rotate(3deg); filter:drop-shadow(0 0 9px rgba(255,160,0,0.95)); }
   }
   /* لو فيه نار، ننقل نقطة اللايف للركن التاني عشان ما يتخبطوش */
-  .jersey.ptoken:has(.flame) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
+  .jersey.ptoken:has(.flame) .live-dot,
+  .jersey.ptoken:has(.frost) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
+
+  /* ❄️ علامة "بيسحبك لتحت" — عكس النار (EO عالية وانت مش مكبتنه) */
+  .jersey.ptoken .frost{
+    position:absolute; top:-9px; right:-9px; z-index:5;
+    width:21px; height:21px; display:flex; align-items:center; justify-content:center;
+    font-size:12px; line-height:1; border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle at 50% 35%, rgba(120,200,255,0.42), rgba(30,120,255,0.12) 70%, transparent);
+    filter:drop-shadow(0 0 5px rgba(80,170,255,0.75));
+  }
 
   /* الاسم */
   .player .pname{
@@ -2054,7 +2064,8 @@ function renderPitchToken(p, o){
       '<div class="ptoken-photo">' + pitchPhotoImg(p) + pitchClubBadge(p) + '</div>' +
       (o.isCap ? '<div class="cap">C</div>' : '') +
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
-      (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية قليلة)">🔥</div>' : '') +
+      (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية فعّالة قليلة)">🔥</div>' : '') +
+      (o.isCold ? '<div class="frost" title="❄️ بيسحبك لتحت — ملكيته الفعّالة عالية (ناس كتير مكبتناه) وانت مش مكبتنه، فنقطه بتنزّلك في الترتيب">❄️</div>' : '') +
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
@@ -2977,6 +2988,11 @@ function applyLiveDataset(d){
   if(typeof loadOddsModel === 'function'){
     loadOddsModel().then(changed=>{ if(changed && state.phase==='app'){ try{ renderBody(); }catch(e){} } }).catch(()=>{});
   }
+  // 🔥 تحميل الملكية الفعّالة (EO) — بتشمل كبتنة الناس، من الـsampling عبر /api/eo.
+  // غير معطِّل: أول ما تجهز بتحدّث علامات "لاعب النار/البرد". لو فشلت بنرجع لنسبة الملكية العادية.
+  if(typeof loadEO === 'function'){
+    loadEO().then(changed=>{ if(changed && state.phase==='app'){ try{ renderBody(); }catch(e){} } }).catch(()=>{});
+  }
 }
 
 // ===== app state =====
@@ -2994,6 +3010,7 @@ let state = {
   _aiSig:null,          // بصمة آخر تشكيلة اتعرضت (عشان مانعملش render من غير داعي)
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   oddsByClub:{}, oddsSyncedAt:null,   // 🎯 أودز الرهان المشتقة لكل نادي (لو المفتاح/البروكسي متوفر)
+  eoByElement:{}, eoSyncedAt:null, eoGw:null, eoSampled:0,   // 🔥 الملكية الفعّالة لكل لاعب (من الـsampling عبر /api/eo)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
   realLeagues: [], overallRank: 0, eventRank: null,
@@ -3454,6 +3471,35 @@ async function loadOddsModel(){
     state.oddsByClub = map;
     state.oddsSyncedAt = Date.now();
     return Object.keys(map).length>0;
+  }catch(e){ return false; }
+}
+
+// ===== الملكية الفعّالة (EO) =====
+// بنجيب من /api/eo بلوب فيه EO% + نسبة الكبتنة لكل لاعب (محسوبة بالـsampling من أعلى المديرين).
+// EO = الملكية + الكبتنة (لأن الكابتن بياخد النقطة مرتين). بتُستخدم في علامة "لاعب النار/البرد"
+// عشان نقيس تأثير اللاعب على ترتيبك العام بدقة، مش النقط لوحدها.
+const EO_ENDPOINT  = '/api/eo';         // بروكسي بيقرا من Supabase (شوف api/eo.js) — نفس فكرة /api/odds
+const EO_CACHE_TTL = 15 * 60 * 1000;    // 15 دقيقة — الـEO بتتغير أثناء اللايف أسرع من الأودز
+let _eoMemCache = null;                  // { at, data }
+async function loadEO(){
+  try{
+    let raw = null;
+    if(_eoMemCache && _eoMemCache.at && (Date.now()-_eoMemCache.at) < EO_CACHE_TTL){ raw = _eoMemCache.data; }
+    if(!raw){
+      const res = await fetchWithTimeout(EO_ENDPOINT, undefined, 12000);
+      if(!res.ok) return false;
+      raw = await res.json();
+      if(!raw || typeof raw !== 'object' || !raw.eo) return false;
+      _eoMemCache = { at: Date.now(), data: raw };
+    }
+    const map = {};
+    const eo = raw.eo || {}, cap = raw.cap || {};
+    Object.keys(eo).forEach(id=>{ map[id] = { eo: (+eo[id]||0), cap: (+(cap[id]||0)) }; });
+    state.eoByElement = map;
+    state.eoGw = raw.gw || null;
+    state.eoSampled = raw.sampled || 0;
+    state.eoSyncedAt = Date.now();
+    return Object.keys(map).length > 0;
   }catch(e){ return false; }
 }
 
@@ -5096,6 +5142,9 @@ function renderNotifPanel(){
 // يعني اللي جاب نقط كتير وقليل اللي شايله بيطلّعك في الترتيب أكتر — مش النقط لوحدها.
 // عدّل الرقم لو عايز النار تبان لناس أكتر (قلّله) أو أقل (كبّره).
 const HOT_RANK_IMPACT = 6;
+// حد "بيسحبك لتحت": لاعب شايله كتير ومكبتن كتير (EO عالية) وانت مش مكبتنه، فبينزّلك في الترتيب.
+// (بيتحسب بس لما يكون عندنا EO حقيقي من الـsampling.)
+const COLD_RANK_IMPACT = 2.5;
 function renderJersey(p, opts){
   opts = opts || {};
   let cls = 'jersey jersey-photo';
@@ -5114,6 +5163,7 @@ function renderJersey(p, opts){
   let displayBottom = '';
   let liveDotHtml = '';
   let isHot = false;
+  let isCold = false;
 
   if(opts.planningMode){
     // ده عرض مسودة تشكيلة الجولة الجاية — منعرضش نقط ولا حالة لايف خالص، بس مباراة كل لاعب الجاية
@@ -5127,10 +5177,22 @@ function renderJersey(p, opts){
       if (hasBonus) pptsClass += ' has-bonus';
       // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
       displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal;
-      // لاعب النار: تأثيره على ترتيبك العام = نقطه × (١ − نسبة ملكيته). للأساسيين اللي لعبوا بس.
-      const own = Math.min(Math.max(p.ownership || 0, 0), 100);
-      const rankImpact = currentGwPoints(p) * (1 - own / 100);
-      isHot = !opts.isBench && rankImpact >= HOT_RANK_IMPACT;
+      // ===== تأثير اللاعب على ترتيبك العام =====
+      // = (مضاعِفك − الملكية الفعّالة/100) × نقط اللاعب الأساسية.
+      //   مضاعِفك: ٢ لو مكبتنه، ١ لو شايله بس.
+      //   الملكية الفعّالة (EO) بتشمل كبتنة الناس (من /api/eo). لو لسه ماوصلتش،
+      //   بنرجع لنسبة الملكية العادية كحد أدنى.
+      const basePts = currentGwPoints(p);
+      const eoRec = state.eoByElement && state.eoByElement[p.id];
+      const haveEO = !!eoRec;
+      const eoFrac = haveEO ? (eoRec.eo/100) : (Math.min(Math.max(p.ownership||0,0),100)/100);
+      const yourMult = isCap ? 2 : 1;
+      const rankImpact = (yourMult - eoFrac) * basePts;
+      if(!opts.isBench){
+        if(rankImpact >= HOT_RANK_IMPACT) isHot = true;
+        // "بيسحبك لتحت": يظهر بس مع EO حقيقي (محتاج كبتنة الناس عشان نعرف إن الـEO عدّت مضاعِفك)
+        else if(haveEO && rankImpact <= -COLD_RANK_IMPACT) isCold = true;
+      }
     } else {
       pptsClass += ' upcoming';
       displayBottom = status.fixtureText; // مثال: BOU (H)
@@ -5144,6 +5206,7 @@ function renderJersey(p, opts){
     isCap: isCap,
     isLiveNow: !opts.planningMode && !!p.isPlayingLive,
     isHot: isHot,
+    isCold: isCold,
     showPts: showPts,
     pptsClass: pptsClass,
     bottomText: displayBottom
