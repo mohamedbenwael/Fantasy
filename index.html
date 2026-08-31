@@ -5188,10 +5188,10 @@ function renderJersey(p, opts){
       const eoFrac = haveEO ? (eoRec.eo/100) : (Math.min(Math.max(p.ownership||0,0),100)/100);
       const yourMult = isCap ? 2 : 1;
       const rankImpact = (yourMult - eoFrac) * basePts;
-      if(!opts.isBench){
+      if(!opts.isBench && haveEO){
+        // العلامات بتظهر بس لما تكون عندنا EO حقيقية (مش الملكية بس) — عشان مايطلعش مؤشر غلط
         if(rankImpact >= HOT_RANK_IMPACT) isHot = true;
-        // "بيسحبك لتحت": يظهر بس مع EO حقيقي (محتاج كبتنة الناس عشان نعرف إن الـEO عدّت مضاعِفك)
-        else if(haveEO && rankImpact <= -COLD_RANK_IMPACT) isCold = true;
+        else if(rankImpact <= -COLD_RANK_IMPACT) isCold = true;
       }
     } else {
       pptsClass += ' upcoming';
