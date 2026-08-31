@@ -3513,16 +3513,16 @@ async function loadEO(){
   }catch(e){ return false; }
 }
 
-// كام مركز بتتحرّك مقابل كل نقطة عند ترتيبك الحالي = كثافة المديرين حوالين نقطك.
-// بنحسبها من توزيع نقط العيّنة (dist) حوالين نقطك الإجمالي، ونكبّرها لكل المديرين.
+// كام مركز بتتحرّك مقابل كل نقطة في ترتيب الجولة = كثافة المديرين حوالين نقط جولتك.
+// بنحسبها من توزيع نقط الجولة (dist) حوالين نقط جولتك، ونكبّرها لكل المديرين.
 function ranksPerPoint(){
   const dist = state.eoDist, N = state.eoDistN, TP = state.eoTotalPlayers;
-  const userTotal = state.overallPoints;
-  if(!dist || !N || !TP || userTotal==null) return null;
+  const myGwPts = (typeof roundPoints === 'function') ? roundPoints() : null;
+  if(!dist || !N || !TP || myGwPts==null) return null;
   let W = 2, count = 0;
-  for(; W<=8; W+=2){                       // نوسّع الشباك لو العيّنة رفيعة عند نقطك
+  for(; W<=10; W+=2){                      // نوسّع الشباك لو العيّنة رفيعة عند نقطك
     count = 0;
-    for(let t=Math.round(userTotal)-W; t<=Math.round(userTotal)+W; t++){ count += (dist[t]||0); }
+    for(let t=Math.round(myGwPts)-W; t<=Math.round(myGwPts)+W; t++){ count += (dist[t]||0); }
     if(count >= 8) break;
   }
   if(count<=0) return null;
