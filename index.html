@@ -3519,14 +3519,14 @@ function ranksPerPoint(){
   const dist = state.eoDist, N = state.eoDistN, TP = state.eoTotalPlayers;
   const myGwPts = (typeof roundPoints === 'function') ? roundPoints() : null;
   if(!dist || !N || !TP || myGwPts==null) return null;
-  let W = 2, count = 0;
-  for(; W<=10; W+=2){                      // نوسّع الشباك لو العيّنة رفيعة عند نقطك
+  let W = 4, count = 0;
+  for(; W<=14; W+=2){                      // نافذة أوسع ومنعّمة = كثافة أثبت وأقرب للحقيقة
     count = 0;
     for(let t=Math.round(myGwPts)-W; t<=Math.round(myGwPts)+W; t++){ count += (dist[t]||0); }
-    if(count >= 8) break;
+    if(count >= 20) break;
   }
   if(count<=0) return null;
-  const perPointInSample = count / (2*W+1);   // مديرين لكل نقطة في العيّنة
+  const perPointInSample = count / (2*W+1);   // مديرين لكل نقطة في العيّنة (متوسط النافذة)
   return perPointInSample * (TP / N);         // × نسبة التكبير لكل المديرين
 }
 
