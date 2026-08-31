@@ -1684,13 +1684,13 @@
   .jersey.ptoken:has(.flame) .live-dot,
   .jersey.ptoken:has(.frost) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
 
-  /* ❄️ علامة "بيسحبك لتحت" — عكس النار (EO عالية وانت مش مكبتنه) */
+  /* 🔻 علامة "بيسحبك لتحت" — عكس النار (EO عالية وانت مش مكبتنه) */
   .jersey.ptoken .frost{
     position:absolute; top:-9px; right:-9px; z-index:5;
     width:21px; height:21px; display:flex; align-items:center; justify-content:center;
     font-size:12px; line-height:1; border-radius:50%; pointer-events:none;
-    background:radial-gradient(circle at 50% 35%, rgba(120,200,255,0.42), rgba(30,120,255,0.12) 70%, transparent);
-    filter:drop-shadow(0 0 5px rgba(80,170,255,0.75));
+    background:radial-gradient(circle at 50% 35%, rgba(255,90,90,0.42), rgba(220,20,40,0.12) 70%, transparent);
+    filter:drop-shadow(0 0 5px rgba(255,60,60,0.8));
   }
 
   /* الاسم */
@@ -2065,7 +2065,7 @@ function renderPitchToken(p, o){
       (o.isCap ? '<div class="cap">C</div>' : '') +
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
       (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية فعّالة قليلة)">🔥</div>' : '') +
-      (o.isCold ? '<div class="frost" title="❄️ بيسحبك لتحت — ملكيته الفعّالة عالية (ناس كتير مكبتناه) وانت مش مكبتنه، فنقطه بتنزّلك في الترتيب">❄️</div>' : '') +
+      (o.isCold ? '<div class="frost" title="🔻 بيسحبك لتحت — ملكيته الفعّالة عالية (ناس كتير مكبتناه) وانت مش مكبتنه، فنقطه بتنزّلك في الترتيب">🔻</div>' : '') +
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
