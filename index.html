@@ -2648,7 +2648,7 @@ const _RAW_TTL_LIVE = { fixtures: 15000 }; // 15 ثانية وقت اللايف
 // لما بنغيّر الرابط كل 20 ثانية، الرابط الجديد مالوش نسخة في الكاش خالص، فالسيرفر *مجبور*
 // يجيب نسخة طازة حقيقية من الفانتازي. وفي نفس الـ20 ثانية كل الأجهزة بتطلب نفس الرابط،
 // فالكاش بيتشارك بينهم (حماية للسيرفر من الضغط) وكلهم بيشوفوا نفس القيمة الطازة.
-const LIVE_BUCKET_MS = 20000;
+const LIVE_BUCKET_MS = 15000;
 
 // معرّف النسخة — بيظهر تحت النقاط عشان تتأكد إن الجهاز محمّل النسخة الجديدة (مش نسخة قديمة من الكاش)
 const BUILD_ID = 'v3-live';
@@ -3356,7 +3356,7 @@ function applyLiveDataset(d){
   // 🎯 تحميل أودز الرهان (غير معطِّل): بيتخزّن في كاش ساعة، وأول ما يجهز بيعيد الرسم عشان
   // الكلين شيت وتوقع النقط يستخدموا السوق. لو فشل (مفيش مفتاح/شبكة) بنكمّل بالموديل عادي.
   if(typeof loadOddsModel === 'function'){
-    loadOddsModel().then(changed=>{ if(changed && state.phase==='app'){ try{ renderBody(); }catch(e){} } }).catch(()=>{});
+    loadOddsModel().then(changed=>{ if(changed && state.phase==='app'){ try{ resetEngineCaches&&resetEngineCaches(); renderBody(); }catch(e){} } }).catch(()=>{});
   }
   // 🔥 تحميل الملكية الفعّالة (EO) — بتشمل كبتنة الناس، من الـsampling عبر /api/eo.
   // غير معطِّل: أول ما تجهز بتحدّث علامات "لاعب النار/البرد". لو فشلت بنرجع لنسبة الملكية العادية.
@@ -3676,7 +3676,11 @@ const LEAGUE_AVG_GOALS = 1.35;
 // كاش متوسط xGC (دفاعي) و xG (هجومي) لكل نادي — بيتصفّر مع كل تحديث بيانات (resetEngineCaches)
 let _teamXgcCache = {};
 let _teamXgCache = {};
-function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; }
+// كاش نتايج التوقع لكل لاعب — بيتصفّر مع كل تحديث بيانات. الحساب تقيل (بواسون + دمج فورم)،
+// وكان بيتكرر مئات المرات في كل رسم لجدول اللاعبين. الحفظ ده بيخلي الفرز/البحث/الرسم سريع جدًا.
+let _predMemo = {};
+let _projMemo = {};
+function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; _predMemo = {}; _projMemo = {}; }
 
 // متوسط الأهداف المتوقع استقبالها (xGC90) لدفاع النادي — من مدافعينه/حارسه اللي لعبوا فعليًا.
 // ده أقوى مؤشر على جودة الدفاع الحقيقية (مش بس تصنيف FPL الثابت). بيرجع null لو مفيش عينة كافية.
@@ -4215,7 +4219,16 @@ function blendedFixturePoints(p, fx, isImmediate){
 
 // توقع نقاط اللاعب في الجولة الجاية (مباراة واحدة) — بيستخدمه الكابتن والتشكيل والدريم تيم والسوق.
 // بيعتمد على المحرك الجديد اللي بيفصل نقط الظهور عن العائد الهجومي (مش بيضرب FDR في كل النقط زي قبل).
+// wrapper بيحفظ النتيجة (memoize) عشان مايتكررش الحساب التقيل مئات المرات في كل رسم للجدول.
 function predictedPoints(p){
+  const k = p.id;
+  const c = _predMemo[k];
+  if(c !== undefined) return c;
+  const v = _computePredictedPoints(p);
+  _predMemo[k] = v;
+  return v;
+}
+function _computePredictedPoints(p){
   if(availabilityMultiplier(p) === 0) return 0;
   const fx = teamFixtureInfo(p.club);
   const look = (fx && fx.lookahead) ? fx.lookahead : [];
@@ -4244,6 +4257,14 @@ function predictedPoints(p){
 // بيجمع توقع كل مباراة قادمة (الجولة الجاية بالدمج الكامل، والأبعد بالإحصائي + الفورم)، فبيدي
 // صورة أدق بكتير من مباراة واحدة: لاعب بمباراة صعبة الجولة دي بس رن سهل بعدها ماينفعش يتشال.
 function projectedPointsHorizon(p, n){
+  const k = p.id + '|' + (n||5);
+  const c = _projMemo[k];
+  if(c !== undefined) return c;
+  const v = _computeProjectedPointsHorizon(p, n);
+  _projMemo[k] = v;
+  return v;
+}
+function _computeProjectedPointsHorizon(p, n){
   if(availabilityMultiplier(p) === 0) return { total:0, perGw:0, count:0 };
   const fx = teamFixtureInfo(p.club);
   const list = (fx && fx.lookahead) ? fx.lookahead.slice(0, n||5) : [];
@@ -8234,10 +8255,11 @@ async function scheduleLiveTick(){
   }
   // jitter بسيط (±5 ثواني) عشان كل الأجهزة ميطلبوش في نفس اللحظة بالظبط —
   // ده بيوزّع الحمل على السيرفر بدل ما يتركّز في نبضة واحدة كل 45 ثانية.
-  const jitter = () => Math.floor(Math.random()*10000) - 5000;
-  setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 25000 : 60000) + jitter());
+  const jitter = () => Math.floor(Math.random()*6000) - 3000;
+  // وقت اللايف: تحديث كل ~15 ثانية (بدل 25) عشان إشعار "لاعبك عمل حاجة" يوصل أسرع.
+  setTimeout(scheduleLiveTick, ((state.hasLiveFixtures || state.liveDataStale || state.liveDataError) ? 15000 : 60000) + jitter());
 }
-setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 25000 : 60000) + (Math.floor(Math.random()*10000) - 5000));
+setTimeout(scheduleLiveTick, (state.hasLiveFixtures ? 15000 : 60000) + (Math.floor(Math.random()*6000) - 3000));
 
 /* ============================================================
    المرحلة 1 — أصوات الأحداث (فورجراوند) + بانر تحميل التطبيق
