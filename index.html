@@ -2951,6 +2951,7 @@ async function buildLiveDataset(){
   const currentGwYellow = {};
   const currentGwRed = {};
   const currentGwExplain = {};
+  const currentGwOfficialBonus = {}; // البونص الرسمي (لو الفانتازي ثبّتته أصلاً في النقط) — قفل ضد التكرار
   // تفاصيل النقاط (explain) لكل جولة اتجابت — عشان تفاصيل نقاط أي جولة تفتح بالضغط مش الحالية بس
   const explainByElementGw = {};
   for(const evId of liveIds){
@@ -2975,6 +2976,7 @@ async function buildLiveDataset(){
           currentGwAssists[row.id] = row.stats ? (row.stats.assists || 0) : 0;
           currentGwYellow[row.id] = row.stats ? (row.stats.yellow_cards || 0) : 0;
           currentGwRed[row.id] = row.stats ? (row.stats.red_cards || 0) : 0;
+          currentGwOfficialBonus[row.id] = row.stats ? (row.stats.bonus || 0) : 0; // بونص رسمي متثبّت (بيبقى داخل total_points)
         }
       });
     }catch(e){ /* لو جولة معينة فشلت نكمل من غيرها */ }
@@ -3084,6 +3086,8 @@ async function buildLiveDataset(){
     Object.keys(provisionalBonusByElement).forEach(function(elIdStr){
       var bonus = provisionalBonusByElement[elIdStr] || 0;
       if(bonus<=0) return;
+      // 🔒 قفل ضد التكرار: لو النقط أصلاً فيها بونص رسمي متثبّت، مانضيفش المؤقت خالص.
+      if((currentGwOfficialBonus[Number(elIdStr)] || 0) > 0) return;
       var arr = historyByElement[Number(elIdStr)];
       if(!arr) return;
       var cur = arr.find(function(h){ return h.gw===gwId; });
