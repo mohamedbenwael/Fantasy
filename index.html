@@ -1921,6 +1921,93 @@
   .pwa-ios .close{ width:100%; margin-top:6px; background:rgba(255,255,255,.06); color:#fff;
     border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:13px; font-weight:800; font-family:inherit;
     font-size:14px; cursor:pointer; }
+  /* ===================================================================
+     ★★★  أدوات احترافية جديدة: جدول اللاعبين + مخطط سهولة المباريات
+     (بنفس هوية الألوان — بيستخدموا محرك التوقعات الموجود بالظبط)
+     =================================================================== */
+
+  /* ---------- شريط تحكم مشترك ---------- */
+  .tool-controls{ margin:0 20px 12px; display:flex; flex-direction:column; gap:10px; }
+  .tool-search{ width:100%; box-sizing:border-box; background:var(--card-2); border:1px solid var(--card-line);
+    border-radius:12px; padding:11px 14px; color:var(--text); font-family:'Tajawal'; font-size:13px; outline:none;
+    transition:border-color .18s; }
+  .tool-search:focus{ border-color:var(--primary-soft); }
+  .tool-search::placeholder{ color:var(--muted2); }
+  .chip-row{ display:flex; gap:7px; flex-wrap:wrap; }
+  .fchip{ flex:0 0 auto; background:var(--card-2); border:1px solid var(--card-line); color:var(--muted);
+    font-family:'Cairo'; font-weight:700; font-size:11.5px; padding:7px 13px; border-radius:999px; cursor:pointer;
+    transition:all .16s; -webkit-tap-highlight-color:transparent; }
+  .fchip.on{ background:linear-gradient(135deg,var(--primary),var(--primary-deep)); color:#fff; border-color:transparent;
+    box-shadow:0 3px 10px rgba(233,0,82,0.28); }
+  .tool-count{ font-family:'Tajawal'; font-size:10.5px; color:var(--muted2); padding:0 2px; }
+
+  /* ---------- جدول اللاعبين ---------- */
+  .ptbl-scroll{ margin:0 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px;
+    border:1px solid var(--card-line); background:var(--card); }
+  .ptbl-scroll::-webkit-scrollbar{ height:6px; }
+  .ptbl-scroll::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.14); border-radius:3px; }
+  .ptbl{ border-collapse:collapse; width:100%; min-width:640px; font-family:'Tajawal'; }
+  .ptbl thead th{ position:sticky; top:0; z-index:3; background:var(--card-2);
+    font-family:'Cairo'; font-weight:800; font-size:10.5px; color:var(--muted); white-space:nowrap;
+    padding:11px 8px; text-align:center; cursor:pointer; user-select:none; border-bottom:1px solid var(--card-line);
+    transition:color .15s; }
+  .ptbl thead th:hover{ color:var(--text); }
+  .ptbl thead th.act{ color:var(--primary-soft); }
+  .ptbl thead th .sa{ font-size:8px; opacity:.9; margin-inline-start:2px; }
+  .ptbl thead th.nm{ text-align:start; padding-inline-start:14px; position:sticky; inset-inline-start:0; z-index:4;
+    background:var(--card-2); }
+  .ptbl tbody td{ padding:8px; text-align:center; font-size:12px; color:var(--text); font-weight:600;
+    border-bottom:1px solid rgba(255,255,255,0.05); white-space:nowrap; }
+  .ptbl tbody tr:active{ background:rgba(255,255,255,0.03); }
+  .ptbl tbody tr:last-child td{ border-bottom:none; }
+  .ptbl td.nm{ text-align:start; position:sticky; inset-inline-start:0; z-index:2; background:var(--card);
+    box-shadow:6px 0 8px -6px rgba(0,0,0,0.5); }
+  .ptbl .pcell{ display:flex; align-items:center; gap:9px; min-width:150px; cursor:pointer; }
+  .ptbl .pcell .pc-face{ width:30px; height:30px; border-radius:50%; flex:0 0 auto; }
+  .ptbl .pc-info{ min-width:0; }
+  .ptbl .pc-nm{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:110px; }
+  .ptbl .pc-mt{ font-family:'Tajawal'; font-size:9.5px; color:var(--muted); margin-top:1px; }
+  .ptbl td.hi{ color:var(--accent); font-weight:800; }
+  .ptbl td.pr{ color:var(--gold); font-weight:800; }
+  .ptbl td.dim{ color:var(--muted); font-weight:600; }
+  .ptbl .st-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-inline-start:5px; vertical-align:middle; }
+  .st-dot.inj{ background:var(--coral); } .st-dot.doubt{ background:var(--gold); }
+  .ptbl-empty{ text-align:center; color:var(--muted); font-family:'Tajawal'; font-size:12px; padding:26px 12px; }
+
+  /* ---------- مخطط سهولة المباريات (FDR Ticker) ---------- */
+  .fdr-legend{ display:flex; align-items:center; justify-content:center; gap:5px; flex-wrap:wrap;
+    margin:0 20px 12px; font-family:'Tajawal'; font-size:10px; color:var(--muted); }
+  .fdr-legend .lg{ display:inline-flex; align-items:center; gap:4px; }
+  .fdr-legend .sw{ width:13px; height:13px; border-radius:4px; display:inline-block; }
+  .fdr-scroll{ margin:0 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px;
+    border:1px solid var(--card-line); background:var(--card); }
+  .fdr-scroll::-webkit-scrollbar{ height:6px; }
+  .fdr-scroll::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.14); border-radius:3px; }
+  .fdr-tbl{ border-collapse:separate; border-spacing:0; width:100%; min-width:520px; font-family:'Cairo'; }
+  .fdr-tbl th{ position:sticky; top:0; z-index:3; background:var(--card-2); font-weight:800; font-size:10px;
+    color:var(--muted); padding:9px 4px; text-align:center; border-bottom:1px solid var(--card-line); white-space:nowrap; }
+  .fdr-tbl th.tm{ inset-inline-start:0; z-index:4; text-align:start; padding-inline-start:12px; min-width:96px; }
+  .fdr-tbl td{ padding:5px 4px; text-align:center; }
+  .fdr-tbl td.tm{ position:sticky; inset-inline-start:0; z-index:2; background:var(--card);
+    box-shadow:6px 0 8px -6px rgba(0,0,0,0.5); border-bottom:1px solid rgba(255,255,255,0.05); }
+  .fdr-tm{ display:flex; align-items:center; gap:7px; }
+  .fdr-tm img{ width:22px; height:22px; flex:0 0 auto; }
+  .fdr-tm span{ font-weight:800; font-size:12px; color:var(--text); }
+  .fdr-cellwrap{ display:flex; flex-direction:column; gap:3px; align-items:center; }
+  .fdr-c{ min-width:44px; border-radius:7px; padding:6px 4px; font-family:'Cairo'; line-height:1.15; }
+  .fdr-c .op{ font-weight:800; font-size:11px; letter-spacing:.3px; }
+  .fdr-c .ha{ font-family:'Tajawal'; font-weight:700; font-size:8px; opacity:.85; margin-top:1px; }
+  .fdr-c1{ background:#0E7A3B; color:#EAFBF1; }   /* أسهل */
+  .fdr-c2{ background:#3DD68C; color:#04321B; }
+  .fdr-c3{ background:#4A4553; color:#EDEAF2; }   /* متوسط */
+  .fdr-c4{ background:#E9557A; color:#2A0016; }
+  .fdr-c5{ background:#9C0039; color:#FFE7EF; }   /* أصعب */
+  .fdr-blank{ min-width:44px; border-radius:7px; padding:6px 4px; background:rgba(255,255,255,0.04);
+    color:var(--muted2); font-family:'Cairo'; font-weight:700; font-size:10px; border:1px dashed rgba(255,255,255,0.08); }
+  .fdr-sum{ font-family:'Cairo'; font-weight:900; font-size:13px; }
+  td.fdr-sumcell{ border-bottom:1px solid rgba(255,255,255,0.05); }
+
 </style>
 </head>
 <body>
@@ -3093,6 +3180,10 @@ let state = {
   liveSyncedAt:null, liveDataError:false, liveDataStale:false, hasLiveFixtures:false,
   adminLinks: { news:'', advice:'' },
   transferFilterClub: 'all', transferFilterPrice: 'all',
+  // ===== جدول اللاعبين (بحث/فرز/فلترة) + مخطط سهولة المباريات =====
+  ptbl:{ q:'', pos:'all', sort:'pred', dir:'desc', limit:40, focus:false },
+  fdrSort:false,          // مخطط FDR: false=ترتيب أبجدي، true=الأسهل أولًا
+  fdrView:'overall',      // overall | attack | defence
   // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
@@ -5670,6 +5761,14 @@ function renderMore(){
           '<div class="ft-icon">' + ICON_PREDICT + '</div>' +
           '<div><div class="ft-title">التوقعات والنصائح</div><div class="ft-sub">توقع نقاط تشكيلتك، الكلين شيت، ونصائح الانتقالات</div></div>' +
         '</button>' +
+        '<button class="feature-tile" data-goto="players">' +
+          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/><path d="M9 5v14"/></svg></div>' +
+          '<div><div class="ft-title">جدول اللاعبين</div><div class="ft-sub">كل اللاعبين بالتوقعات والإحصائيات — فرز وفلترة زي المواقع الكبيرة</div></div>' +
+        '</button>' +
+        '<button class="feature-tile" data-goto="fdr">' +
+          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7.5 14h.01M12 14h.01M16.5 14h.01"/></svg></div>' +
+          '<div><div class="ft-title">مخطط سهولة المباريات</div><div class="ft-sub">صعوبة مباريات كل الأندية على أقرب ٥ جولات (FDR) لتخطيط الانتقالات</div></div>' +
+        '</button>' +
       '</div>' +
     '</div>' +
 
@@ -6113,6 +6212,17 @@ function renderPredictions(){
     ).join('')
   ) : '';
 
+  // أفضل اختيارات الكابتن — أعلى اللاعبين توقعًا في الدوري كله (مش بس فريقك)، مع نسبة الكبتنة لو متاحة
+  const capPicks = (!isStarted) ? topCaptainPicks(8) : [];
+  const capPicksHtml = capPicks.length ? ('' +
+    '<div class="pred-sec"><h2>أفضل اختيارات الكابتن</h2><span class="tag">الجولة ' + plannerGw() + '</span></div>' +
+    limitedListHtml(capPicks.map((x,i)=>{
+      const eo = state.eoByElement[x.p.id];
+      const capMeta = (eo && eo.cap>0) ? ('كبتنة ' + Math.round(eo.cap) + '%') : (x.p.ownership + '% ملكية');
+      return predRow(x.p, fmt(x.pred*2) + ' (C)', (i===0?'mkt-in':null), capMeta, false);
+    }), 'predCapPicks', '', 'margin:0 20px;')
+  ) : '';
+
   const squadRowsArr = starters().slice().sort((a,b) => {
     const scoreA = isLive ? currentGwPoints(a) : predictedPoints(a);
     const scoreB = isLive ? currentGwPoints(b) : predictedPoints(b);
@@ -6181,6 +6291,7 @@ function renderPredictions(){
 
   captainCardHtml +
   lineupSwapsHtml +
+  capPicksHtml +
 
   (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') +
 
@@ -6204,6 +6315,174 @@ function renderPredictions(){
 
   '<div class="pred-sec"><h2>الأعلى ملكية</h2></div>' +
   limitedListHtml(ownRowsArr, 'predOwnMore', '', 'margin:0 20px 16px;');
+}
+
+// ===================================================================
+// ★ جدول اللاعبين — أداة بحث احترافية (فرز/فلترة) زي المواقع الكبيرة
+//   كل الأرقام بتيجي من نفس محرك التوقعات الموجود (predictedPoints /
+//   projectedPointsHorizon) + الإحصائيات الرسمية (xG/xA/ICT).
+// ===================================================================
+const PTBL_COLS = [
+  { key:'pred',  label:'متوقع',   get:p=>predictedPoints(p),                fmt:v=>fmt(v),        cls:'hi'  },
+  { key:'proj5', label:'٥ جولات', get:p=>projectedPointsHorizon(p,5).total, fmt:v=>fmt(v),        cls:'hi'  },
+  { key:'price', label:'السعر',   get:p=>p.price,                           fmt:v=>'£'+fmt(v),    cls:'pr'  },
+  { key:'form',  label:'الفورم',  get:p=>p.form,                            fmt:v=>fmt(v),        cls:''    },
+  { key:'own',   label:'الملكية', get:p=>p.ownership,                       fmt:v=>fmt(v)+'%',    cls:'dim' },
+  { key:'xg',    label:'xG/90',   get:p=>p.xG90,                            fmt:v=>(+v).toFixed(2), cls:'' },
+  { key:'xa',    label:'xA/90',   get:p=>p.xA90,                            fmt:v=>(+v).toFixed(2), cls:'' },
+  { key:'ict',   label:'ICT',     get:p=>p.ictIndex,                        fmt:v=>fmt(v),        cls:'dim' },
+  { key:'pts',   label:'النقاط',  get:p=>totalPoints(p),                    fmt:v=>Math.round(v), cls:''    },
+];
+const PTBL_POS = [ ['all','الكل'], ['GK','حراس'], ['DEF','دفاع'], ['MID','وسط'], ['FWD','هجوم'] ];
+
+function playersTableData(){
+  const t = state.ptbl;
+  const q = (t.q||'').trim();
+  let list = state.players.slice();
+  if(t.pos!=='all') list = list.filter(p=>p.pos===t.pos);
+  if(q){ list = list.filter(p=> (p.name||'').indexOf(q)>=0 || (CLUB_TAG[p.club]||'').toLowerCase().indexOf(q.toLowerCase())>=0 || (CLUB_NAME[p.club]||'').indexOf(q)>=0 ); }
+  const dir = t.dir==='asc' ? 1 : -1;
+  if(t.sort==='name'){
+    list.sort((a,b)=> ((a.name||'') < (b.name||'') ? -1 : ((a.name||'') > (b.name||'') ? 1 : 0)) * dir);
+  } else {
+    const col = PTBL_COLS.find(c=>c.key===t.sort) || PTBL_COLS[0];
+    list.sort((a,b)=>{ const va=col.get(a)||0, vb=col.get(b)||0; return (va-vb)*dir; });
+  }
+  return list;
+}
+
+function renderPlayersTable(){
+  const t = state.ptbl;
+  const full = playersTableData();
+  const shown = full.slice(0, t.limit);
+
+  const chips = PTBL_POS.map(([k,lbl])=>
+    '<button class="fchip' + (t.pos===k?' on':'') + '" data-ptblpos="' + k + '">' + lbl + '</button>'
+  ).join('');
+
+  const headCells = PTBL_COLS.map(c=>{
+    const act = t.sort===c.key;
+    const arrow = act ? ('<span class="sa">' + (t.dir==='asc'?'▲':'▼') + '</span>') : '';
+    return '<th class="' + (act?'act':'') + '" data-ptblsort="' + c.key + '">' + c.label + arrow + '</th>';
+  }).join('');
+
+  const rows = shown.map(p=>{
+    const stDot = (p.status==='i'||p.status==='s') ? '<span class="st-dot inj"></span>'
+                : (p.status==='d') ? '<span class="st-dot doubt"></span>' : '';
+    const cells = PTBL_COLS.map(c=>{
+      let v = c.get(p); if(!isFinite(v)) v = 0;
+      return '<td class="' + (c.cls||'') + '">' + c.fmt(v) + '</td>';
+    }).join('');
+    return '<tr data-viewprofile="' + p.id + '">' +
+      '<td class="nm"><div class="pcell">' + faceCircle(p,'pc-face') +
+        '<div class="pc-info"><div class="pc-nm">' + escapeHtml(p.name) + stDot + '</div>' +
+        '<div class="pc-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + '</div></div></div></td>' +
+      cells + '</tr>';
+  }).join('');
+
+  const tableHtml = full.length ? (
+    '<div class="ptbl-scroll"><table class="ptbl">' +
+      '<thead><tr><th class="nm" data-ptblsort="name">اللاعب</th>' + headCells + '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table></div>'
+  ) : '<div class="ptbl-empty">مفيش لاعبين مطابقين للبحث.</div>';
+
+  const moreBtn = full.length > t.limit ?
+    '<button class="btn-ghost" id="ptblMore" style="width:calc(100% - 24px); margin:10px 12px 0; display:block;">عرض المزيد (' + (full.length - t.limit) + ')</button>' : '';
+
+  return '' +
+  '<div class="topbar"><button class="back" id="ptblBack">' + ICON_BACK + '</button><h1>جدول اللاعبين</h1><div class="spacer"></div></div>' +
+  '<div class="tool-controls">' +
+    '<input class="tool-search" id="ptblSearch" type="text" inputmode="search" placeholder="ابحث باسم لاعب أو نادي…" value="' + escapeHtml(t.q||'') + '">' +
+    '<div class="chip-row">' + chips + '</div>' +
+    '<div class="tool-count">' + full.length + ' لاعب · مرتّبين حسب ' + ((PTBL_COLS.find(c=>c.key===t.sort)||{}).label || 'المتوقع') + ' · اضغط أي عمود للترتيب</div>' +
+  '</div>' +
+  tableHtml + moreBtn +
+  '<div style="height:18px;"></div>';
+}
+
+// ===================================================================
+// ★ مخطط سهولة المباريات (FDR Ticker) — كل الأندية × أقرب ٥ جولات
+//   بيستخدم صعوبة المباراة (FDR) الرسمية من الـ API، بيتعامل مع الجولة
+//   المزدوجة (ماتشين في خانة) والبلانك (فاضية).
+// ===================================================================
+function fdrColorClass(fdr){ const f = Math.max(1, Math.min(5, Math.round(fdr||3))); return 'fdr-c' + f; }
+
+function fdrTickerRows(){
+  const gw0 = (state.gwInfo && state.gwInfo.nextGw) ? state.gwInfo.nextGw : null;
+  const cols = [];
+  if(gw0!=null){ for(let i=0;i<5;i++) cols.push(gw0+i); }
+  const keys = Object.keys(CLUB_TAG);
+  const rows = keys.map(key=>{
+    const look = (state.teamFixtures[key] && state.teamFixtures[key].lookahead) || [];
+    const byGw = {};
+    look.forEach(f=>{ (byGw[f.event]=byGw[f.event]||[]).push(f); });
+    // نقاط السهولة: مجموع (6 − fdr) لكل مباراة (يكافئ السهل + الجولة المزدوجة، يعاقب البلانك)
+    let ease = 0, played = 0;
+    cols.forEach(g=>{ (byGw[g]||[]).forEach(f=>{ ease += (6 - Math.max(1,Math.min(5,f.fdr||3))); played++; }); });
+    return { key, byGw, ease, played };
+  });
+  if(state.fdrSort) rows.sort((a,b)=> (b.ease - a.ease) || (a.key<b.key?-1:1));
+  else rows.sort((a,b)=> (a.key<b.key?-1:(a.key>b.key?1:0)));
+  return { cols, rows };
+}
+
+function renderFdrTicker(){
+  const { cols, rows } = fdrTickerRows();
+  if(!cols.length || !rows.length){
+    return '<div class="topbar"><button class="back" id="fdrBack">' + ICON_BACK + '</button><h1>سهولة المباريات</h1><div class="spacer"></div></div>' +
+           '<div class="hint" style="margin:20px;">بيانات المباريات لسه بتحمّل — جرّب تحدّث الصفحة بعد شوية.</div>';
+  }
+
+  const headGw = cols.map(g=>'<th>ج' + g + '</th>').join('');
+  const bodyRows = rows.map(r=>{
+    const logo = CLUB_CODE[r.key] ? 'https://resources.premierleague.com/premierleague/badges/t' + CLUB_CODE[r.key] + '.png' : '';
+    const cells = cols.map(g=>{
+      const fx = r.byGw[g] || [];
+      if(!fx.length) return '<td><div class="fdr-blank">—</div></td>';
+      const inner = fx.map(f=>
+        '<div class="fdr-c ' + fdrColorClass(f.fdr) + '"><div class="op">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+        '<div class="ha">' + (f.isHome?'أرض':'خارج') + '</div></div>'
+      ).join('');
+      return '<td><div class="fdr-cellwrap">' + inner + '</div></td>';
+    }).join('');
+    return '<tr>' +
+      '<td class="tm"><div class="fdr-tm"><img src="' + logo + '" onerror="this.style.display=\'none\'"><span>' + (CLUB_TAG[r.key]||'') + '</span></div></td>' +
+      cells +
+      '<td class="fdr-sumcell"><span class="fdr-sum" style="color:' + (r.ease>=13?'var(--easy-green)':(r.ease<=8?'var(--coral)':'var(--mid-grey)')) + '">' + r.ease + '</span></td>' +
+    '</tr>';
+  }).join('');
+
+  return '' +
+  '<div class="topbar"><button class="back" id="fdrBack">' + ICON_BACK + '</button><h1>سهولة المباريات</h1><div class="spacer"></div></div>' +
+  '<div class="tool-controls">' +
+    '<div class="chip-row">' +
+      '<button class="fchip' + (!state.fdrSort?' on':'') + '" data-fdrsort="0">ترتيب أبجدي</button>' +
+      '<button class="fchip' + (state.fdrSort?' on':'') + '" data-fdrsort="1">الأسهل أولًا</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="fdr-legend">' +
+    '<span class="lg"><span class="sw" style="background:#0E7A3B"></span>سهل جدًا</span>' +
+    '<span class="lg"><span class="sw" style="background:#3DD68C"></span>سهل</span>' +
+    '<span class="lg"><span class="sw" style="background:#4A4553"></span>متوسط</span>' +
+    '<span class="lg"><span class="sw" style="background:#E9557A"></span>صعب</span>' +
+    '<span class="lg"><span class="sw" style="background:#9C0039"></span>صعب جدًا</span>' +
+  '</div>' +
+  '<div class="fdr-scroll"><table class="fdr-tbl">' +
+    '<thead><tr><th class="tm">النادي</th>' + headGw + '<th>السهولة</th></tr></thead>' +
+    '<tbody>' + bodyRows + '</tbody>' +
+  '</table></div>' +
+  '<div class="tool-count" style="margin:10px 20px 20px;">«السهولة» = مجموع سهولة أقرب ٥ جولات (كل ما زاد الرقم، الرن أسهل — والجولة المزدوجة بتزوّده).</div>';
+}
+
+// ===== ترتيب الكباتن — أعلى اللاعبين توقعًا للجولة الجاية (كل اللاعبين) =====
+function topCaptainPicks(limit){
+  return state.players
+    .filter(p=> availabilityMultiplier(p) > 0)
+    .map(p=>({ p, pred: predictedPoints(p) }))
+    .filter(x=> x.pred > 0)
+    .sort((a,b)=> b.pred - a.pred)
+    .slice(0, limit||8);
 }
 
 // ===== توقع تغيير الأسعار =====
@@ -6367,6 +6646,8 @@ function renderBody(){
   else if(state.tab==='player') html = renderPlayerProfile();
   else if(state.tab==='admin') html = renderAdmin();
   else if(state.tab==='predictions') html = renderPredictions();
+  else if(state.tab==='players') html = renderPlayersTable();
+  else if(state.tab==='fdr') html = renderFdrTicker();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -6380,7 +6661,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', players:'more', fdr:'more' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -6619,6 +6900,40 @@ function bindBody(){
 
   const termsBack = el.querySelector('#termsBack');
   if(termsBack) termsBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+
+  // ===== جدول اللاعبين: تحكّم =====
+  const ptblBack = el.querySelector('#ptblBack');
+  if(ptblBack) ptblBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+  const ptblSearch = el.querySelector('#ptblSearch');
+  if(ptblSearch){
+    ptblSearch.addEventListener('input', (e)=>{
+      state.ptbl.q = e.target.value;
+      state.ptbl.limit = 40;
+      render();
+      const box = document.getElementById('ptblSearch');
+      if(box){ box.focus(); const v = box.value; box.setSelectionRange(v.length, v.length); }
+    });
+  }
+  el.querySelectorAll('[data-ptblpos]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.ptbl.pos = b.getAttribute('data-ptblpos'); state.ptbl.limit = 40; render(); });
+  });
+  el.querySelectorAll('[data-ptblsort]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const k = b.getAttribute('data-ptblsort');
+      if(state.ptbl.sort===k){ state.ptbl.dir = (state.ptbl.dir==='asc'?'desc':'asc'); }
+      else { state.ptbl.sort = k; state.ptbl.dir = (k==='name' ? 'asc' : 'desc'); }
+      render();
+    });
+  });
+  const ptblMore = el.querySelector('#ptblMore');
+  if(ptblMore) ptblMore.addEventListener('click', ()=>{ state.ptbl.limit += 40; render(); });
+
+  // ===== مخطط سهولة المباريات: تحكّم =====
+  const fdrBack = el.querySelector('#fdrBack');
+  if(fdrBack) fdrBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+  el.querySelectorAll('[data-fdrsort]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.fdrSort = b.getAttribute('data-fdrsort')==='1'; render(); });
+  });
 
   // view profile triggers (jersey name tags, transfer rows)
   el.querySelectorAll('[data-viewprofile]').forEach(b=>{
