@@ -2482,6 +2482,7 @@ async function openMemberSquad(entryId, teamName, managerName){
   }
   state.viewMemberSquad = (picks && usedGw != null)
     ? { loading:false, teamName, managerName, squadIds:picks.squadIds, captainId:picks.captainId,
+        activeChip: picks.activeChip || null,
         squadGw: usedGw, carriedForward: (usedGw !== gw) }
     : { loading:false, error:true, teamName, managerName };
   if(state.tab==='leagues' && String(state.viewMemberId)===String(entryId)) renderBody();
@@ -3028,7 +3029,9 @@ let state = {
   transferOutId:null, transferAddPos:null, transferAddSlot:null, transferSearch:'', teamMode:'captain', selectedBenchId:null,
   notifOpen:false, activeLeagueId:null,
   toggles:{ notifications:true, deadlineReminder:true, antiSpoiler:false, notifGoals:true, notifCS:true, notifCards:false },
-  pushStatus:'default',   // حالة إذن الإشعارات: default | granted | denied | unsupported
+  pushStatus:'default',   // حالة إذن الإشعارات (المتصفح): default | granted | denied | unsupported
+  pushSubscribed:false,   // هل فيه اشتراك Push فعلي شغّال دلوقتي؟ (منفصل عن إذن المتصفح —
+                          // بعد إيقاف الإشعارات الإذن بيفضل granted لكن الاشتراك بيتلغي، فلازم نفرّق)
   _pushKey:null,          // مفتاح الاشتراك المحفوظ في Supabase
   _pushPlayersHash:'',    // بصمة لاعيبة المستخدم آخر مرة اتسجّلت (عشان نحدّث بس لو اتغيّرت)
   flash:null,
@@ -5186,13 +5189,16 @@ function renderJersey(p, opts){
   if(opts.selected) cls += ' selected';
 
   const isCap = p.id === (opts.captainId !== undefined ? opts.captainId : state.captainId);
+  // لو التريبل كابتن مفعّل الجولة دي، الكابتن بياخد ×3 مش ×2 (مش بيتطبّق على جولة فاتت).
+  const tripleCap = (state.activeChip === '3xc') && !isHistoricalView();
+  const capMult = tripleCap ? 3 : 2;
   // نعرض النقط للأساسيين والبدلاء (البدلاء كمان بتبان نقطهم — لو مفعّل بنش بوست بتتحسب فعلاً)
   const showPts = true;
   const mode = opts.mode || 'view';
   const dataAttr = ' data-player="' + p.id + '" data-mode="' + mode + '"';
   const shirtSrc = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK' ? '_1' : '') + '-66.webp';
   const hasBonus = (p.provisionalBonus||0) > 0;
-  const ptsVal = isCap ? currentGwPoints(p)*2 : currentGwPoints(p);
+  const ptsVal = isCap ? currentGwPoints(p)*capMult : currentGwPoints(p);
 
   let pptsClass = 'ppts';
   let displayBottom = '';
@@ -5211,18 +5217,18 @@ function renderJersey(p, opts){
       pptsClass += ' played';
       if (status.isLive) pptsClass += ' live-playing';
       if (hasBonus) pptsClass += ' has-bonus';
-      // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10)
-      displayBottom = 'pts ' + (isCap ? '(C) ' : '') + ptsVal;
+      // تنسيق النقط زي الصورة بالظبط (pts 10) أو (pts (C) 10) — و(TC) لو تريبل كابتن
+      displayBottom = 'pts ' + (isCap ? (tripleCap ? '(TC) ' : '(C) ') : '') + ptsVal;
       // ===== تأثير اللاعب على ترتيبك العام =====
       // = (مضاعِفك − الملكية الفعّالة/100) × نقط اللاعب الأساسية.
-      //   مضاعِفك: ٢ لو مكبتنه، ١ لو شايله بس.
+      //   مضاعِفك: ٢ لو مكبتنه (٣ لو تريبل كابتن)، ١ لو شايله بس.
       //   الملكية الفعّالة (EO) بتشمل كبتنة الناس (من /api/eo). لو لسه ماوصلتش،
       //   بنرجع لنسبة الملكية العادية كحد أدنى.
       const basePts = currentGwPoints(p);
       const eoRec = state.eoByElement && state.eoByElement[p.id];
       const haveEO = !!eoRec;
       const eoFrac = haveEO ? (eoRec.eo/100) : (Math.min(Math.max(p.ownership||0,0),100)/100);
-      const yourMult = isCap ? 2 : 1;
+      const yourMult = isCap ? capMult : 1;
       const rankImpact = (yourMult - eoFrac) * basePts;
       if(!opts.isBench && haveEO){
         // العلامات بتظهر بس لما تكون عندنا EO حقيقية (مش الملكية بس) — عشان مايطلعش مؤشر غلط
@@ -5528,12 +5534,15 @@ function renderLeagues(){
       return header + '<div class="hint" style="margin:20px;">تعذر تحميل تشكيلة هذا المدير حاليًا (غالبًا لسه ما أعلنش تشكيلته للجولة دي)</div>';
     }
     // بنستعير renderPitchCard اللي شغالة بتشكيلتي، بس بنبدّل بيانات التشكيلة مؤقتًا للعضو ده
-    const savedSquad = state.mySquadIds, savedCap = state.captainId;
+    // ومعاها الشيب بتاعه (مش شيبي أنا) عشان التريبل كابتن ما يتسربش على تشكيلة حد تاني
+    const savedSquad = state.mySquadIds, savedCap = state.captainId, savedChip = state.activeChip;
     state.mySquadIds = vm.squadIds;
     state.captainId = vm.captainId;
+    state.activeChip = vm.carriedForward ? null : (vm.activeChip || null);
     const pitchHtml = renderPitchCard(false);
     state.mySquadIds = savedSquad;
     state.captainId = savedCap;
+    state.activeChip = savedChip;
     const gwNote = vm.carriedForward
       ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + ' (آخر جولة اتلعبت) — الجولة الحالية لسه ما بدأتش</div>'
       : (vm.squadGw ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + '</div>' : '');
@@ -5615,17 +5624,17 @@ function renderMore(){
         '<button class="grouped-row" id="pushEnableRow">' +
           '<div class="gr-left"><div class="gr-icon" style="background:rgba(0,255,135,0.16);color:#00FF87;font-size:18px;">🔔</div>' +
           '<div class="gr-text"><span>' +
-            (state.pushStatus==='granted' ? 'الإشعارات مفعّلة ✓' :
+            (pushIsOn() ? 'الإشعارات مفعّلة ✓' :
              state.pushStatus==='denied' ? 'الإشعارات متمنوعة من المتصفح' :
              state.pushStatus==='unsupported' ? 'متصفحك مايدعمش الإشعارات' :
              'فعّل إشعارات لاعيبتك') + '</span>' +
             '<div class="gr-sub">' +
-            (state.pushStatus==='granted' ? 'بتوصلك أحداث لاعيبتك حتى والتطبيق مقفول' :
+            (pushIsOn() ? 'بتوصلك أحداث لاعيبتك حتى والتطبيق مقفول' :
              state.pushStatus==='denied' ? 'فعّلها من إعدادات الموقع في المتصفح' :
              state.pushStatus==='unsupported' ? 'جرّب من كروم أو سفاري بعد تثبيت التطبيق' :
              'اعرف أول واحد لما لاعبك يجيب جون — حتى والتطبيق مقفول') + '</div>' +
           '</div></div>' +
-          (state.pushStatus==='granted' ? '<div style="color:#00FF87;font-weight:800;font-size:15px;">✓</div>' : '<div class="gr-chev">' + ICON_CHEV + '</div>') +
+          (pushIsOn() ? '<div style="color:#00FF87;font-weight:800;font-size:15px;">✓</div>' : '<div class="gr-chev">' + ICON_CHEV + '</div>') +
         '</button>' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(255,77,109,0.16);color:var(--coral);">' + ICON_MUTE + '</div><div class="gr-text"><span>وضع منع الحرق (Anti-Spoiler)</span><div class="gr-sub">كتم جميع إشعارات المباريات أثناء المشاهدة</div></div></div>' +
           '<div class="switch ' + (state.toggles.antiSpoiler?'on':'') + '" data-toggle="antiSpoiler"><div class="knob"></div></div></div>' +
@@ -5978,11 +5987,35 @@ function suggestedLineupSwaps(){
   const shouldStart = optimal.filter(p=>!currentIds.has(p.id)).sort((a,b)=>predictedPoints(b)-predictedPoints(a));
   const shouldBench = currentStarters.filter(p=>!optimalIds.has(p.id)).sort((a,b)=>predictedPoints(a)-predictedPoints(b));
 
+  // مهم: بنطابق كل لاعب "يستحق يلعب" مع لاعب "يستحق يقعد" بحيث كل تبديل مقترح لوحده
+  // يفضل قابل للتنفيذ — يعني ما يكسرش قواعد التشكيلة (حارس واحد، 3-5 مدافعين، 2-5 وسط،
+  // 1-3 مهاجمين). قبل كده كنا بنطابق بالترتيب على طول، فكان ممكن يطلع اقتراح زي
+  // "نزّل مدافع وطلّع لاعب وسط" وانت أصلاً على 3 مدافعين (الحد الأدنى) — اقتراح مستحيل
+  // تنفيذه. دلوقتي: أولوية للتبديل في نفس المركز (آمن دايمًا)، وبعدين تبديل بمركز مختلف
+  // بس لو التشكيلة الناتجة تفضل قانونية؛ وأي لاعب مالوش تبديل قانوني بيتشال بدل ما نقترح
+  // حاجة مش قادر يعملها.
   const swaps = [];
-  const n = Math.min(shouldStart.length, shouldBench.length);
-  for(let i=0; i<n; i++){
-    swaps.push({ inP: shouldStart[i], outP: shouldBench[i], diff: predictedPoints(shouldStart[i]) - predictedPoints(shouldBench[i]) });
+  const usedOut = new Array(shouldBench.length).fill(false);
+  for(const inP of shouldStart){
+    let pick = -1;
+    // 1) بديل في نفس المركز (تبديل آمن دايمًا) — أقل واحد توقعًا الأول
+    for(let j=0; j<shouldBench.length; j++){
+      if(usedOut[j]) continue;
+      if(shouldBench[j].pos === inP.pos){ pick = j; break; }
+    }
+    // 2) بديل في مركز مختلف بشرط تفضل التشكيلة قانونية بعد التبديل
+    if(pick === -1){
+      for(let j=0; j<shouldBench.length; j++){
+        if(usedOut[j]) continue;
+        if(formationValidAfterSwap(shouldBench[j].pos, inP.pos)){ pick = j; break; }
+      }
+    }
+    if(pick === -1) continue; // مفيش تبديل قانوني للاعب ده — نتخطاه بدل اقتراح مستحيل
+    usedOut[pick] = true;
+    swaps.push({ inP: inP, outP: shouldBench[pick], diff: predictedPoints(inP) - predictedPoints(shouldBench[pick]) });
   }
+  // نرتّب المقترحات النهائية بالأكثر فايدة الأول
+  swaps.sort((a,b)=>b.diff-a.diff);
   return swaps;
 }
 
@@ -6620,11 +6653,13 @@ function bindBody(){
   // more tab: تفعيل/إيقاف إشعارات Web Push
   const pushRow = el.querySelector('#pushEnableRow');
   if(pushRow) pushRow.addEventListener('click', ()=>{
-    if(state.pushStatus==='granted'){
+    if(pushIsOn()){
+      // فيه اشتراك فعلي شغّال → اعرض الإيقاف
       if(confirm('توقف الإشعارات على الجهاز ده؟')) disablePush();
     } else if(state.pushStatus==='denied'){
       alert('الإشعارات متمنوعة من المتصفح. افتح إعدادات الموقع (🔒 جنب اللينك) وفعّل الإشعارات، وبعدين جرّب تاني.');
     } else if(state.pushStatus!=='unsupported'){
+      // الإذن ممكن يكون granted بس من غير اشتراك (وقّفها قبل كده) — enablePush هيعيد الاشتراك
       enablePush();
     }
   });
@@ -6993,7 +7028,7 @@ function updateNotifBanner(){
   const shown = document.getElementById('notifBanner');
   const supported = (typeof state!=='undefined') && state.pushStatus !== 'unsupported';
   const shouldShow = (typeof state!=='undefined') && state.phase==='app' &&
-                     supported && state.pushStatus==='default' && !!state.deviceId &&
+                     supported && pushNeedsEnable() && !!state.deviceId &&
                      !_notifDismissed &&
                      (_isStandalone() || !_isIOS()) &&        // على آيفون-متصفح سيب بانر التثبيت هو اللي يظهر (لازم يثبّت الأول)
                      !document.getElementById('pwaBanner');    // مانكوّمش بانرين فوق بعض
@@ -7052,6 +7087,14 @@ async function savePushSub(sub){
   state._pushPlayersHash = JSON.stringify(ids);
 }
 
+// "الإشعارات شغّالة فعلاً" = المتصفح مديّك الإذن + فيه اشتراك Push فعلي محفوظ.
+// مش كفاية إن الإذن granted، لأن بعد الإيقاف الإذن بيفضل granted بس الاشتراك بيتلغي.
+function pushIsOn(){ return state.pushStatus === 'granted' && state.pushSubscribed === true; }
+// محتاجين نعرض دعوة التفعيل؟ (مدعوم، مش متمنوع، ولسه مفيش اشتراك شغّال)
+function pushNeedsEnable(){
+  return state.pushStatus !== 'unsupported' && state.pushStatus !== 'denied' && !state.pushSubscribed;
+}
+
 async function enablePush(){
   if(!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)){
     alert('متصفحك مايدعمش الإشعارات.'); return false;
@@ -7075,11 +7118,13 @@ async function enablePush(){
       });
     }
     await savePushSub(sub);
+    state.pushSubscribed = true;   // بقى فيه اشتراك فعلي شغّال
   }catch(e){
     alert('حصلت مشكلة وإحنا بنفعّل الإشعارات. جرّب تاني.');
     return false;
   }
   if(state.tab==='more') renderBody();
+  updateNotifBanner();
   return true;
 }
 
@@ -7091,14 +7136,38 @@ async function disablePush(){
   }catch(e){}
   try{ if(state._pushKey) await sDelete(state._pushKey); }catch(e){}
   state._pushKey = null; state._pushPlayersHash = '';
-  // ملاحظة: الإذن نفسه بيفضل granted على مستوى المتصفح؛ إحنا بنوقف التسجيل بس
+  state.pushSubscribed = false;   // اتلغى الاشتراك — الإذن بيفضل granted بس مفيش تسجيل
+  // ملاحظة: الإذن نفسه بيفضل granted على مستوى المتصفح؛ إحنا بنوقف التسجيل بس.
+  // بفضل pushSubscribed=false الواجهة هتعرض دعوة "فعّل" تاني ويقدر يعيد الاشتراك.
   if(state.tab==='more') renderBody();
+  updateNotifBanner();
+}
+
+// كشف حالة الاشتراك الفعلي عند فتح التطبيق: الإذن ممكن يكون granted من غير اشتراك شغّال
+// (اليوزر وقّف الإشعارات قبل كده، أو المتصفح لغى الاشتراك). بنقرأ الاشتراك الحقيقي من
+// pushManager ونعيد بناء مفتاح Supabase عشان الإيقاف بعدين يمسح التسجيل الصح.
+async function initPushSubscribed(){
+  try{
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)){ state.pushSubscribed = false; return; }
+    if(state.pushStatus !== 'granted'){ state.pushSubscribed = false; return; }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    state.pushSubscribed = !!sub;
+    if(sub && !state._pushKey && state.deviceId){
+      try{
+        const hash = (await sha256Hex(sub.endpoint)).slice(0,16);
+        state._pushKey = 'push_sub:' + state.deviceId + ':' + hash;
+      }catch(e){}
+    }
+  }catch(e){ state.pushSubscribed = false; }
+  if(state.tab==='more') renderBody();
+  updateNotifBanner();
 }
 
 // بيحدّث لاعيبة المستخدم في الاشتراك المحفوظ لو التشكيلة اتغيّرت (بعد انتقالات مثلاً)
 async function refreshPushSquad(){
   try{
-    if(state.pushStatus !== 'granted' || !state.deviceId) return;
+    if(!pushIsOn() || !state.deviceId) return;
     const ids = _currentSquadIds();
     if(!ids.length) return;
     const h = JSON.stringify(ids);
@@ -7113,6 +7182,10 @@ async function refreshPushSquad(){
 // تهيئة حالة الإذن عند الفتح
 try{ state.pushStatus = ('Notification' in window) ? Notification.permission : 'unsupported'; }
 catch(e){ state.pushStatus = 'unsupported'; }
+
+// اكتشف لو فيه اشتراك فعلي شغّال (بعد deviceId ما يتحمّل) عشان الواجهة تفرّق بين
+// "الإذن granted بس من غير اشتراك" و"مشترك فعلاً"
+setTimeout(initPushSubscribed, 3000);
 
 // حدّث لاعيبة الاشتراك بعد ما التشكيلة تتحمّل، وكل شوية (بيتخطّى لو مفيش تغيير)
 setTimeout(refreshPushSquad, 8000);
