@@ -2301,7 +2301,22 @@ const LIVE_CACHE_TTL_ACTIVE = 25 * 1000; // 25 ثانية — لما فيه مب
 
 // لو صورة جاية من fantasy.premierleague.com/resources.premierleague.com فشلت (لينك اتغيّر، مفيش نت، إلخ)
 // بيستبدلها ببادج بسيط فيه أول حرف من اسم اللاعب، بدل ما يظهر أيقونة صورة مكسورة.
+// 🔁 محاولة بديلة لصورة اللاعب قبل الاستسلام للشكل الافتراضي: مقاس 250x250 بيفشل لكتير
+// من اللاعبين (مش موجود أو رفض لحظي من الـCDN)، بس مقاس 110x140 موجود لأغلب اللاعبين.
+// فأول ما 250x250 يفشل، بنجرّب 110x140، ولو فشل كمان ساعتها بس بنروح للشكل الافتراضي.
+function _photoAltRetry(img){
+  try{
+    if(img.getAttribute('data-fb2')) return false;   // جرّبنا البديل خلاص
+    const s = img.getAttribute('src') || '';
+    if(s.indexOf('/250x250/') < 0) return false;      // مش المقاس الأساسي — مفيش بديل
+    img.setAttribute('data-fb2','1');
+    img.src = s.replace('/250x250/', '/110x140/');     // جرّب المقاس الأصغر الأكثر توفّرًا
+    return true;
+  }catch(e){ return false; }
+}
+
 function imgFallback(img){
+  if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
   img.onerror = null; // يمنع لووب لو الفولباك نفسه اتحط بغلط جوه img (مش متوقع هنا لكن أمان زيادة)
   const isProfile = img.classList.contains('pj-photo');
   // فى البروفايل نعمل أفاتار دائرى بأول حرفين من الاسم بدل حرف واحد — شكل أنضف للاعب اللى مالوش صورة
@@ -2349,6 +2364,7 @@ function pitchPhotoImg(p){
   return '<img class="ptoken-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
 }
 function pitchPhotoFallback(img){
+  if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
   img.onerror = null;
   const d = document.createElement('div');
   d.className = 'ptoken-img ptoken-silhouette';
@@ -2396,6 +2412,7 @@ function facePhoto(p){
   return '<img class="face-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="facePhotoFail(this)" loading="lazy">';
 }
 function facePhotoFail(img){
+  if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
   img.onerror = null;
   const d = document.createElement('div');
   d.className = 'face-silhouette';
@@ -5095,6 +5112,7 @@ async function refreshLiveData(){
 // ===== onboarding submit =====
 // لو صورة اللاعب فشلت في التحميل، نخفيها ونظهر رقم القميص بدلها (fallback أنيق)
 function obPhotoFail(img){
+  if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
   try{
     var player = img.closest('.ob-player');
     if(player) player.classList.add('photo-failed');
