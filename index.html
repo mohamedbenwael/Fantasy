@@ -2234,44 +2234,6 @@
   .adv-v.hi{ color:var(--accent); }
   .adv-k{ font-family:'Tajawal'; font-size:8.5px; color:var(--muted); margin-top:3px; }
 
-  /* ---------- حاسبة الرانك ---------- */
-  .hx-hero-rank[data-goto]{ cursor:pointer; }
-  .hx-rank-calc{ margin-inline-start:8px; font-family:'Tajawal'; font-size:10px; color:var(--accent); font-weight:700; }
-  .rc-calc{ margin:0 20px 14px; background:linear-gradient(150deg,var(--card),var(--card-2)); border:1px solid var(--card-line);
-    border-radius:18px; padding:18px 16px; text-align:center; }
-  .rc-q{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); margin-bottom:14px; }
-  .rc-stepper{ display:flex; align-items:center; justify-content:center; gap:10px; }
-  .rc-btn{ width:44px; height:44px; border-radius:13px; background:var(--card-2); border:1px solid var(--card-line);
-    color:var(--text); font-family:'Cairo'; font-weight:900; font-size:15px; cursor:pointer; flex:0 0 auto;
-    -webkit-tap-highlight-color:transparent; transition:background .15s; }
-  .rc-btn:active{ background:var(--primary); color:#fff; }
-  .rc-num{ font-family:'Cairo'; font-weight:900; font-size:38px; color:var(--primary-soft); line-height:1; min-width:96px; }
-  .rc-num span{ display:block; font-family:'Tajawal'; font-weight:700; font-size:10px; color:var(--muted); margin-top:3px; }
-  .rc-par{ font-family:'Tajawal'; font-size:11px; color:var(--muted); margin-top:14px; }
-  .rc-par b{ color:var(--text); font-weight:800; }
-  .rc-vs{ display:inline-flex; align-items:center; gap:5px; margin-top:10px; font-family:'Cairo'; font-weight:800; font-size:12.5px;
-    padding:7px 14px; border-radius:999px; }
-  .rc-vs svg{ width:14px; height:14px; }
-  .rc-vs b{ font-weight:900; }
-  .rc-vs.up{ color:var(--accent); background:rgba(0,255,135,0.12); }
-  .rc-vs.down{ color:var(--coral); background:rgba(255,77,109,0.12); }
-  .rc-vs.flat{ color:var(--muted); background:rgba(255,255,255,0.05); }
-  .rc-how{ font-family:'Tajawal'; font-size:10.5px; color:var(--muted); margin-top:12px; line-height:1.7;
-    padding-top:12px; border-top:1px solid var(--card-line); }
-  .rc-est{ margin:0 20px; background:var(--card); border:1px solid var(--card-line); border-radius:18px; padding:20px; text-align:center; }
-  .rc-est-lbl{ font-family:'Tajawal'; font-size:12px; color:var(--muted); }
-  .rc-est-rank{ font-family:'Cairo'; font-weight:900; font-size:36px; color:var(--text); margin:6px 0 6px; }
-  .rc-pct{ font-family:'Tajawal'; font-size:12px; color:var(--muted); margin-bottom:10px; }
-  .rc-pct b{ color:var(--accent); font-weight:800; }
-  .rc-est-delta{ display:inline-flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:800; font-size:14px;
-    padding:7px 15px; border-radius:999px; }
-  .rc-est-delta svg{ width:15px; height:15px; }
-  .rc-est-delta.up{ color:var(--accent); background:rgba(0,255,135,0.12); }
-  .rc-est-delta.down{ color:var(--coral); background:rgba(255,77,109,0.12); }
-  .rc-est-delta.flat{ color:var(--muted); background:rgba(255,255,255,0.05); }
-  .rc-wait{ margin:0 20px; background:var(--card); border:1px solid var(--card-line); border-radius:18px; padding:18px; text-align:center; }
-  .rc-wait-t{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--gold); margin-bottom:8px; }
-  .rc-wait-s{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); line-height:1.8; }
 
 </style>
 </head>
@@ -3453,7 +3415,6 @@ let state = {
   toolsBack:'home',       // الشاشة اللي نرجعلها من أدوات جدول اللاعبين/المخطط
   compareIds:[], compareSearch:'', // مقارنة اللاعبين (حتى 3 لاعبين)
   plan:null,              // مخطّط الانتقالات (سيناريو what-if): {squad, bank, horizon, replaceId, baseSig}
-  rankCalcPts:null,       // حاسبة الرانك: النقط الافتراضية للجولة
   // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
@@ -5478,10 +5439,9 @@ function renderHome(){
         '<span class="hx-hero-num">' + (state.seasonBaseline + displayRoundPoints()).toLocaleString() + '</span>' +
         '<span class="hx-hero-unit">نقطة</span>' +
       '</div>' +
-      '<div class="hx-hero-rank" data-goto="rankcalc">' +
+      '<div class="hx-hero-rank">' +
         '<span class="hx-rank-chip">' + ICON_UP + '#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</span>' +
         '<span class="hx-rank-label">الترتيب العام</span>' +
-        '<span class="hx-rank-calc">احسب رانكك ›</span>' +
       '</div>' +
       '<div class="hx-stats">' +
         '<div class="hx-stat"><div class="v">' + rp + '</div><div class="k">نقاط الجولة</div></div>' +
@@ -6923,110 +6883,6 @@ function renderWatchlist(){
   '<div style="height:18px;"></div>';
 }
 
-// ===================================================================
-// ★ حاسبة الرانك (Live Rank) — تقدير حركة ترتيبك العام حسب نقط الجولة
-//   بيستخدم توزيع نقط المديرين (dist من /api/eo) + كثافة المديرين لكل نقطة.
-//   قبل ما الجولة تبدأ / تتحمّل الداتا: بيعرض ترتيبك الحالي ويوضّح إن التقدير
-//   المباشر بيتفعّل وقت اللعب.
-// ===================================================================
-function parScore(){
-  const d = state.eoDist; if(!d || typeof d!=='object') return null;
-  let best=null, bc=-1;
-  for(const k in d){ const v=+d[k]||0; if(v>bc){ bc=v; best=+k; } }
-  return best;
-}
-
-// ترتيبك المتوقّع *في الجولة* لو جبت نقطة معيّنة = عدد المديرين اللي جابوا أكتر منك.
-// ده حساب دقيق من توزيع نقط الجولة (مش تقدير) — بيرجّع {rank, pct} (pct=أحسن من كام % من المديرين).
-function gwRankFor(score){
-  const dist=state.eoDist, N=state.eoDistN, TP=state.eoTotalPlayers;
-  if(!dist||!N||!TP) return null;
-  const s0=Math.round(score);
-  let above=0, at=0;
-  for(const k in dist){ const s=+k, c=+dist[k]||0; if(s>s0) above+=c; else if(s===s0) at+=c; }
-  const fracAbove=(above + 0.5*at)/N;
-  const rank=Math.max(1, Math.round(fracAbove*TP));
-  const pct=Math.max(0, Math.min(100, Math.round((1-fracAbove)*100)));
-  return { rank, pct };
-}
-
-function renderRankCalc(){
-  const back = '<div class="topbar"><button class="back" id="rcBack">' + ICON_BACK + '</button><h1>حاسبة الرانك</h1><div class="spacer"></div></div>';
-  const par = parScore();
-  const orank = state.overallRank || null;
-  const curGwPts = (typeof roundPoints==='function') ? roundPoints() : 0;
-
-  // الافتراضي: لو الجولة شغّالة وعندك نقط نبدأ بيها، وإلا نبدأ فوق المتوسط بشوية
-  // عشان أول ما تفتح الشاشة تشوف مثال حقيقي لحركة الرانك (مش نبدأ عند المتوسط بالظبط فتبان مش بتعمل حاجة)
-  if(state.rankCalcPts==null) state.rankCalcPts = (curGwPts>0?curGwPts:(par!=null?par+8:58));
-  const X = Math.max(0, Math.min(180, state.rankCalcPts));
-  const diff = (par!=null) ? (X - par) : null;   // فرقك عن متوسط المديرين — ده جوهر الفكرة
-
-  // ترتيبك المتوقّع في الجولة (حساب دقيق من توزيع نقط المديرين)
-  const gwEst = gwRankFor(X);
-  const canEstimate = !!(gwEst && par!=null);
-
-  const curStats =
-    '<div class="stat-strip">' +
-      '<div class="stat-pill"><div class="v">' + (orank?('#'+fmtRanks(orank)):'—') + '</div><div class="k">ترتيبك العام</div></div>' +
-      '<div class="stat-pill"><div class="v">' + (state.eventRank?('#'+fmtRanks(state.eventRank)):'—') + '</div><div class="k">ترتيب الجولة</div></div>' +
-      '<div class="stat-pill"><div class="v">' + curGwPts + '</div><div class="k">نقاطك الحالية</div></div>' +
-    '</div>';
-
-  // سطر المقارنة بالمتوسط — ده اللي بيخلّي الأداة تشرح نفسها
-  let vsHtml = '';
-  if(diff!=null){
-    if(diff>0) vsHtml = '<div class="rc-vs up">' + ICON_UP + 'فوق متوسط المديرين بـ <b>' + diff + '</b> نقطة</div>';
-    else if(diff<0) vsHtml = '<div class="rc-vs down">' + ICON_DOWN + 'تحت متوسط المديرين بـ <b>' + Math.abs(diff) + '</b> نقطة</div>';
-    else vsHtml = '<div class="rc-vs flat">بالظبط عند متوسط المديرين</div>';
-  }
-
-  const stepper =
-    '<div class="rc-calc">' +
-      '<div class="rc-q">لو خلّصت الجولة على…</div>' +
-      '<div class="rc-stepper">' +
-        '<button class="rc-btn" data-rankadd="-5">−5</button>' +
-        '<button class="rc-btn" data-rankadd="-1">−</button>' +
-        '<div class="rc-num">' + X + '<span>نقطة</span></div>' +
-        '<button class="rc-btn" data-rankadd="1">+</button>' +
-        '<button class="rc-btn" data-rankadd="5">+5</button>' +
-      '</div>' +
-      (par!=null ? '<div class="rc-par">متوسط نقط المديرين الجولة دي: <b>' + par + '</b> نقطة</div>' : '') +
-      vsHtml +
-    '</div>';
-
-  let estBlock;
-  if(canEstimate){
-    // اتجاه الترتيب العام (كيفي، مش رقم — لأن الرقم الدقيق للعام محتاج توزيع نقط الموسم مش الجولة)
-    const overallHint = (diff>0)
-      ? '<div class="rc-est-delta up">' + ICON_UP + 'فوق المتوسط → ترتيبك العام هيتحسّن</div>'
-      : (diff<0)
-        ? '<div class="rc-est-delta down">' + ICON_DOWN + 'تحت المتوسط → ترتيبك العام هيتراجع</div>'
-        : '<div class="rc-est-delta flat">عند المتوسط → ترتيبك العام تقريبًا ثابت</div>';
-    estBlock =
-      '<div class="rc-est">' +
-        '<div class="rc-est-lbl">ترتيبك المتوقّع في الجولة</div>' +
-        '<div class="rc-est-rank">#' + gwEst.rank.toLocaleString() + '</div>' +
-        '<div class="rc-pct">أحسن من ~<b>' + gwEst.pct + '%</b> من المديرين في الجولة دي</div>' +
-        overallHint +
-        '<div class="rc-how">ده ترتيبك المتوقّع في الجولة نفسها (حساب دقيق من نقط المديرين). تأثيره على ترتيبك <b>العام</b> بيبقى في نفس الاتجاه بس أصغر — بيتراكم على مدار الموسم.</div>' +
-      '</div>';
-  } else {
-    estBlock =
-      '<div class="rc-wait">' +
-        '<div class="rc-wait-t">التقدير بيتفعّل وقت ما الجولة تبدأ</div>' +
-        '<div class="rc-wait-s">الأداة دي بتحسب ترتيبك المتوقّع في الجولة بناءً على نقط باقي المديرين، واللي بتتحمّل مع بداية مباريات الجولة. ارجعلها وانت بتتفرّج على الجولة — هتقولك: «لو خلّصت على 70 نقطة، ترتيبك في الجولة هيبقى حوالي كام وأحسن من كام % من المديرين».</div>' +
-      '</div>';
-  }
-
-  return back +
-  '<div class="pred-note" style="margin:0 20px 12px;">جرّب نقط مختلفة للجولة وشوف ترتيبك المتوقّع فيها وأنت أحسن من كام % من المديرين (زي LiveFPL). أنفع ما تكون وأنت بتتفرّج على الجولة وهي شغّالة.</div>' +
-  curStats +
-  stepper +
-  estBlock +
-  '<div style="height:18px;"></div>';
-}
-
 function planBaseSig(){ return activeIds().map(e=>e.id).slice().sort((a,b)=>a-b).join(','); }
 
 function ensurePlan(reset){
@@ -7613,7 +7469,6 @@ function renderBody(){
   else if(state.tab==='rateteam') html = renderRateTeam();
   else if(state.tab==='chips') html = renderChips();
   else if(state.tab==='watchlist') html = renderWatchlist();
-  else if(state.tab==='rankcalc') html = renderRankCalc();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -7807,7 +7662,7 @@ function bindBody(){
 
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
-    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'||dest==='watchlist'||dest==='rankcalc'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
+    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'||dest==='watchlist'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
@@ -7898,17 +7753,6 @@ function bindBody(){
   const ptblWatch = el.querySelector('#ptblWatch');
   if(ptblWatch) ptblWatch.addEventListener('click', ()=>{ state.toolsBack = 'players'; state.tab = 'watchlist'; render(); });
 
-  // ===== حاسبة الرانك: تحكّم =====
-  const rcBack = el.querySelector('#rcBack');
-  if(rcBack) rcBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
-  el.querySelectorAll('[data-rankadd]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const d = parseInt(b.getAttribute('data-rankadd'));
-      const cur = (state.rankCalcPts==null?0:state.rankCalcPts);
-      state.rankCalcPts = Math.max(0, Math.min(180, cur + d));
-      render();
-    });
-  });
 
   // ===== قايمة المتابعة: نجمة الحفظ + الرجوع =====
   const wlBack = el.querySelector('#wlBack');
