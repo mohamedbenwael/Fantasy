@@ -3150,6 +3150,10 @@ async function buildLiveDataset(){
       xA90: parseFloat(el.expected_assists_per_90) || 0,         // أسيستات متوقعة لكل 90 دقيقة
       xGC90: parseFloat(el.expected_goals_conceded_per_90) || 0, // أهداف متوقع استقبالها لكل 90 دقيقة (لمحرك الكلين شيت)
       savesPer90: parseFloat(el.saves_per_90) || 0,
+      // 🛡️ المساهمة الدفاعية لكل 90 (تدخلات/قطع/بلوكات/استخلاصات) — أساس نقاط الـ DC الجديدة.
+      // بنقراها من الـ API لو متوفرة، وإلا نحسبها من الإجمالي/الدقايق؛ لو مش موجودة خالص تبقى 0 (مايأثرش).
+      dc90: parseFloat(el.defensive_contribution_per_90) ||
+            ((el.defensive_contribution && (el.minutes||0)>0) ? (el.defensive_contribution/((el.minutes||0)/90)) : 0),
       ictIndex: parseFloat(el.ict_index) || 0,
       pointsPerGame: parseFloat(el.points_per_game) || 0,
       bonusPerMatch: matchesPlayed ? (el.bonus||0) / matchesPlayed : 0,
@@ -4002,10 +4006,26 @@ function attackMultiplier(fx){
   return Math.max(0.6, Math.min(1.5, m));
 }
 
+// القيمة المتوقعة لخصم الأهداف في FPL: −1 لكل هدفين مستقبَلين = −E[floor(G/2)] حيث G~Poisson(λ).
+// حساب دقيق (بدل التقريب الخطي القديم) بيدّي عقوبة أصح للحارس/المدافع حسب صعوبة المباراة.
+function expectedConcedePenalty(lam){
+  let e=0;
+  for(let g=2; g<=12; g++){ e += Math.floor(g/2) * _poiPmf(g, lam); }
+  return e; // موجبة؛ بتتحوّل لسالبة عند الاستخدام
+}
+// احتمال الوصول لعتبة معيّنة (>=thr) من الأكشنز الدفاعية، بتوزيع بواسون بمتوسط lam.
+function poissonTailGE(thr, lam){
+  if(lam<=0) return 0;
+  let below=0;
+  for(let k=0; k<thr; k++){ below += _poiPmf(k, lam); }
+  return Math.max(0, Math.min(1, 1 - below));
+}
+
 // 🔑 جوهر الدقة: توقع نقاط اللاعب في مباراة واحدة محددة — بيفصل بين:
 //   • نقط الظهور: ثابتة، مش بتتأثر بصعوبة الخصم إطلاقًا (الخطأ القديم كان بيضرب FDR في كل النقط)
 //   • العائد الهجومي (xG/xA): بيتأثر بصعوبة الهجوم للمباراة دي بالذات
 //   • الكلين شيت: احتمال بواسون حقيقي للمباراة دي + خصم متوقع للأهداف + نقط التصديات للحارس
+//   • المساهمة الدفاعية (DC): نقطتين لو وصل عتبة الأكشنز الدفاعية (10 للمدافع / 12 للوسط والهجوم)
 function fixtureExpectedPoints(p, fx){
   const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
   if(minFactor<=0) return 0;
@@ -4034,23 +4054,41 @@ function fixtureExpectedPoints(p, fx){
   const assistPts = safeXA90 * minFactor * 3 * atkMul;
 
   // الكلين شيت + خصم الأهداف (للحارس/المدافع) + التصديات (للحارس)
-  let csPts = 0, concedePts = 0, savePts = 0;
+  let csPts = 0, concedePts = 0, savePts = 0, csProb = 0, lam = LEAGUE_AVG_GOALS;
   const isDefender = (p.pos==='GK' || p.pos==='DEF');
   if(posCSPts>0 || isDefender){
-    const lam = fx ? expectedConcede(p.club, fx) : LEAGUE_AVG_GOALS;
-    const csProb = Math.exp(-lam);
+    lam = fx ? expectedConcede(p.club, fx) : LEAGUE_AVG_GOALS;
+    csProb = Math.exp(-lam);
     csPts = csProb * posCSPts * minFactor;
     if(isDefender){
-      // قاعدة FPL: −1 لكل هدفين. تقدير مبسّط للخصم المتوقع من λ
-      concedePts = -Math.max(0, (lam-0.5)) * 0.35 * minFactor;
+      // خصم الأهداف: القيمة المتوقعة الدقيقة −E[floor(G/2)] (أدق من التقريب الخطي القديم)
+      concedePts = -expectedConcedePenalty(lam) * minFactor;
     }
   }
-  if(p.pos==='GK'){ savePts = ((p.savesPer90||0)/3) * minFactor; } // نقطة لكل 3 تصديات
+  if(p.pos==='GK'){
+    // تصديات الحارس بتزيد كل ما الخصم أخطر (أهداف متوقع استقبالها أعلى) — نسبةً لمعدّله الموسمي
+    let saveRate = p.savesPer90 || 0;
+    if((p.xGC90||0) > 0.25){ saveRate *= Math.max(0.6, Math.min(1.7, lam / p.xGC90)); }
+    savePts = (saveRate/3) * minFactor; // نقطة لكل 3 تصديات
+  }
 
-  // البونص: مهدَّأ برضو (بونص ماتش واحد ضجيج عالي) — بسقف + وزن العينة نفسه
-  const effBonusPerMatch = Math.min(p.bonusPerMatch || 0, 1.5) * perfConf;
-  const bonusPts = effBonusPerMatch * minFactor * (0.5 + 0.5*atkMul);
-  return appearancePts + goalPts + assistPts + csPts + concedePts + savePts + bonusPts;
+  // 🛡️ نقاط المساهمة الدفاعية (قاعدة 2025/26): +2 عند بلوغ عتبة الأكشنز الدفاعية.
+  // المدافع عتبته 10، الوسط/الهجوم 12، والحارس مش بياخدها. الاحتمال من توزيع بواسون بمعدّله/90.
+  let dcPts = 0;
+  if(p.pos!=='GK' && (p.dc90||0) > 0){
+    const thr = (p.pos==='DEF') ? 10 : 12;
+    const pReach = poissonTailGE(thr, p.dc90);
+    const dcConf = Math.max(0.5, xgConfidence()); // الأكشنز الدفاعية بتستقر بسرعة → ثقة أعلى من xG
+    dcPts = 2 * pReach * minFactor * dcConf;
+  }
+
+  // البونص: مربوط بالأداء المتوقّع للمباراة دي (مش متوسط موسمي جامد) — لاعب متوقعله مساهمة
+  // هجومية/كلين شيت/دفاعية بياخد بونص أكتر. بنمزج المرساة التاريخية بإشارة الأداء المتوقّع.
+  const histBonus = Math.min(p.bonusPerMatch || 0, 1.5) * Math.max(0.4, perfConf);
+  const projBonusSignal = (safeXG90*1.1 + safeXA90*0.8 + (isDefender ? csProb*0.5 : 0) + (dcPts>0 ? 0.15 : 0)) * atkMul;
+  const bonusPts = Math.min(1.7, 0.55*histBonus + 0.75*projBonusSignal) * minFactor;
+
+  return appearancePts + goalPts + assistPts + csPts + concedePts + savePts + dcPts + bonusPts;
 }
 
 // خط أساس مبني على فئة اللاعب (سعره/ملكيته) — مرساة بتمنع طفرات الجولة الواحدة من تضليل التوقع
@@ -6225,6 +6263,10 @@ function renderPlayerProfile(){
     ['نقطة/مباراة', fmt(p.pointsPerGame), ''],
     ['الدقائق', String(p.minutes||0), ''],
   ];
+  // إحصائية المساهمة الدفاعية (لو متاحة) — بتظهر لغير الحراس عشان القاعدة الجديدة
+  if(p.pos!=='GK' && (p.dc90||0) > 0){
+    advCells.push(['دفاعي/90', (p.dc90||0).toFixed(1), (p.dc90 >= (p.pos==='DEF'?10:12) ? 'hi' : '')]);
+  }
   const advHtml = '<div class="section-title"><h2>إحصائيات متقدمة</h2></div>' +
     '<div class="adv-grid">' + advCells.map(c=>
       '<div class="adv-cell"><div class="adv-v '+(c[2]||'')+'">'+c[1]+'</div><div class="adv-k">'+c[0]+'</div></div>'
