@@ -2516,9 +2516,18 @@ async function openMemberSquad(entryId, teamName, managerName){
     try{ picks = await fetchFplPicks(entryId, g); }catch(e){ picks = null; }
     if(picks && picks.squadIds && picks.squadIds.length){ usedGw = g; break; }
   }
+  // نجيب نقط كل لاعب في الجولة اللي بنعرضها (نفس طريقة عرض جولاتي التاريخية) عشان
+  // تشكيلة العضو تبان بنقط الجولة اللي اتلعبت مش فاضية وبمباريات الجولة الجاية.
+  let ptsById = {};
+  if(picks && usedGw != null){
+    try{
+      const live = await fplFetch('live', usedGw);
+      if(live && live.elements){ live.elements.forEach(row=>{ ptsById[row.id] = (row.stats && row.stats.total_points) || 0; }); }
+    }catch(e){}
+  }
   state.viewMemberSquad = (picks && usedGw != null)
     ? { loading:false, teamName, managerName, squadIds:picks.squadIds, captainId:picks.captainId,
-        activeChip: picks.activeChip || null,
+        activeChip: picks.activeChip || null, ptsById: ptsById,
         squadGw: usedGw, carriedForward: (usedGw !== gw) }
     : { loading:false, error:true, teamName, managerName };
   if(state.tab==='leagues' && String(state.viewMemberId)===String(entryId)) renderBody();
@@ -5573,15 +5582,22 @@ function renderLeagues(){
       return header + '<div class="hint" style="margin:20px;">تعذر تحميل تشكيلة هذا المدير حاليًا (غالبًا لسه ما أعلنش تشكيلته للجولة دي)</div>';
     }
     // بنستعير renderPitchCard اللي شغالة بتشكيلتي، بس بنبدّل بيانات التشكيلة مؤقتًا للعضو ده
-    // ومعاها الشيب بتاعه (مش شيبي أنا) عشان التريبل كابتن ما يتسربش على تشكيلة حد تاني
+    // ومعاها الشيب بتاعه (مش شيبي أنا) عشان التريبل كابتن ما يتسربش على تشكيلة حد تاني.
+    // وكمان بنحط نقط الجولة اللي بنعرضها (viewPtsById) ومباريات نفس الجولة (fixturesList)
+    // عشان اللاعبين يبانوا بنقط الجولة اللي اتلعبت — زي ما بيحصل في عرض جولاتي التاريخية.
     const savedSquad = state.mySquadIds, savedCap = state.captainId, savedChip = state.activeChip;
+    const savedPts = state.viewPtsById, savedFx = state.fixturesList;
     state.mySquadIds = vm.squadIds;
     state.captainId = vm.captainId;
     state.activeChip = vm.carriedForward ? null : (vm.activeChip || null);
+    state.viewPtsById = vm.ptsById || {};
+    state.fixturesList = (state.fixturesByGw && state.fixturesByGw[vm.squadGw]) || state.fixturesList;
     const pitchHtml = renderPitchCard(false);
     state.mySquadIds = savedSquad;
     state.captainId = savedCap;
     state.activeChip = savedChip;
+    state.viewPtsById = savedPts;
+    state.fixturesList = savedFx;
     const gwNote = vm.carriedForward
       ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + ' (آخر جولة اتلعبت) — الجولة الحالية لسه ما بدأتش</div>'
       : (vm.squadGw ? '<div class="hint" style="margin:0 20px 10px; color:var(--muted2);">تشكيلة الجولة ' + vm.squadGw + '</div>' : '');
