@@ -2170,6 +2170,20 @@
   .rt-cta .rc-s{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
   .rt-cta .rc-chev{ margin-inline-start:auto; color:var(--muted); }
 
+  /* ---------- مستشار الشيبات ---------- */
+  .chip-grid{ margin:0 20px; display:flex; flex-direction:column; gap:10px; }
+  .chip-card{ background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px; }
+  .chip-card .cc-top{ display:flex; align-items:center; gap:10px; }
+  .chip-card .cc-ic{ width:36px; height:36px; flex:0 0 auto; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    background:rgba(233,0,82,0.13); color:var(--primary-soft); }
+  .chip-card .cc-ic svg{ width:19px; height:19px; }
+  .chip-card .cc-name{ font-family:'Cairo'; font-weight:900; font-size:15px; color:var(--text); }
+  .chip-card .cc-badge{ margin-inline-start:auto; font-family:'Cairo'; font-weight:800; font-size:11px; padding:5px 11px; border-radius:999px; }
+  .chip-card .cc-badge.go{ background:rgba(0,255,135,0.14); color:var(--accent); border:1px solid rgba(0,255,135,0.3); }
+  .chip-card .cc-badge.wait{ background:rgba(255,255,255,0.06); color:var(--muted); border:1px solid var(--card-line); }
+  .chip-card .cc-detail{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); line-height:1.7; margin-top:9px; }
+  .chip-card .cc-detail b{ color:var(--text); font-weight:800; }
+
 </style>
 </head>
 <body>
@@ -5413,6 +5427,12 @@ function renderHome(){
     '</button>' +
   '</div>' +
 
+  '<button class="rt-cta" data-goto="rateteam">' +
+    '<div class="rc-ic">★</div>' +
+    '<div><div class="rc-t">قيّم فريقك</div><div class="rc-s">تقييم تشكيلتك بالدرجات + التوصيات</div></div>' +
+    '<div class="rc-chev">' + ICON_CHEV + '</div>' +
+  '</button>' +
+
   /* ===== شريط التنقّل بين الجولات ===== */
   renderGwNav() +
   '</div>' +   /* إغلاق home-side */
@@ -6489,6 +6509,12 @@ function renderPredictions(){
     '<div class="rc-chev">' + ICON_CHEV + '</div>' +
   '</button>' +
 
+  '<button class="plan-cta" data-goto="chips" style="margin-top:0;">' +
+    '<div class="pcta-ic">' + ICON_CROWN + '</div>' +
+    '<div><div class="pcta-t">مستشار الشيبات</div><div class="pcta-s">إمتى تلعب تربل كابتن / بنش بوست / فري هيت / وايلد كارد</div></div>' +
+    '<div class="pcta-chev">' + ICON_CHEV + '</div>' +
+  '</button>' +
+
   captainCardHtml +
   lineupSwapsHtml +
   capPicksHtml +
@@ -6962,6 +6988,96 @@ function renderRateTeam(){
 }
 
 // ===================================================================
+// ★ مستشار الشيبات — إمتى تلعب تربل كابتن/بنش بوست/فري هيت/وايلد كارد
+//   بيحلّل مباريات تشكيلتك على أقرب 5 جولات (جولات مزدوجة/بلانك/صعوبة).
+// ===================================================================
+function chipAdvisor(){
+  const gw0 = state.gwInfo && state.gwInfo.nextGw;
+  if(gw0==null) return null;
+  const sq = squad(); if(!sq.length) return null;
+  const gws=[]; for(let i=0;i<5;i++) gws.push(gw0+i);
+
+  const perGw = gws.map(g=>{
+    let squadTotal=0, playersPlaying=0, doubles=0;
+    const pp=[];
+    sq.forEach(p=>{
+      const fx=teamFixtureInfo(p.club);
+      const list=(fx&&fx.lookahead)?fx.lookahead.filter(f=>f.event===g):[];
+      let pts=0; list.forEach(f=>{ pts += Math.max(0, fixtureExpectedPoints(p,f)); });
+      if(list.length){ playersPlaying++; if(list.length>=2) doubles++; }
+      squadTotal += pts;
+      pp.push({p, pts, n:list.length});
+    });
+    const byPos={GK:[],DEF:[],MID:[],FWD:[]};
+    pp.forEach(x=>{ if(byPos[x.p.pos]) byPos[x.p.pos].push(x); });
+    Object.keys(byPos).forEach(k=>byPos[k].sort((a,b)=>b.pts-a.pts));
+    const xi=[].concat(byPos.GK.slice(0,1),byPos.DEF.slice(0,3),byPos.MID.slice(0,2),byPos.FWD.slice(0,1));
+    const rest=[].concat(byPos.DEF.slice(3),byPos.MID.slice(2),byPos.FWD.slice(1)).sort((a,b)=>b.pts-a.pts);
+    for(let i=0;i<rest.length && xi.length<11;i++) xi.push(rest[i]);
+    const startersTotal=xi.reduce((s,x)=>s+x.pts,0);
+    let best={pts:0,p:null,n:0}; pp.forEach(x=>{ if(x.pts>best.pts) best={pts:x.pts,p:x.p,n:x.n}; });
+    return { gw:g, squadTotal, startersTotal, benchGain:Math.max(0,squadTotal-startersTotal),
+             playersPlaying, doubles, blanks:sq.length-playersPlaying, best };
+  });
+
+  const bb = perGw.slice().sort((a,b)=> b.benchGain-a.benchGain)[0];
+  const tc = perGw.slice().sort((a,b)=> b.best.pts-a.best.pts)[0];
+  const fhBlank = perGw.slice().sort((a,b)=> b.blanks-a.blanks)[0];
+  const fhDouble = perGw.slice().sort((a,b)=> b.doubles-a.doubles)[0];
+  const flagged = sq.filter(p=>availabilityMultiplier(p)<1).length;
+  const avgFdr = sq.reduce((s,p)=>{ const fx=state.teamFixtures[p.club]; return s+((fx&&fx.avgFdrNext3)?fx.avgFdrNext3:3); },0)/sq.length;
+  return { perGw, bb, tc, fhBlank, fhDouble, flagged, avgFdr };
+}
+
+function renderChips(){
+  const back = '<div class="topbar"><button class="back" id="chipBack">' + ICON_BACK + '</button><h1>مستشار الشيبات</h1><div class="spacer"></div></div>';
+  const a = chipAdvisor();
+  if(!a) return back + '<div class="hint" style="margin:20px;">بيانات المباريات لسه بتحمّل — جرّب بعد شوية.</div>';
+
+  function card(ic, name, reciac, verdict, ok, detail){
+    return '<div class="chip-card">' +
+      '<div class="cc-top"><div class="cc-ic">' + ic + '</div><div class="cc-name">' + name + '</div>' +
+        '<div class="cc-badge ' + (ok?'go':'wait') + '">' + verdict + '</div></div>' +
+      '<div class="cc-detail">' + detail + '</div>' +
+    '</div>';
+  }
+
+  // تربل كابتن
+  const tcOk = a.tc && a.tc.best.p && a.tc.best.pts>=6;
+  const tcCard = card(ICON_CROWN, 'تربل كابتن', null,
+    tcOk ? ('الجولة ' + a.tc.gw) : 'مش دلوقتي', tcOk,
+    tcOk ? ('أفضل فرصة: <b>' + escapeHtml(a.tc.best.p.name) + '</b> متوقعله ' + fmt(a.tc.best.pts) + ' نقطة' + (a.tc.best.n>=2?' (جولة مزدوجة ⚡)':'') + ' في الجولة ' + a.tc.gw + '.')
+           : 'مفيش لاعب في تشكيلتك متوقعله انفجار واضح في أقرب 5 جولات — استنى جولة مزدوجة أو خصم أسهل.');
+
+  // بنش بوست
+  const bbOk = a.bb && a.bb.benchGain>=8;
+  const bbCard = card(ICON_UP, 'بنش بوست', null,
+    bbOk ? ('الجولة ' + a.bb.gw) : 'مش دلوقتي', bbOk,
+    bbOk ? ('احتياطيك متوقع يضيف ~<b>' + fmt(a.bb.benchGain) + '</b> نقطة في الجولة ' + a.bb.gw + (a.bb.doubles?(' (' + a.bb.doubles + ' لاعب في جولة مزدوجة)'):'') + '.')
+         : ('أعلى إضافة متوقعة من احتياطيك ~' + fmt(a.bb?a.bb.benchGain:0) + ' نقطة — قليلة. استنى جولة فيها لاعيبتك الاحتياطي مبارياتهم أفضل.'));
+
+  // فري هيت
+  let fhOk=false, fhVerdict='مش دلوقتي', fhDetail='';
+  if(a.fhBlank && a.fhBlank.blanks>=4){ fhOk=true; fhVerdict='الجولة '+a.fhBlank.gw; fhDetail = '<b>'+a.fhBlank.blanks+'</b> لاعبين من فريقك مش بيلعبوا الجولة '+a.fhBlank.gw+' (بلانك) — الفري هيت يخليك تنزل فريق كامل.'; }
+  else if(a.fhDouble && a.fhDouble.doubles>=5){ fhOk=true; fhVerdict='الجولة '+a.fhDouble.gw; fhDetail = 'جولة مزدوجة كبيرة: '+a.fhDouble.doubles+' من لاعيبتك بيلعبوا مرتين في الجولة '+a.fhDouble.gw+' — فرصة قوية للفري هيت.'; }
+  else { fhDetail = 'مفيش جولة بلانك مؤثرة ولا جولة مزدوجة كبيرة في أقرب 5 جولات — احتفظ بالفري هيت.'; }
+  const fhCard = card(ICON_REFRESH, 'فري هيت', null, fhVerdict, fhOk, fhDetail);
+
+  // وايلد كارد
+  const wcOk = a.avgFdr>=3.4 || a.flagged>=3;
+  let wcDetail='';
+  if(a.flagged>=3) wcDetail = 'عندك <b>'+a.flagged+'</b> لاعبين مصابين/موقوفين/مشكوك فيهم — فكّر في الوايلد كارد لإعادة بناء الفريق.';
+  else if(a.avgFdr>=3.4) wcDetail = 'رنّ تشكيلتك صعب (متوسط صعوبة '+fmt(a.avgFdr)+'/5) — الوايلد كارد ممكن يحسّن مبارياتك.';
+  else wcDetail = 'رنّ تشكيلتك كويس (متوسط صعوبة '+fmt(a.avgFdr)+'/5) ولاعيبتك متاحين — مش محتاج وايلد كارد دلوقتي.';
+  const wcCard = card(ICON_FIRE, 'وايلد كارد', null, wcOk?'فكّر فيه':'مش دلوقتي', wcOk, wcDetail);
+
+  return '' + back +
+  '<div class="pred-note" style="margin:0 20px 12px;">تحليل مباريات تشكيلتك على أقرب 5 جولات. بيفترض إن الشيب لسه متاح عندك.</div>' +
+  '<div class="chip-grid">' + tcCard + bbCard + fhCard + wcCard + '</div>' +
+  '<div style="height:18px;"></div>';
+}
+
+// ===================================================================
 // ★ مقارنة اللاعبين — حتى 3 لاعبين جنب بعض، بأفضل قيمة مميّزة في كل صف
 // ===================================================================
 const CMP_METRICS = [
@@ -7208,6 +7324,7 @@ function renderBody(){
   else if(state.tab==='compare') html = renderCompare();
   else if(state.tab==='planner') html = renderPlanner();
   else if(state.tab==='rateteam') html = renderRateTeam();
+  else if(state.tab==='chips') html = renderChips();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -7221,7 +7338,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', planner:'transfers', rateteam:'predictions' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', planner:'transfers', rateteam:'predictions', chips:'predictions' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -7401,7 +7518,7 @@ function bindBody(){
 
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
-    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
+    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
@@ -7521,7 +7638,9 @@ function bindBody(){
 
   // ===== قيّم فريقك: تحكّم =====
   const rtBack = el.querySelector('#rtBack');
-  if(rtBack) rtBack.addEventListener('click', ()=>{ state.tab = 'predictions'; render(); });
+  if(rtBack) rtBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'predictions'; render(); });
+  const chipBack = el.querySelector('#chipBack');
+  if(chipBack) chipBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'predictions'; render(); });
 
   // ===== مخطّط الانتقالات: تحكّم =====
   const planBack = el.querySelector('#planBack');
