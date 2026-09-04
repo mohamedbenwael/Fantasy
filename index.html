@@ -8282,6 +8282,9 @@ setInterval(updateInstallBanner, 1500);
    وبيظهر تلقائيًا أول ما يثبّت التطبيق. ما بيتكوّمش فوق بانر التثبيت.
    ============================================================ */
 let _notifDismissed = false;
+// مانعرضش بانر "شغّل الإشعارات" غير بعد ما نتأكد فعلاً إن مفيش اشتراك شغّال —
+// عشان اللي مفعّل الإشعارات ما يشوفش البانر بيومض ثواني قبل ما الفحص يخلص.
+let _pushChecked = false;
 function _buildNotifBanner(){
   if(document.getElementById('notifBanner')) return;
   const b = document.createElement('div');
@@ -8303,6 +8306,7 @@ function updateNotifBanner(){
   const shown = document.getElementById('notifBanner');
   const supported = (typeof state!=='undefined') && state.pushStatus !== 'unsupported';
   const shouldShow = (typeof state!=='undefined') && state.phase==='app' &&
+                     _pushChecked &&                          // استنى لحد ما نتأكد إن مفيش اشتراك فعلي (يمنع الوميض للمفعّلين)
                      supported && pushNeedsEnable() && !!state.deviceId &&
                      !_notifDismissed &&
                      (_isStandalone() || !_isIOS()) &&        // على آيفون-متصفح سيب بانر التثبيت هو اللي يظهر (لازم يثبّت الأول)
@@ -8435,6 +8439,7 @@ async function initPushSubscribed(){
       }catch(e){}
     }
   }catch(e){ state.pushSubscribed = false; }
+  finally{ _pushChecked = true; }   // اتأكدنا من حالة الاشتراك — دلوقتي البانر يقدر يظهر لو محتاج
   if(state.tab==='more') renderBody();
   updateNotifBanner();
 }
@@ -8458,9 +8463,10 @@ async function refreshPushSquad(){
 try{ state.pushStatus = ('Notification' in window) ? Notification.permission : 'unsupported'; }
 catch(e){ state.pushStatus = 'unsupported'; }
 
-// اكتشف لو فيه اشتراك فعلي شغّال (بعد deviceId ما يتحمّل) عشان الواجهة تفرّق بين
-// "الإذن granted بس من غير اشتراك" و"مشترك فعلاً"
-setTimeout(initPushSubscribed, 3000);
+// اكتشف لو فيه اشتراك فعلي شغّال — بدري عشان قرار عرض البانر يبقى سريع وما يومضش
+// للمفعّلين، وتاني بعد ما deviceId يتحمّل عشان يعيد بناء مفتاح الاشتراك (_pushKey).
+setTimeout(initPushSubscribed, 900);
+setTimeout(initPushSubscribed, 3500);
 
 // حدّث لاعيبة الاشتراك بعد ما التشكيلة تتحمّل، وكل شوية (بيتخطّى لو مفيش تغيير)
 setTimeout(refreshPushSquad, 8000);
