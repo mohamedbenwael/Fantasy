@@ -1619,8 +1619,16 @@
   .ptoken-badge{
     position:absolute; bottom:3px; inset-inline-start:3px; z-index:2;
     width:17px; height:17px; object-fit:contain; padding:1.5px;
-    background:rgba(255,255,255,0.92); border-radius:50%;
-    box-shadow:0 1px 3px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(0,0,0,0.06);
+    /* خلفية بلون النادي (مش أبيض) عشان الشعارات الفاتحة/البيضا — زي ليفربول — تفضل باينة */
+    background:var(--club,#3AA0FF); border-radius:50%;
+    box-shadow:0 1px 3px rgba(0,0,0,0.45), inset 0 0 0 1.5px rgba(255,255,255,0.9);
+  }
+  /* بديل مرسوم للشعار لو رابط الشعار الرسمي فشل — قرص بلون النادي واختصار اسمه */
+  .ptoken-badge.ptoken-badge-disc{
+    display:flex; align-items:center; justify-content:center; padding:0;
+    background:var(--club,#3AA0FF); color:#fff;
+    font-size:6px; font-weight:800; letter-spacing:0.2px; line-height:1;
+    text-shadow:0 1px 1px rgba(0,0,0,0.45); overflow:hidden;
   }
   /* لاعب مالوش صورة رسمية → سيلويت أنيق متسق مع باقي الكروت (بدل القميص الخام) */
   .ptoken-img.ptoken-silhouette{
@@ -2034,10 +2042,38 @@ function pitchPhotoFallback(img){
   img.replaceWith(d);
 }
 // شعار النادي الحالي — بيتجاب لايف من داتا الفانتازي، فبيحسم "اللاعب في أي فريق دلوقتي"
-// حتى لو الصورة الرسمية قديمة وهو لابس قميص ناديه القديم
+// حتى لو الصورة الرسمية قديمة وهو لابس قميص ناديه القديم.
+// مهم: لو رابط الشعار فشل (زي ما بيحصل لبعض الأندية أحيانًا على CDN الفانتازي) مكنّاش
+// بنعرض أي بديل — الشعار كان بيختفي خالص. دلوقتي بنجرّب مسار تاني للشعار، ولو فشل كمان
+// بنرسم قرص بلون النادي مكتوب فيه اختصاره (LIV مثلاً) عشان هوية الفريق تفضل ظاهرة دايمًا.
 function pitchClubBadge(p){
-  if(!p.teamCode) return '';
-  return '<img class="ptoken-badge" src="https://resources.premierleague.com/premierleague/badges/t' + p.teamCode + '.png" alt="" onerror="this.style.display=\'none\'" loading="lazy">';
+  if(!p.teamCode) return clubBadgeDiscHtml(p.club);
+  const club = p.club || '';
+  return '<img class="ptoken-badge" src="https://resources.premierleague.com/premierleague/badges/t' + p.teamCode + '.png"' +
+    ' alt="" data-code="' + p.teamCode + '" data-club="' + escapeHtml(club) + '" data-step="0"' +
+    ' style="--club:' + clubTokenColor(club) + '"' +
+    ' onerror="pitchBadgeFail(this)" loading="lazy">';
+}
+// قرص بلون النادي + اختصار اسمه (بديل مرسوم من غير إنترنت لو الشعار مش متاح)
+function clubBadgeDiscHtml(clubKey){
+  const tag = (CLUB_TAG[clubKey] || '').toUpperCase();
+  return '<div class="ptoken-badge ptoken-badge-disc" style="--club:' + clubTokenColor(clubKey) + '">' + escapeHtml(tag) + '</div>';
+}
+// تدرّج فشل الشعار: (0) المسار القديم → (1) مسار الشعار بالحجم → (نهائي) قرص ملوّن باسم النادي
+function pitchBadgeFail(img){
+  const step = img.getAttribute('data-step');
+  const code = img.getAttribute('data-code');
+  if(step === '0' && code){
+    img.setAttribute('data-step','1');
+    img.src = 'https://resources.premierleague.com/premierleague/badges/50/t' + code + '.png';
+    return;
+  }
+  img.onerror = null; // فشل نهائي — بلاش لوب
+  const club = img.getAttribute('data-club') || '';
+  const d = document.createElement('div');
+  const disc = document.createElement('div'); // نبني عنصر مؤقت عشان نطلّع منه الـ div الجاهز
+  disc.innerHTML = clubBadgeDiscHtml(club);
+  img.replaceWith(disc.firstChild);
 }
 // أفاتار وش دائري للاعب (يُستخدم في صفوف شاشة التوقعات) — صورة حقيقية أو سيلويت
 function facePhoto(p){
