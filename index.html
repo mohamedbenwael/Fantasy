@@ -3076,10 +3076,19 @@ async function buildLiveDataset(){
         rankIdx += tied.length;
       });
     });
-    // ملاحظة: مش بنضيف provisionalBonusByElement فوق cur.pts هنا —
-    // total_points الجاي من live/ API أصلاً شامل البونص اللحظي المحسوب رسميًا،
-    // فلو ضفناه تاني هنا هيبقى بونص مكرر (مضروب ×2). provisionalBonusByElement
-    // فضل موجود بس عشان شارة النجمة (badge) في الواجهة تدي المستخدم إشارة بصرية.
+    // ✅ نضيف البونص اللحظي (المؤقت) لنقط الجولة الحالية علطول:
+    // الفانتازي الرسمية مابتضيفش البونص لنقط اللاعب إلا بعد ما الماتش يخلص وتتثبّت النتيجة —
+    // فأثناء الماتش نقط اللاعب كانت بتبان من غير بونص. البونص هنا محسوب من ترتيب الـ bps
+    // للمباريات الشغّالة (مش المنتهية) بس، والمباراة المنتهية بونصها الرسمي بيبقى داخل
+    // total_points أصلاً — فمفيش تكرار. كده اللاعب المستحق بونص يبان في نقطه فورًا.
+    Object.keys(provisionalBonusByElement).forEach(function(elIdStr){
+      var bonus = provisionalBonusByElement[elIdStr] || 0;
+      if(bonus<=0) return;
+      var arr = historyByElement[Number(elIdStr)];
+      if(!arr) return;
+      var cur = arr.find(function(h){ return h.gw===gwId; });
+      if(cur) cur.pts = (cur.pts||0) + bonus;
+    });
 
     // نظرة قدام: أقرب 3 مباريات لسه ما اتلعبتش لكل نادي (بتاخد بعضها لو فيه جولة مزدوجة)
     // استخدمنا !f.started بدل !f.finished عشان الماتش يتشال من "القادمة" فور انطلاقه، مش لما يخلص رسميًا
