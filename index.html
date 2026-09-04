@@ -2070,6 +2070,63 @@
   .cmp-fixrow .cmp-fixcell{ display:flex; gap:3px; justify-content:center; }
   .cmp-fixcell .pp-fixcard{ padding:4px 3px; border-radius:6px; min-width:26px; }
 
+  /* ---------- مخطّط الانتقالات ---------- */
+  .pos{ color:var(--accent) !important; } .neg{ color:var(--coral) !important; }
+  .plan-sum{ margin:0 20px 14px; background:linear-gradient(150deg,var(--card),var(--card-2));
+    border:1px solid var(--card-line); border-radius:18px; padding:16px 14px; }
+  .plan-sum .ps-main{ display:flex; align-items:center; justify-content:center; gap:14px; }
+  .plan-sum .ps-cell{ text-align:center; min-width:74px; }
+  .plan-sum .ps-v{ font-family:'Cairo'; font-weight:900; font-size:26px; color:var(--text); line-height:1; }
+  .plan-sum .ps-k{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:4px; }
+  .plan-sum .ps-arrow{ color:var(--primary-soft); opacity:.85; }
+  .plan-sum .ps-arrow svg{ width:20px; height:20px; }
+  .plan-sum .ps-foot{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px;
+    padding-top:13px; border-top:1px solid var(--card-line); }
+  .plan-sum .psf{ text-align:center; }
+  .plan-sum .psf .k{ display:block; font-family:'Tajawal'; font-size:9px; color:var(--muted); margin-bottom:3px; }
+  .plan-sum .psf .v{ font-family:'Cairo'; font-weight:800; font-size:15px; color:var(--text); }
+  .plan-reset{ display:block; width:100%; margin-top:13px; background:rgba(255,77,109,0.1);
+    border:1px solid rgba(255,77,109,0.3); color:var(--coral); font-family:'Cairo'; font-weight:800; font-size:12px;
+    padding:10px; border-radius:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .plan-list{ margin:0 20px; display:flex; flex-direction:column; gap:8px; }
+  .plan-row{ display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:14px; padding:10px 12px; }
+  .plan-row.active{ border-color:var(--primary-soft); box-shadow:0 0 0 1px rgba(255,77,139,0.3); }
+  .plan-row .pr-face .face{ width:38px; height:38px; }
+  .plan-row .pr-face{ cursor:pointer; }
+  .plan-row .pr-main{ flex:1; min-width:0; cursor:pointer; }
+  .plan-row .pr-nm{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); display:flex; align-items:center; gap:6px; }
+  .plan-row .pr-new{ font-family:'Cairo'; font-weight:800; font-size:8px; color:#04321B; background:var(--accent); padding:1px 6px; border-radius:999px; }
+  .plan-row .pr-mt{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
+  .plan-row .pr-pts{ font-family:'Cairo'; font-weight:900; font-size:16px; color:var(--accent); text-align:center; }
+  .plan-row .pr-pts span{ display:block; font-family:'Tajawal'; font-weight:700; font-size:8px; color:var(--muted); margin-top:1px; }
+  .plan-row .pr-swap{ background:rgba(255,255,255,0.06); border:1px solid var(--card-line); color:var(--text);
+    font-family:'Cairo'; font-weight:800; font-size:11px; padding:8px 12px; border-radius:10px; cursor:pointer; flex:0 0 auto;
+    -webkit-tap-highlight-color:transparent; }
+  .plan-row.active .pr-swap{ background:var(--primary); color:#fff; border-color:transparent; }
+  .plan-cands{ margin:-2px 8px 4px; display:flex; flex-direction:column; gap:6px; padding:8px;
+    background:var(--card-2); border:1px solid var(--card-line); border-radius:12px; }
+  .plan-cand{ display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:10px; cursor:pointer;
+    background:var(--card); border:1px solid transparent; transition:border-color .15s; -webkit-tap-highlight-color:transparent; }
+  .plan-cand:active{ border-color:var(--primary-soft); }
+  .plan-cand .face{ width:32px; height:32px; }
+  .plan-cand .pc-main{ flex:1; min-width:0; }
+  .plan-cand .pc-nm{ font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text); }
+  .plan-cand .pc-mt{ font-family:'Tajawal'; font-size:9.5px; color:var(--muted); margin-top:1px; }
+  .plan-cand .pc-gain{ font-family:'Cairo'; font-weight:900; font-size:14px; flex:0 0 auto; }
+
+  /* زر فتح المخطّط من تبويب الانتقالات */
+  .plan-cta{ display:flex; align-items:center; gap:11px; width:calc(100% - 40px); margin:0 20px 14px; cursor:pointer;
+    background:linear-gradient(135deg, rgba(0,255,135,0.14), rgba(0,184,95,0.08)); border:1px solid rgba(0,255,135,0.28);
+    border-radius:16px; padding:13px 14px; text-align:start; -webkit-tap-highlight-color:transparent; transition:transform .15s; }
+  .plan-cta:active{ transform:scale(.99); }
+  .plan-cta .pcta-ic{ width:38px; height:38px; flex:0 0 auto; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,255,135,0.18); color:var(--accent); }
+  .plan-cta .pcta-ic svg{ width:20px; height:20px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .plan-cta .pcta-t{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
+  .plan-cta .pcta-s{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
+  .plan-cta .pcta-chev{ margin-inline-start:auto; color:var(--muted); }
+
 </style>
 </head>
 <body>
@@ -3249,6 +3306,7 @@ let state = {
   fixturesView:'matches', // تبويب المباريات: matches | fdr
   toolsBack:'home',       // الشاشة اللي نرجعلها من أدوات جدول اللاعبين/المخطط
   compareIds:[], compareSearch:'', // مقارنة اللاعبين (حتى 3 لاعبين)
+  plan:null,              // مخطّط الانتقالات (سيناريو what-if): {squad, bank, horizon, replaceId, baseSig}
   // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
@@ -5724,6 +5782,11 @@ function renderTransfers(){
     '<div class="stat-pill"><div class="v">£' + fmt(squadValue(ids)) + 'm</div><div class="k">قيمة الفريق</div></div>' +
   '</div>' +
   flash +
+  '<button class="plan-cta" data-goto="planner">' +
+    '<div class="pcta-ic"><svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/></svg></div>' +
+    '<div><div class="pcta-t">مخطّط الانتقالات</div><div class="pcta-s">خطّط تبديلاتك وشوف صافي النقط المتوقعة قبل ما تعملها</div></div>' +
+    '<div class="pcta-chev">' + ICON_CHEV + '</div>' +
+  '</button>' +
   '<div class="section-title"><h2>فريقك</h2></div>' +
   '<div class="league-list" style="gap:8px;">' + squadRows + '</div>' +
   '<div class="section-title" style="margin-bottom:8px;"><h2>سوق الانتقالات</h2></div>' +
@@ -5851,18 +5914,6 @@ function renderMore(){
         '<button class="feature-tile" data-goto="predictions">' +
           '<div class="ft-icon">' + ICON_PREDICT + '</div>' +
           '<div><div class="ft-title">التوقعات والنصائح</div><div class="ft-sub">توقع نقاط تشكيلتك، الكلين شيت، ونصائح الانتقالات</div></div>' +
-        '</button>' +
-        '<button class="feature-tile" data-goto="players">' +
-          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/><path d="M9 5v14"/></svg></div>' +
-          '<div><div class="ft-title">جدول اللاعبين</div><div class="ft-sub">كل اللاعبين بالتوقعات والإحصائيات — فرز وفلترة زي المواقع الكبيرة</div></div>' +
-        '</button>' +
-        '<button class="feature-tile" data-goto="fdr">' +
-          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7.5 14h.01M12 14h.01M16.5 14h.01"/></svg></div>' +
-          '<div><div class="ft-title">مخطط سهولة المباريات</div><div class="ft-sub">صعوبة مباريات كل الأندية على أقرب ٥ جولات (FDR) لتخطيط الانتقالات</div></div>' +
-        '</button>' +
-        '<button class="feature-tile" data-goto="compare">' +
-          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M6 8l-4 6h8z"/><path d="M18 8l-4 6h8z"/><path d="M6 8V6h12v2"/></svg></div>' +
-          '<div><div class="ft-title">مقارنة اللاعبين</div><div class="ft-sub">قارن حتى 3 لاعبين جنب بعض في التوقعات والإحصائيات والمباريات</div></div>' +
         '</button>' +
       '</div>' +
     '</div>' +
@@ -6605,6 +6656,145 @@ function differentialPicks(limit, maxOwn){
 }
 
 // ===================================================================
+// ★ مخطّط الانتقالات — سيناريو "لو عملت كذا" على أقرب 3/5 جولات
+//   بيحسب أفضل 11 من التشكيلة (باحترام قواعد التشكيل) + الكابتن، ويقارن
+//   قبل/بعد التبديلات، ويحسب ضربات النقص (−4 لكل تبديل فوق المجاني).
+//   مش بيعدّل تشكيلتك الحقيقية إطلاقًا — سيناريو للتخطيط بس.
+// ===================================================================
+function planBaseSig(){ return activeIds().map(e=>e.id).slice().sort((a,b)=>a-b).join(','); }
+
+function ensurePlan(reset){
+  const sig = planBaseSig();
+  if(reset || !state.plan || state.plan.baseSig!==sig){
+    state.plan = {
+      squad: activeIds().map(e=>({id:e.id, slot:e.slot})),
+      bank: activeBank(),
+      horizon: (state.plan && state.plan.horizon) || 5,
+      replaceId: null,
+      baseSig: sig
+    };
+  }
+}
+
+// أفضل 11 من قائمة معرّفات + إضافة نقط الكابتن (أعلى لاعب) — على مدى الأفق
+function planXiProjection(ids, horizon){
+  const sq = ids.map(e=>findPlayer(e.id)).filter(Boolean);
+  const byPos={GK:[],DEF:[],MID:[],FWD:[]};
+  sq.forEach(p=>{ if(byPos[p.pos]) byPos[p.pos].push({p, h:projectedPointsHorizon(p,horizon).total}); });
+  Object.keys(byPos).forEach(k=> byPos[k].sort((a,b)=>b.h-a.h));
+  const xi=[];
+  byPos.GK.slice(0,1).forEach(x=>xi.push(x));
+  byPos.DEF.slice(0,3).forEach(x=>xi.push(x));
+  byPos.MID.slice(0,2).forEach(x=>xi.push(x));
+  byPos.FWD.slice(0,1).forEach(x=>xi.push(x));
+  const rest=[].concat(byPos.DEF.slice(3), byPos.MID.slice(2), byPos.FWD.slice(1)).sort((a,b)=>b.h-a.h);
+  for(let i=0;i<rest.length && xi.length<11;i++) xi.push(rest[i]);
+  let total=xi.reduce((s,x)=>s+x.h,0);
+  let cap=0; xi.forEach(x=>{ if(x.h>cap) cap=x.h; });
+  return total + cap;
+}
+
+// أفضل بدائل للاعب داخل ميزانية المخطّط، مرتّبة بمكسب النقط على الأفق
+function planCandidates(outId, horizon){
+  const plan = state.plan;
+  const outP = findPlayer(outId); if(!outP) return [];
+  const budget = plan.bank + outP.price;
+  const owned = new Set(plan.squad.map(e=>e.id));
+  const outH = projectedPointsHorizon(outP, horizon).total;
+  return state.players
+    .filter(p=> p.pos===outP.pos && !owned.has(p.id) && availabilityMultiplier(p)>0 && p.price<=budget+0.001)
+    .filter(p=> p.club===outP.club || clubCountInSquad(p.club, outId, plan.squad) < MAX_PER_CLUB)
+    .map(p=>({ p, gain: projectedPointsHorizon(p,horizon).total - outH }))
+    .sort((a,b)=> b.gain - a.gain)
+    .slice(0,6);
+}
+
+function renderPlanner(){
+  ensurePlan();
+  const plan = state.plan;
+  const H = plan.horizon;
+  const baseIds = activeIds();
+  const baseProj = planXiProjection(baseIds, H);
+  const planProj = planXiProjection(plan.squad, H);
+  const gain = planProj - baseProj;
+  const origSet = new Set(baseIds.map(e=>e.id));
+  const transfersCount = plan.squad.filter(e=>!origSet.has(e.id)).length;
+  const freeT = activeFreeTransfers();
+  const hits = Math.max(0, transfersCount - freeT);
+  const hitPts = hits*4;
+  const net = gain - hitPts;
+  const netCls = net>0.05 ? 'pos' : (net<-0.05 ? 'neg' : '');
+  const netSign = net>0 ? '+' : '';
+
+  const horizonSeg =
+    '<div class="chip-row" style="margin:0 20px 12px;">' +
+      '<button class="fchip' + (H===3?' on':'') + '" data-planh="3">أقرب 3 جولات</button>' +
+      '<button class="fchip' + (H===5?' on':'') + '" data-planh="5">أقرب 5 جولات</button>' +
+    '</div>';
+
+  const summary =
+    '<div class="plan-sum">' +
+      '<div class="ps-main">' +
+        '<div class="ps-cell"><div class="ps-v">' + fmt(baseProj) + '</div><div class="ps-k">الحالي</div></div>' +
+        '<div class="ps-arrow">' + ICON_SWAP_ALT + '</div>' +
+        '<div class="ps-cell"><div class="ps-v ' + (gain>0.05?'pos':(gain<-0.05?'neg':'')) + '">' + fmt(planProj) + '</div><div class="ps-k">بعد الخطة</div></div>' +
+      '</div>' +
+      '<div class="ps-foot">' +
+        '<div class="psf"><span class="k">التبديلات</span><span class="v">' + transfersCount + '</span></div>' +
+        '<div class="psf"><span class="k">ضربات نقص</span><span class="v ' + (hitPts>0?'neg':'') + '">' + (hitPts>0?('−'+hitPts):'0') + '</span></div>' +
+        '<div class="psf"><span class="k">صافي المكسب</span><span class="v ' + netCls + '">' + netSign + fmt(net) + '</span></div>' +
+        '<div class="psf"><span class="k">الرصيد</span><span class="v">£' + fmt(plan.bank) + 'm</span></div>' +
+      '</div>' +
+      (transfersCount>0 ? '<button class="plan-reset" id="planReset">↺ إلغاء الخطة والرجوع لتشكيلتك</button>' : '') +
+    '</div>';
+
+  // صفوف التشكيلة المخطّطة، مرتّبة بالتوقع على الأفق
+  const rowsArr = plan.squad.map(e=>{
+    const p = findPlayer(e.id); if(!p) return null;
+    return { e, p, h: projectedPointsHorizon(p,H).total };
+  }).filter(Boolean).sort((a,b)=> b.h - a.h);
+
+  const listHtml = rowsArr.map(r=>{
+    const p = r.p;
+    const isNew = !origSet.has(p.id);
+    const isReplacing = plan.replaceId===p.id;
+    let block =
+      '<div class="plan-row' + (isReplacing?' active':'') + '">' +
+        '<div class="pr-face" data-viewprofile="' + p.id + '">' + faceCircle(p) + '</div>' +
+        '<div class="pr-main" data-viewprofile="' + p.id + '">' +
+          '<div class="pr-nm">' + escapeHtml(p.name) + (isNew?'<span class="pr-new">جديد</span>':'') + '</div>' +
+          '<div class="pr-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm</div>' +
+        '</div>' +
+        '<div class="pr-pts">' + fmt(r.h) + '<span>' + H + ' جولات</span></div>' +
+        '<button class="pr-swap" data-planreplace="' + p.id + '">' + (isReplacing?'إغلاق':'استبدل') + '</button>' +
+      '</div>';
+
+    if(isReplacing){
+      const cands = planCandidates(p.id, H);
+      const candHtml = cands.length ? cands.map(c=>
+        '<div class="plan-cand" data-planin="' + c.p.id + '" data-planout="' + p.id + '">' +
+          faceCircle(c.p) +
+          '<div class="pc-main"><div class="pc-nm">' + escapeHtml(c.p.name) + '</div>' +
+          '<div class="pc-mt">' + (CLUB_TAG[c.p.club]||'') + ' · £' + fmt(c.p.price) + 'm · ' + fmt(projectedPointsHorizon(c.p,H).total) + ' متوقعة</div></div>' +
+          '<div class="pc-gain ' + (c.gain>0?'pos':(c.gain<0?'neg':'')) + '">' + (c.gain>0?'+':'') + fmt(c.gain) + '</div>' +
+        '</div>'
+      ).join('') : '<div class="hint" style="margin:6px 12px;">مفيش بديل في الميزانية لنفس المركز.</div>';
+      block += '<div class="plan-cands">' + candHtml + '</div>';
+    }
+    return block;
+  }).join('');
+
+  return '' +
+  '<div class="topbar"><button class="back" id="planBack">' + ICON_BACK + '</button><h1>مخطّط الانتقالات</h1><div class="spacer"></div></div>' +
+  '<div class="pred-note" style="margin:0 20px 12px;">سيناريو تخطيطي بس — مابيعدّلش تشكيلتك الحقيقية. جرّب تبديلات وشوف تأثيرها المتوقع على النقط.</div>' +
+  horizonSeg +
+  summary +
+  '<div class="pred-sec"><h2>تشكيلتك المخطّطة</h2></div>' +
+  '<div class="plan-list">' + listHtml + '</div>' +
+  '<div style="height:18px;"></div>';
+}
+
+// ===================================================================
 // ★ مقارنة اللاعبين — حتى 3 لاعبين جنب بعض، بأفضل قيمة مميّزة في كل صف
 // ===================================================================
 const CMP_METRICS = [
@@ -6849,6 +7039,7 @@ function renderBody(){
   else if(state.tab==='players') html = renderPlayersTable();
   else if(state.tab==='fdr') html = renderFdrTicker();
   else if(state.tab==='compare') html = renderCompare();
+  else if(state.tab==='planner') html = renderPlanner();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -6862,7 +7053,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', planner:'transfers' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -7156,6 +7347,39 @@ function bindBody(){
       e.stopPropagation();
       const id = parseInt(b.getAttribute('data-cmpremove'));
       state.compareIds = state.compareIds.filter(x=>x!==id);
+      render();
+    });
+  });
+
+  // ===== مخطّط الانتقالات: تحكّم =====
+  const planBack = el.querySelector('#planBack');
+  if(planBack) planBack.addEventListener('click', ()=>{ state.tab = 'transfers'; render(); });
+  const planReset = el.querySelector('#planReset');
+  if(planReset) planReset.addEventListener('click', ()=>{ ensurePlan(true); render(); });
+  el.querySelectorAll('[data-planh]').forEach(b=>{
+    b.addEventListener('click', ()=>{ ensurePlan(); state.plan.horizon = parseInt(b.getAttribute('data-planh')); state.plan.replaceId=null; render(); });
+  });
+  el.querySelectorAll('[data-planreplace]').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      ensurePlan();
+      const id = parseInt(b.getAttribute('data-planreplace'));
+      state.plan.replaceId = (state.plan.replaceId===id) ? null : id;
+      render();
+    });
+  });
+  el.querySelectorAll('[data-planin]').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      ensurePlan();
+      const inId = parseInt(b.getAttribute('data-planin'));
+      const outId = parseInt(b.getAttribute('data-planout'));
+      const outP = findPlayer(outId), inP = findPlayer(inId);
+      if(outP && inP){
+        const idx = state.plan.squad.findIndex(x=>x.id===outId);
+        if(idx>=0){ state.plan.squad[idx] = { id:inId, slot:state.plan.squad[idx].slot }; state.plan.bank += (outP.price - inP.price); }
+      }
+      state.plan.replaceId = null;
       render();
     });
   });
