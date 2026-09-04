@@ -2008,6 +2008,30 @@
   .fdr-sum{ font-family:'Cairo'; font-weight:900; font-size:13px; }
   td.fdr-sumcell{ border-bottom:1px solid rgba(255,255,255,0.05); }
 
+  /* ---------- سِجمنت تبويب المباريات (مباريات | سهولة) ---------- */
+  .fx-seg{ display:flex; gap:6px; margin:0 20px 14px; background:var(--card-2); border:1px solid var(--card-line);
+    border-radius:14px; padding:5px; }
+  .fx-seg .fxs{ flex:1; background:transparent; border:none; color:var(--muted); font-family:'Cairo'; font-weight:800;
+    font-size:12.5px; padding:10px 6px; border-radius:10px; cursor:pointer; transition:all .16s; -webkit-tap-highlight-color:transparent; }
+  .fx-seg .fxs.on{ background:linear-gradient(135deg,var(--primary),var(--primary-deep)); color:#fff;
+    box-shadow:0 3px 10px rgba(233,0,82,0.28); }
+
+  /* ---------- أدوات سريعة في الشاشة الرئيسية ---------- */
+  .qtools{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:2px 20px 14px; }
+  .qtool{ display:flex; align-items:center; gap:10px; text-align:start; cursor:pointer;
+    background:linear-gradient(150deg, var(--card), var(--card-2)); border:1px solid var(--card-line);
+    border-radius:16px; padding:13px 12px; transition:transform .16s, border-color .16s; -webkit-tap-highlight-color:transparent; }
+  .qtool:active{ transform:scale(.98); }
+  .qtool:hover{ border-color:rgba(255,77,139,0.4); }
+  .qtool .qt-ic{ width:38px; height:38px; flex:0 0 auto; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:rgba(233,0,82,0.14); color:var(--primary-soft); }
+  .qtool .qt-ic svg{ width:20px; height:20px; stroke:currentColor; stroke-width:1.7; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .qtool .qt-tx{ min-width:0; }
+  .qtool .qt-t{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .qtool .qt-s{ font-family:'Tajawal'; font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.4; }
+  .qtool .qt-new{ font-family:'Cairo'; font-weight:800; font-size:8px; color:#04321B; background:var(--accent);
+    padding:1px 6px; border-radius:999px; margin-inline-start:6px; vertical-align:middle; }
+
 </style>
 </head>
 <body>
@@ -3184,6 +3208,8 @@ let state = {
   ptbl:{ q:'', pos:'all', sort:'pred', dir:'desc', limit:40, focus:false },
   fdrSort:false,          // مخطط FDR: false=ترتيب أبجدي، true=الأسهل أولًا
   fdrView:'overall',      // overall | attack | defence
+  fixturesView:'matches', // تبويب المباريات: matches | fdr
+  toolsBack:'home',       // الشاشة اللي نرجعلها من أدوات جدول اللاعبين/المخطط
   // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
@@ -5053,10 +5079,24 @@ function renderFixturesList(onlyLive) {
 
 // دالة منفصلة لشاشة كل المباريات
 function renderFixtures(){
+  const isFdr = state.fixturesView==='fdr';
+  const seg = '<div class="fx-seg">' +
+    '<button class="fxs' + (!isFdr?' on':'') + '" data-fxview="matches">مباريات الجولة</button>' +
+    '<button class="fxs' + (isFdr?' on':'') + '" data-fxview="fdr">سهولة المباريات</button>' +
+  '</div>';
+
+  if(isFdr){
+    return '' +
+    '<div class="topbar"><div class="spacer"></div><h1>المباريات</h1><div class="spacer"></div></div>' +
+    seg +
+    fdrGridBlock();
+  }
+
   const emptyMsg = (!state.fixturesList || !state.fixturesList.length)
     ? '<div class="hint" style="margin:20px;">لا توجد مباريات لهذه الجولة.</div>' : '';
   return '' +
   '<div class="topbar"><div class="spacer"></div><h1>المباريات</h1><div class="spacer"></div></div>' +
+  seg +
   renderGwNav() +
   renderFixturesList(false) +
   emptyMsg;
@@ -5215,6 +5255,18 @@ function renderHome(){
       '<div class="hx-dl-val" id="hxCountdown" data-deadline="' + (plannerDeadline() || '') + '">' + countdownHtml(plannerDeadline()) + '</div></div>' +
     '</div>' +
     '<button class="hx-dl-cta" data-goto="transfers">تعديل التشكيلة</button>' +
+  '</div>' +
+
+  /* ===== أدوات سريعة: جدول اللاعبين + سهولة المباريات ===== */
+  '<div class="qtools">' +
+    '<button class="qtool" data-goto="players">' +
+      '<div class="qt-ic"><svg viewBox="0 0 24 24"><path d="M3 5h18"/><path d="M3 12h18"/><path d="M3 19h18"/><path d="M9 5v14"/></svg></div>' +
+      '<div class="qt-tx"><div class="qt-t">جدول اللاعبين</div><div class="qt-s">توقعات + إحصائيات بالفرز</div></div>' +
+    '</button>' +
+    '<button class="qtool" data-goto="fdr">' +
+      '<div class="qt-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7.5 14h.01M12 14h.01M16.5 14h.01"/></svg></div>' +
+      '<div class="qt-tx"><div class="qt-t">سهولة المباريات</div><div class="qt-s">FDR لأقرب ٥ جولات</div></div>' +
+    '</button>' +
   '</div>' +
 
   /* ===== شريط التنقّل بين الجولات ===== */
@@ -6427,13 +6479,13 @@ function fdrTickerRows(){
   return { cols, rows };
 }
 
-function renderFdrTicker(){
+// بلوك المخطط نفسه (بدون الشريط العلوي) — يُعاد استخدامه في الشاشة المستقلة
+// وفي تبويب المباريات
+function fdrGridBlock(){
   const { cols, rows } = fdrTickerRows();
   if(!cols.length || !rows.length){
-    return '<div class="topbar"><button class="back" id="fdrBack">' + ICON_BACK + '</button><h1>سهولة المباريات</h1><div class="spacer"></div></div>' +
-           '<div class="hint" style="margin:20px;">بيانات المباريات لسه بتحمّل — جرّب تحدّث الصفحة بعد شوية.</div>';
+    return '<div class="hint" style="margin:20px;">بيانات المباريات لسه بتحمّل — جرّب تحدّث الصفحة بعد شوية.</div>';
   }
-
   const headGw = cols.map(g=>'<th>ج' + g + '</th>').join('');
   const bodyRows = rows.map(r=>{
     const logo = CLUB_CODE[r.key] ? 'https://resources.premierleague.com/premierleague/badges/t' + CLUB_CODE[r.key] + '.png' : '';
@@ -6454,7 +6506,6 @@ function renderFdrTicker(){
   }).join('');
 
   return '' +
-  '<div class="topbar"><button class="back" id="fdrBack">' + ICON_BACK + '</button><h1>سهولة المباريات</h1><div class="spacer"></div></div>' +
   '<div class="tool-controls">' +
     '<div class="chip-row">' +
       '<button class="fchip' + (!state.fdrSort?' on':'') + '" data-fdrsort="0">ترتيب أبجدي</button>' +
@@ -6473,6 +6524,12 @@ function renderFdrTicker(){
     '<tbody>' + bodyRows + '</tbody>' +
   '</table></div>' +
   '<div class="tool-count" style="margin:10px 20px 20px;">«السهولة» = مجموع سهولة أقرب ٥ جولات (كل ما زاد الرقم، الرن أسهل — والجولة المزدوجة بتزوّده).</div>';
+}
+
+function renderFdrTicker(){
+  return '' +
+  '<div class="topbar"><button class="back" id="fdrBack">' + ICON_BACK + '</button><h1>سهولة المباريات</h1><div class="spacer"></div></div>' +
+  fdrGridBlock();
 }
 
 // ===== ترتيب الكباتن — أعلى اللاعبين توقعًا للجولة الجاية (كل اللاعبين) =====
@@ -6661,7 +6718,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', players:'more', fdr:'more' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -6841,7 +6898,7 @@ function bindBody(){
 
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
-    b.addEventListener('click', ()=>{ state.tab = b.getAttribute('data-goto'); state.notifOpen=false; render(); });
+    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
@@ -6903,7 +6960,7 @@ function bindBody(){
 
   // ===== جدول اللاعبين: تحكّم =====
   const ptblBack = el.querySelector('#ptblBack');
-  if(ptblBack) ptblBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+  if(ptblBack) ptblBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
   const ptblSearch = el.querySelector('#ptblSearch');
   if(ptblSearch){
     ptblSearch.addEventListener('input', (e)=>{
@@ -6930,9 +6987,13 @@ function bindBody(){
 
   // ===== مخطط سهولة المباريات: تحكّم =====
   const fdrBack = el.querySelector('#fdrBack');
-  if(fdrBack) fdrBack.addEventListener('click', ()=>{ state.tab = 'more'; render(); });
+  if(fdrBack) fdrBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
   el.querySelectorAll('[data-fdrsort]').forEach(b=>{
     b.addEventListener('click', ()=>{ state.fdrSort = b.getAttribute('data-fdrsort')==='1'; render(); });
+  });
+  // سِجمنت تبويب المباريات
+  el.querySelectorAll('[data-fxview]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.fixturesView = b.getAttribute('data-fxview'); render(); });
   });
 
   // view profile triggers (jersey name tags, transfer rows)
