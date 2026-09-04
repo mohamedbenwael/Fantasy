@@ -4767,16 +4767,22 @@ async function syncMazaretaTeam(){
     const liveGw = mazaretaLiveGw();
     let changed = false;
     if(liveGw != null){
-      let shared = await sGetAiTeam(liveGw);
-      if(!shared){
-        const pick = aiPickXI();                       // fallback نادر: محدش جمّدها قبل الديدلاين
-        if(pick){ await sSetAiTeam(liveGw, pick); shared = pick; }
-      }
-      if(shared){
-        const sig = liveGw + '|live|' + shared.picks.join(',') + '|' + shared.captainId;
-        if(state._aiSig !== sig){
+      // التشكيلة اتجمّدت عند الديدلاين. طول ما الجولة شغّالة اللاعبين لازم يفضلوا ثابتين —
+      // بنحدّث نقطهم اللايف بس. لو عندنا نسخة متجمّدة بالفعل لنفس الجولة، مانعملش أي إعادة
+      // اختيار خالص — حتى لو قراءة السيرفر فشلت لحظيًا — عشان التشكيلة ماتتغيّرش قدام المستخدم.
+      const pinned = state.mazaretaTeam && state.mazaretaTeam.frozen &&
+                     state.mazaretaTeam.gw === liveGw &&
+                     state.mazaretaTeam.picks && state.mazaretaTeam.picks.length;
+      if(!pinned){
+        let shared = await sGetAiTeam(liveGw);
+        if(!shared){
+          const pick = aiPickXI();                     // fallback نادر: محدش جمّدها قبل الديدلاين
+          if(pick){ await sSetAiTeam(liveGw, pick); shared = pick; }
+        }
+        if(shared){
           state.mazaretaTeam = { gw:liveGw, frozen:true, picks:shared.picks, captainId:shared.captainId, formation:shared.formation };
-          state._aiSig = sig; changed = true;
+          state._aiSig = liveGw + '|live|' + shared.picks.join(',') + '|' + shared.captainId;
+          changed = true;
         }
       }
     } else {
