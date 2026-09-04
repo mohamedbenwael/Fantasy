@@ -2249,9 +2249,20 @@
   .rc-num span{ display:block; font-family:'Tajawal'; font-weight:700; font-size:10px; color:var(--muted); margin-top:3px; }
   .rc-par{ font-family:'Tajawal'; font-size:11px; color:var(--muted); margin-top:14px; }
   .rc-par b{ color:var(--text); font-weight:800; }
+  .rc-vs{ display:inline-flex; align-items:center; gap:5px; margin-top:10px; font-family:'Cairo'; font-weight:800; font-size:12.5px;
+    padding:7px 14px; border-radius:999px; }
+  .rc-vs svg{ width:14px; height:14px; }
+  .rc-vs b{ font-weight:900; }
+  .rc-vs.up{ color:var(--accent); background:rgba(0,255,135,0.12); }
+  .rc-vs.down{ color:var(--coral); background:rgba(255,77,109,0.12); }
+  .rc-vs.flat{ color:var(--muted); background:rgba(255,255,255,0.05); }
+  .rc-how{ font-family:'Tajawal'; font-size:10.5px; color:var(--muted); margin-top:12px; line-height:1.7;
+    padding-top:12px; border-top:1px solid var(--card-line); }
   .rc-est{ margin:0 20px; background:var(--card); border:1px solid var(--card-line); border-radius:18px; padding:20px; text-align:center; }
   .rc-est-lbl{ font-family:'Tajawal'; font-size:12px; color:var(--muted); }
-  .rc-est-rank{ font-family:'Cairo'; font-weight:900; font-size:36px; color:var(--text); margin:6px 0 10px; }
+  .rc-est-rank{ font-family:'Cairo'; font-weight:900; font-size:36px; color:var(--text); margin:6px 0 6px; }
+  .rc-pct{ font-family:'Tajawal'; font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .rc-pct b{ color:var(--accent); font-weight:800; }
   .rc-est-delta{ display:inline-flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:800; font-size:14px;
     padding:7px 15px; border-radius:999px; }
   .rc-est-delta svg{ width:15px; height:15px; }
@@ -6925,19 +6936,35 @@ function parScore(){
   return best;
 }
 
+// ترتيبك المتوقّع *في الجولة* لو جبت نقطة معيّنة = عدد المديرين اللي جابوا أكتر منك.
+// ده حساب دقيق من توزيع نقط الجولة (مش تقدير) — بيرجّع {rank, pct} (pct=أحسن من كام % من المديرين).
+function gwRankFor(score){
+  const dist=state.eoDist, N=state.eoDistN, TP=state.eoTotalPlayers;
+  if(!dist||!N||!TP) return null;
+  const s0=Math.round(score);
+  let above=0, at=0;
+  for(const k in dist){ const s=+k, c=+dist[k]||0; if(s>s0) above+=c; else if(s===s0) at+=c; }
+  const fracAbove=(above + 0.5*at)/N;
+  const rank=Math.max(1, Math.round(fracAbove*TP));
+  const pct=Math.max(0, Math.min(100, Math.round((1-fracAbove)*100)));
+  return { rank, pct };
+}
+
 function renderRankCalc(){
   const back = '<div class="topbar"><button class="back" id="rcBack">' + ICON_BACK + '</button><h1>حاسبة الرانك</h1><div class="spacer"></div></div>';
-  const rpp = (typeof ranksPerPoint==='function') ? ranksPerPoint() : null;
   const par = parScore();
   const orank = state.overallRank || null;
   const curGwPts = (typeof roundPoints==='function') ? roundPoints() : 0;
-  const canEstimate = !!(rpp && orank && par!=null);
 
-  if(state.rankCalcPts==null) state.rankCalcPts = (curGwPts>0?curGwPts:(par!=null?par:50));
+  // الافتراضي: لو الجولة شغّالة وعندك نقط نبدأ بيها، وإلا نبدأ فوق المتوسط بشوية
+  // عشان أول ما تفتح الشاشة تشوف مثال حقيقي لحركة الرانك (مش نبدأ عند المتوسط بالظبط فتبان مش بتعمل حاجة)
+  if(state.rankCalcPts==null) state.rankCalcPts = (curGwPts>0?curGwPts:(par!=null?par+8:58));
   const X = Math.max(0, Math.min(180, state.rankCalcPts));
+  const diff = (par!=null) ? (X - par) : null;   // فرقك عن متوسط المديرين — ده جوهر الفكرة
 
-  let estRank=null, delta=null;
-  if(canEstimate){ estRank = Math.max(1, Math.round(orank - (X - par)*rpp)); delta = orank - estRank; }
+  // ترتيبك المتوقّع في الجولة (حساب دقيق من توزيع نقط المديرين)
+  const gwEst = gwRankFor(X);
+  const canEstimate = !!(gwEst && par!=null);
 
   const curStats =
     '<div class="stat-strip">' +
@@ -6946,9 +6973,17 @@ function renderRankCalc(){
       '<div class="stat-pill"><div class="v">' + curGwPts + '</div><div class="k">نقاطك الحالية</div></div>' +
     '</div>';
 
+  // سطر المقارنة بالمتوسط — ده اللي بيخلّي الأداة تشرح نفسها
+  let vsHtml = '';
+  if(diff!=null){
+    if(diff>0) vsHtml = '<div class="rc-vs up">' + ICON_UP + 'فوق متوسط المديرين بـ <b>' + diff + '</b> نقطة</div>';
+    else if(diff<0) vsHtml = '<div class="rc-vs down">' + ICON_DOWN + 'تحت متوسط المديرين بـ <b>' + Math.abs(diff) + '</b> نقطة</div>';
+    else vsHtml = '<div class="rc-vs flat">بالظبط عند متوسط المديرين</div>';
+  }
+
   const stepper =
     '<div class="rc-calc">' +
-      '<div class="rc-q">لو جبت الجولة دي…</div>' +
+      '<div class="rc-q">لو خلّصت الجولة على…</div>' +
       '<div class="rc-stepper">' +
         '<button class="rc-btn" data-rankadd="-5">−5</button>' +
         '<button class="rc-btn" data-rankadd="-1">−</button>' +
@@ -6956,30 +6991,36 @@ function renderRankCalc(){
         '<button class="rc-btn" data-rankadd="1">+</button>' +
         '<button class="rc-btn" data-rankadd="5">+5</button>' +
       '</div>' +
-      (par!=null ? '<div class="rc-par">متوسط نقط المديرين الجولة دي: <b>' + par + '</b></div>' : '') +
+      (par!=null ? '<div class="rc-par">متوسط نقط المديرين الجولة دي: <b>' + par + '</b> نقطة</div>' : '') +
+      vsHtml +
     '</div>';
 
   let estBlock;
   if(canEstimate){
-    const up = delta>0;
-    const same = Math.abs(delta) < Math.max(1, orank*0.0005);
+    // اتجاه الترتيب العام (كيفي، مش رقم — لأن الرقم الدقيق للعام محتاج توزيع نقط الموسم مش الجولة)
+    const overallHint = (diff>0)
+      ? '<div class="rc-est-delta up">' + ICON_UP + 'فوق المتوسط → ترتيبك العام هيتحسّن</div>'
+      : (diff<0)
+        ? '<div class="rc-est-delta down">' + ICON_DOWN + 'تحت المتوسط → ترتيبك العام هيتراجع</div>'
+        : '<div class="rc-est-delta flat">عند المتوسط → ترتيبك العام تقريبًا ثابت</div>';
     estBlock =
       '<div class="rc-est">' +
-        '<div class="rc-est-lbl">ترتيبك العام المتوقع</div>' +
-        '<div class="rc-est-rank">#' + estRank.toLocaleString() + '</div>' +
-        (same ? '<div class="rc-est-delta flat">تقريبًا زي ما هو</div>' :
-          '<div class="rc-est-delta ' + (up?'up':'down') + '">' + (up?ICON_UP:ICON_DOWN) + (up?'تصعد ~':'تنزل ~') + fmtRanks(Math.abs(delta)) + ' مركز</div>') +
+        '<div class="rc-est-lbl">ترتيبك المتوقّع في الجولة</div>' +
+        '<div class="rc-est-rank">#' + gwEst.rank.toLocaleString() + '</div>' +
+        '<div class="rc-pct">أحسن من ~<b>' + gwEst.pct + '%</b> من المديرين في الجولة دي</div>' +
+        overallHint +
+        '<div class="rc-how">ده ترتيبك المتوقّع في الجولة نفسها (حساب دقيق من نقط المديرين). تأثيره على ترتيبك <b>العام</b> بيبقى في نفس الاتجاه بس أصغر — بيتراكم على مدار الموسم.</div>' +
       '</div>';
   } else {
     estBlock =
       '<div class="rc-wait">' +
-        '<div class="rc-wait-t">التقدير المباشر بيتفعّل وقت ما الجولة تبدأ</div>' +
-        '<div class="rc-wait-s">بيحتاج بيانات نقط المديرين اللايف (بتتحمّل مع بداية مباريات الجولة). دلوقتي بيعرض ترتيبك الحالي بس — ارجعله وقت اللعب وهيحسبلك حركة الرانك المتوقعة لكل نقطة.</div>' +
+        '<div class="rc-wait-t">التقدير بيتفعّل وقت ما الجولة تبدأ</div>' +
+        '<div class="rc-wait-s">الأداة دي بتحسب ترتيبك المتوقّع في الجولة بناءً على نقط باقي المديرين، واللي بتتحمّل مع بداية مباريات الجولة. ارجعلها وانت بتتفرّج على الجولة — هتقولك: «لو خلّصت على 70 نقطة، ترتيبك في الجولة هيبقى حوالي كام وأحسن من كام % من المديرين».</div>' +
       '</div>';
   }
 
   return back +
-  '<div class="pred-note" style="margin:0 20px 12px;">قدّر حركة ترتيبك العام حسب نقط جولتك — نفس فكرة LiveFPL. التقدير بيتحسّن كل ما بيانات المديرين تتحدّث أثناء اللعب.</div>' +
+  '<div class="pred-note" style="margin:0 20px 12px;">جرّب نقط مختلفة للجولة وشوف ترتيبك المتوقّع فيها وأنت أحسن من كام % من المديرين (زي LiveFPL). أنفع ما تكون وأنت بتتفرّج على الجولة وهي شغّالة.</div>' +
   curStats +
   stepper +
   estBlock +
