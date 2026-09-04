@@ -3363,6 +3363,11 @@ function applyLiveDataset(d){
   if(typeof loadEO === 'function'){
     loadEO().then(changed=>{ if(changed && state.phase==='app'){ try{ renderBody(); }catch(e){} } }).catch(()=>{});
   }
+  // 📈 فورم الأداء الحديث (xG/xA/دقايق آخر جولات) — من job يومي على السيرفر مخزّن في Supabase عبر /api/form.
+  // غير معطِّل: أول ما يجهز بيعيد الرسم عشان التوقعات تستخدم الأداء الحديث. لو مش متوفر، المحرك بيكمّل بإحصائيات الموسم عادي.
+  if(typeof loadRecentForm === 'function'){
+    loadRecentForm().then(changed=>{ if(changed && state.phase==='app'){ try{ resetEngineCaches&&resetEngineCaches(); renderBody(); }catch(e){} } }).catch(()=>{});
+  }
 }
 
 // ===== app state =====
@@ -3381,6 +3386,7 @@ let state = {
   captainId:null, bank:1.8, freeTransfers:1, seasonBaseline:1744,
   oddsByClub:{}, oddsSyncedAt:null,   // 🎯 أودز الرهان المشتقة لكل نادي (لو المفتاح/البروكسي متوفر)
   eoByElement:{}, eoSyncedAt:null, eoGw:null, eoSampled:0,   // 🔥 الملكية الفعّالة لكل لاعب (من الـsampling عبر /api/eo)
+  formByElement:{}, formSyncedAt:null,   // 📈 فورم الأداء الحديث لكل لاعب (xG/xA/دقايق آخر جولات، من /api/form) — يحسّن دقة التوقع
   eoDist:null, eoDistN:0, eoTotalPlayers:0,   // توزيع نقط المديرين + إجماليهم (لتحويل النقط لمراكز فعلية)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
@@ -3887,6 +3893,45 @@ async function loadEO(){
   }catch(e){ return false; }
 }
 
+// ===== فورم الأداء الحديث (Recent xG Form) =====
+// بيجيب من /api/form بلوب فيه لكل لاعب: xG/xA لكل 90 في آخر ~5 جولات + دقايقه وعدد مبارياته
+// في النافذة دي. المصدر job يومي على السيرفر بيقرا element-summary لكل اللاعبين مرة ويخزّن في
+// Supabase (نفس فكرة /api/eo و/api/odds). لو مش متوفر بنكمّل بإحصائيات الموسم عادي.
+const FORM_ENDPOINT  = '/api/form';
+const FORM_CACHE_TTL = 30 * 60 * 1000;   // 30 دقيقة (الفورم بيتحدّث يوميًا فمفيش داعي نلح)
+let _formMemCache = null;
+async function loadRecentForm(){
+  try{
+    let raw = null;
+    if(_formMemCache && _formMemCache.at && (Date.now()-_formMemCache.at) < FORM_CACHE_TTL){ raw = _formMemCache.data; }
+    if(!raw){
+      const res = await fetchWithTimeout(FORM_ENDPOINT, undefined, 12000);
+      if(!res.ok) return false;
+      raw = await res.json();
+      if(!raw || typeof raw !== 'object') return false;
+      _formMemCache = { at: Date.now(), data: raw };
+    }
+    // بنقبل شكلين: { form:{id:{...}} } أو {id:{...}} مباشرة
+    const src = raw.form || raw;
+    if(!src || typeof src !== 'object') return false;
+    const map = {};
+    Object.keys(src).forEach(id=>{
+      const f = src[id] || {};
+      map[id] = {
+        xg90: parseFloat(f.xg90 != null ? f.xg90 : f.expected_goals_per_90) || 0,
+        xa90: parseFloat(f.xa90 != null ? f.xa90 : f.expected_assists_per_90) || 0,
+        mins: parseInt(f.mins != null ? f.mins : f.minutes) || 0,
+        starts: parseInt(f.starts) || 0,
+        n: parseInt(f.n != null ? f.n : f.games) || 0,   // عدد المباريات في النافذة
+      };
+    });
+    if(!Object.keys(map).length) return false;
+    state.formByElement = map;
+    state.formSyncedAt = Date.now();
+    return true;
+  }catch(e){ return false; }
+}
+
 // كام مركز بتتحرّك مقابل كل نقطة في ترتيب الجولة = كثافة المديرين حوالين نقط جولتك.
 // بنحسبها من توزيع نقط الجولة (dist) حوالين نقط جولتك، ونكبّرها لكل المديرين.
 function ranksPerPoint(){
@@ -4021,13 +4066,33 @@ function poissonTailGE(thr, lam){
   return Math.max(0, Math.min(1, 1 - below));
 }
 
+// ===== دمج فورم الأداء الحديث مع إحصائيات الموسم =====
+// المواقع العالمية بتوزن أداء آخر جولات أعلى من متوسط الموسم. لو عندنا فورم حديث كافٍ (من /api/form)
+// بندمجه بوزن بيكبر مع عدد مباريات النافذة (بحد أقصى). لو مفيش، بنرجع لإحصائية الموسم زي ما هي.
+function _recentForm(p){ return (state.formByElement && state.formByElement[p.id]) || null; }
+function _blendRecent(seasonVal, recentVal, n){
+  if(n==null || n<3) return seasonVal;
+  const w = Math.min(0.6, n/8);            // نافذة 5 جولات → ~0.6 للحديث
+  return seasonVal*(1-w) + (recentVal||0)*w;
+}
+function effXG90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xG90||0, f.xg90, f.n) : (p.xG90||0); }
+function effXA90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xA90||0, f.xa90, f.n) : (p.xA90||0); }
+// عامل الدقايق: الدقايق الحديثة أدق مؤشر لدقايق الجولة الجاية من نسبة التأسيس الموسمية
+function effStartsFactor(p){
+  const base = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
+  const f=_recentForm(p);
+  if(!f || f.n<2) return base;
+  const recentStartRatio = Math.max(0, Math.min(1, f.starts/Math.max(1,f.n)));
+  return base*0.4 + recentStartRatio*0.6;
+}
+
 // 🔑 جوهر الدقة: توقع نقاط اللاعب في مباراة واحدة محددة — بيفصل بين:
 //   • نقط الظهور: ثابتة، مش بتتأثر بصعوبة الخصم إطلاقًا (الخطأ القديم كان بيضرب FDR في كل النقط)
 //   • العائد الهجومي (xG/xA): بيتأثر بصعوبة الهجوم للمباراة دي بالذات
 //   • الكلين شيت: احتمال بواسون حقيقي للمباراة دي + خصم متوقع للأهداف + نقط التصديات للحارس
 //   • المساهمة الدفاعية (DC): نقطتين لو وصل عتبة الأكشنز الدفاعية (10 للمدافع / 12 للوسط والهجوم)
 function fixtureExpectedPoints(p, fx){
-  const minFactor = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
+  const minFactor = effStartsFactor(p);   // بيدمج دقايق آخر جولات لو متوفرة (أدق لتوقع الدوران)
   if(minFactor<=0) return 0;
 
   const posGoalPts = {GK:6,DEF:6,MID:5,FWD:4}[p.pos] || 4;
@@ -4048,8 +4113,8 @@ function fixtureExpectedPoints(p, fx){
     atkMul = atkMul*(1-ODDS_WEIGHT_ATK) + oddsAtk*ODDS_WEIGHT_ATK;
   }
   const perfConf = Math.max(PERF_CONF_MIN, xgConfidence());
-  const safeXG90 = Math.min(p.xG90 || 0, 1.1) * perfConf;
-  const safeXA90 = Math.min(p.xA90 || 0, 0.8) * perfConf;
+  const safeXG90 = Math.min(effXG90(p), 1.1) * perfConf;   // xG مدموج بالفورم الحديث لو متوفر
+  const safeXA90 = Math.min(effXA90(p), 0.8) * perfConf;
   const goalPts   = safeXG90 * minFactor * posGoalPts * atkMul;
   const assistPts = safeXA90 * minFactor * 3 * atkMul;
 
