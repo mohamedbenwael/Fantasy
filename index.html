@@ -3787,8 +3787,10 @@ function projectedPointsHorizon(p, n){
   return { total, perGw: Math.round((total/list.length)*10)/10, count: list.length };
 }
 
-// ترتيب الكلين شيت بموديل بواسون: احتمال الجولة الجاية = e^(−λ)، والترتيب بيدمج الجولة الجاية
-// مع متوسط أقرب 3 مباريات (عشان الفرق اللي عندها رن سهل أو جولة مزدوجة تطلع فوق).
+// ترتيب الكلين شيت بموديل بواسون: احتمال الجولة الجاية = e^(−λ).
+// بنرتّب بنفس النسبة المعروضة على الشاشة (احتمال مباراة الجولة الجاية) عشان القايمة تبان
+// نازلة صح من الأعلى للأقل؛ ولو فيه تعادل في النسبة بنكسره بجودة الرن (متوسط أقرب 3 مباريات
+// — بيفيد الفرق اللي عندها رن سهل أو جولة مزدوجة).
 function cleanSheetRanking(){
   return Object.keys(CLUB_TAG).map(key=>{
     const fxInfo = state.teamFixtures[key];
@@ -3805,7 +3807,8 @@ function cleanSheetRanking(){
       rankScore: rankScore,
       fx: nextFix
     };
-  }).filter(Boolean).sort((a,b)=>b.rankScore-a.rankScore);
+    // الترتيب الأساسي بالنسبة المعروضة (prob) عشان يطابق اللي اليوزر شايفه؛ التعادل يتكسر بالرن
+  }).filter(Boolean).sort((a,b)=> (b.prob - a.prob) || (b.rankScore - a.rankScore));
 }
 
 // 🟢 بترجع الفرق (بدل الحارس) الأعلى احتمالاً للكلين شيت
