@@ -2017,7 +2017,7 @@
     box-shadow:0 3px 10px rgba(233,0,82,0.28); }
 
   /* ---------- أدوات سريعة في الشاشة الرئيسية ---------- */
-  .qtools{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:2px 20px 14px; }
+  .qtools{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:2px 20px 14px; }
   .qtool{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; cursor:pointer;
     background:linear-gradient(160deg, var(--card), var(--card-2)); border:1px solid var(--card-line);
     border-radius:16px; padding:14px 8px; transition:transform .16s, border-color .16s; -webkit-tap-highlight-color:transparent; }
@@ -2183,6 +2183,35 @@
   .chip-card .cc-badge.wait{ background:rgba(255,255,255,0.06); color:var(--muted); border:1px solid var(--card-line); }
   .chip-card .cc-detail{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); line-height:1.7; margin-top:9px; }
   .chip-card .cc-detail b{ color:var(--text); font-weight:800; }
+
+  /* ---------- قايمة المتابعة (Watchlist) + نجوم الحفظ ---------- */
+  .qt-badge{ font-family:'Cairo'; font-weight:800; font-size:8px; color:#04321B; background:var(--accent);
+    padding:0 5px; border-radius:999px; vertical-align:middle; }
+  .ptbl-star{ background:none; border:none; cursor:pointer; font-size:15px; line-height:1; padding:0 2px; flex:0 0 auto;
+    color:var(--muted2); -webkit-tap-highlight-color:transparent; }
+  .ptbl-star.on{ color:var(--gold); }
+  .prof-star{ background:rgba(232,196,104,0.12); border:1px solid rgba(232,196,104,0.3); cursor:pointer; font-size:16px;
+    width:38px; height:38px; border-radius:12px; color:var(--muted); -webkit-tap-highlight-color:transparent; flex:0 0 auto; }
+  .prof-star.on{ color:var(--gold); background:rgba(232,196,104,0.2); }
+  .wl-empty{ text-align:center; color:var(--muted); font-family:'Tajawal'; font-size:13px; line-height:2; padding:40px 24px; }
+  .wl-list{ margin:0 20px; display:flex; flex-direction:column; gap:8px; }
+  .wl-row{ display:flex; align-items:center; gap:10px; background:var(--card); border:1px solid var(--card-line);
+    border-radius:14px; padding:11px 12px; }
+  .wl-star{ background:none; border:none; cursor:pointer; font-size:18px; line-height:1; color:var(--gold); flex:0 0 auto;
+    -webkit-tap-highlight-color:transparent; }
+  .wl-face{ cursor:pointer; flex:0 0 auto; }
+  .wl-face .face{ width:40px; height:40px; }
+  .wl-main{ flex:1; min-width:0; cursor:pointer; }
+  .wl-nm{ font-family:'Cairo'; font-weight:800; font-size:13.5px; color:var(--text); }
+  .wl-mt{ font-family:'Tajawal'; font-size:10.5px; color:var(--muted); margin-top:2px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+  .wl-chg{ display:inline-flex; align-items:center; gap:1px; font-weight:800; }
+  .wl-chg svg{ width:11px; height:11px; }
+  .wl-chg.up{ color:var(--accent); } .wl-chg.down{ color:var(--coral); }
+  .wl-pts{ text-align:center; flex:0 0 auto; }
+  .wl-pv{ font-family:'Cairo'; font-weight:900; font-size:17px; color:var(--accent); line-height:1; }
+  .wl-pk{ font-family:'Tajawal'; font-size:8px; color:var(--muted); margin-top:1px; }
+  .wl-pv5{ font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--text); margin-top:4px; }
+  .wl-pv5 span{ font-family:'Tajawal'; font-weight:700; font-size:8px; color:var(--muted); }
 
 </style>
 </head>
@@ -5425,6 +5454,10 @@ function renderHome(){
       '<div class="qt-ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7.5 14h.01M12 14h.01M16.5 14h.01"/></svg></div>' +
       '<div class="qt-tx"><div class="qt-t">سهولة المباريات</div><div class="qt-s">FDR لـ٥ جولات</div></div>' +
     '</button>' +
+    '<button class="qtool" data-goto="watchlist">' +
+      '<div class="qt-ic"><svg viewBox="0 0 24 24"><polygon points="12 2 15 9 22 9.3 16.5 14 18.5 21 12 17 5.5 21 7.5 14 2 9.3 9 9"/></svg></div>' +
+      '<div class="qt-tx"><div class="qt-t">قايمة المتابعة' + (watchCount()?(' <span class="qt-badge">'+watchCount()+'</span>'):'') + '</div><div class="qt-s">لاعيبتك المحفوظين</div></div>' +
+    '</button>' +
   '</div>' +
 
   '<button class="rt-cta" data-goto="rateteam">' +
@@ -6146,7 +6179,8 @@ function renderPlayerProfile(){
   }).join('');
 
   return '' +
-  '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1><div class="spacer"></div></div>' +
+  '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1>' +
+    '<button class="prof-star' + (isWatched(p.id)?' on':'') + '" data-watch="' + p.id + '">★</button></div>' +
   '<div class="profile-hero"><div class="pj-stage"><div class="pj-disc"></div>' +
     '<img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png" alt="' + p.name + '" onerror="imgFallback(this)"></div>' +
     '<div class="pn">' + p.name + '</div>' +
@@ -6605,7 +6639,9 @@ function renderPlayersTable(){
       return '<td class="' + (c.cls||'') + '">' + c.fmt(v) + '</td>';
     }).join('');
     return '<tr data-viewprofile="' + p.id + '">' +
-      '<td class="nm"><div class="pcell">' + faceCircle(p,'pc-face') +
+      '<td class="nm"><div class="pcell">' +
+        '<button class="ptbl-star' + (isWatched(p.id)?' on':'') + '" data-watch="' + p.id + '">★</button>' +
+        faceCircle(p,'pc-face') +
         '<div class="pc-info"><div class="pc-nm">' + escapeHtml(p.name) + stDot + '</div>' +
         '<div class="pc-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + '</div></div></div></td>' +
       cells + '</tr>';
@@ -6623,7 +6659,10 @@ function renderPlayersTable(){
 
   return '' +
   '<div class="topbar"><button class="back" id="ptblBack">' + ICON_BACK + '</button><h1>جدول اللاعبين</h1>' +
-    '<button class="fchip on" id="ptblCompare" style="padding:8px 14px;font-size:12px;">قارن</button></div>' +
+    '<div style="display:flex;gap:7px;align-items:center;">' +
+      '<button class="fchip" id="ptblWatch" style="padding:8px 12px;font-size:12px;">★ ' + watchCount() + '</button>' +
+      '<button class="fchip on" id="ptblCompare" style="padding:8px 14px;font-size:12px;">قارن</button>' +
+    '</div></div>' +
   '<div class="tool-controls">' +
     '<input class="tool-search" id="ptblSearch" type="text" inputmode="search" placeholder="ابحث باسم لاعب أو نادي…" value="' + escapeHtml(t.q||'') + '">' +
     '<div class="chip-row">' + chips + '</div>' +
@@ -6740,6 +6779,54 @@ function differentialPicks(limit, maxOwn){
 //   قبل/بعد التبديلات، ويحسب ضربات النقص (−4 لكل تبديل فوق المجاني).
 //   مش بيعدّل تشكيلتك الحقيقية إطلاقًا — سيناريو للتخطيط بس.
 // ===================================================================
+// ===================================================================
+// ★ قايمة المتابعة (Watchlist) — لاعبين محفوظين محليًا على جهاز المستخدم
+// ===================================================================
+function ensureWatch(){
+  if(state.watchIds) return;
+  let arr=[];
+  try{ const raw=localStorage.getItem('maz_watch'); if(raw) arr=JSON.parse(raw)||[]; }catch(e){ arr=[]; }
+  state.watchIds = Array.isArray(arr) ? arr.filter(x=>typeof x==='number') : [];
+}
+function saveWatch(){ try{ localStorage.setItem('maz_watch', JSON.stringify(state.watchIds||[])); }catch(e){} }
+function isWatched(id){ ensureWatch(); return state.watchIds.indexOf(id)>=0; }
+function toggleWatch(id){ ensureWatch(); const i=state.watchIds.indexOf(id); if(i>=0) state.watchIds.splice(i,1); else state.watchIds.push(id); saveWatch(); }
+function watchCount(){ ensureWatch(); return state.watchIds.length; }
+
+function renderWatchlist(){
+  ensureWatch();
+  const back = '<div class="topbar"><button class="back" id="wlBack">' + ICON_BACK + '</button><h1>قايمة المتابعة</h1><div class="spacer"></div></div>';
+  const players = state.watchIds.map(id=>findPlayer(id)).filter(Boolean)
+    .sort((a,b)=> predictedPoints(b)-predictedPoints(a));
+
+  if(!players.length){
+    return back + '<div class="wl-empty">مفيش لاعبين في قايمتك.<br>دوس النجمة ★ جنب أي لاعب في جدول اللاعبين أو صفحته عشان تضيفه هنا وتتابعه.</div>';
+  }
+
+  const rows = players.map(p=>{
+    const chg = p.priceChange||0;
+    const chgHtml = chg>0 ? ('<span class="wl-chg up">'+ICON_UP+'£'+fmt(Math.abs(chg))+'</span>')
+                  : chg<0 ? ('<span class="wl-chg down">'+ICON_DOWN+'£'+fmt(Math.abs(chg))+'</span>') : '';
+    const h5 = projectedPointsHorizon(p,5).total;
+    return '<div class="wl-row">' +
+      '<button class="wl-star on" data-watch="' + p.id + '">★</button>' +
+      '<div class="wl-face" data-viewprofile="' + p.id + '">' + faceCircle(p) + '</div>' +
+      '<div class="wl-main" data-viewprofile="' + p.id + '">' +
+        '<div class="wl-nm">' + escapeHtml(p.name) + '</div>' +
+        '<div class="wl-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + 'm ' + chgHtml + '</div>' +
+        renderMiniFixtures(p) +
+      '</div>' +
+      '<div class="wl-pts"><div class="wl-pv">' + fmt(predictedPoints(p)) + '</div><div class="wl-pk">متوقع</div>' +
+        '<div class="wl-pv5">' + fmt(h5) + '<span> / 5ج</span></div></div>' +
+    '</div>';
+  }).join('');
+
+  return back +
+  '<div class="pred-note" style="margin:0 20px 12px;">لاعبين محفوظين على جهازك للمتابعة السريعة — التوقعات والأسعار بتتحدّث تلقائيًا.</div>' +
+  '<div class="wl-list">' + rows + '</div>' +
+  '<div style="height:18px;"></div>';
+}
+
 function planBaseSig(){ return activeIds().map(e=>e.id).slice().sort((a,b)=>a-b).join(','); }
 
 function ensurePlan(reset){
@@ -7325,6 +7412,7 @@ function renderBody(){
   else if(state.tab==='planner') html = renderPlanner();
   else if(state.tab==='rateteam') html = renderRateTeam();
   else if(state.tab==='chips') html = renderChips();
+  else if(state.tab==='watchlist') html = renderWatchlist();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -7518,7 +7606,7 @@ function bindBody(){
 
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
-    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
+    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'||dest==='watchlist'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
@@ -7606,6 +7694,15 @@ function bindBody(){
   if(ptblMore) ptblMore.addEventListener('click', ()=>{ state.ptbl.limit += 40; render(); });
   const ptblCompare = el.querySelector('#ptblCompare');
   if(ptblCompare) ptblCompare.addEventListener('click', ()=>{ state.toolsBack = 'players'; state.tab = 'compare'; render(); });
+  const ptblWatch = el.querySelector('#ptblWatch');
+  if(ptblWatch) ptblWatch.addEventListener('click', ()=>{ state.toolsBack = 'players'; state.tab = 'watchlist'; render(); });
+
+  // ===== قايمة المتابعة: نجمة الحفظ + الرجوع =====
+  const wlBack = el.querySelector('#wlBack');
+  if(wlBack) wlBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
+  el.querySelectorAll('[data-watch]').forEach(b=>{
+    b.addEventListener('click', (e)=>{ e.stopPropagation(); toggleWatch(parseInt(b.getAttribute('data-watch'))); render(); });
+  });
 
   // ===== مقارنة اللاعبين: تحكّم =====
   const cmpBack = el.querySelector('#cmpBack');
