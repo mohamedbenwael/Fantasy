@@ -1946,7 +1946,7 @@
     border:1px solid var(--card-line); background:var(--card); }
   .ptbl-scroll::-webkit-scrollbar{ height:6px; }
   .ptbl-scroll::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.14); border-radius:3px; }
-  .ptbl{ border-collapse:collapse; width:100%; min-width:640px; font-family:'Tajawal'; }
+  .ptbl{ border-collapse:collapse; width:100%; min-width:780px; font-family:'Tajawal'; }
   .ptbl thead th{ position:sticky; top:0; z-index:3; background:var(--card-2);
     font-family:'Cairo'; font-weight:800; font-size:10.5px; color:var(--muted); white-space:nowrap;
     padding:11px 8px; text-align:center; cursor:pointer; user-select:none; border-bottom:1px solid var(--card-line);
@@ -2031,6 +2031,44 @@
   .qtool .qt-s{ font-family:'Tajawal'; font-size:9.5px; color:var(--muted); margin-top:2px; line-height:1.4; }
   .qtool .qt-new{ font-family:'Cairo'; font-weight:800; font-size:8px; color:#04321B; background:var(--accent);
     padding:1px 6px; border-radius:999px; margin-inline-start:6px; vertical-align:middle; }
+
+  /* ---------- مقارنة اللاعبين ---------- */
+  .cmp-picker{ position:relative; margin:0 20px 10px; }
+  .cmp-results{ margin:6px 0 0; background:var(--card); border:1px solid var(--card-line); border-radius:12px; overflow:hidden; }
+  .cmp-res{ display:flex; align-items:center; gap:9px; padding:9px 12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05);
+    -webkit-tap-highlight-color:transparent; }
+  .cmp-res:last-child{ border-bottom:none; }
+  .cmp-res:active{ background:rgba(255,255,255,0.04); }
+  .cmp-res .face{ width:30px; height:30px; }
+  .cmp-res .cr-nm{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); }
+  .cmp-res .cr-mt{ font-family:'Tajawal'; font-size:9.5px; color:var(--muted); }
+  .cmp-res .cr-add{ margin-inline-start:auto; color:var(--accent); font-weight:900; font-size:18px; }
+  .cmp-hint{ text-align:center; color:var(--muted); font-family:'Tajawal'; font-size:12px; padding:30px 18px; line-height:1.8; }
+
+  .cmp-scroll{ margin:0 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px;
+    border:1px solid var(--card-line); background:var(--card); }
+  .cmp-tbl{ border-collapse:collapse; width:100%; font-family:'Tajawal'; }
+  .cmp-tbl th{ position:sticky; top:0; z-index:2; background:var(--card-2); padding:10px 6px; vertical-align:bottom;
+    border-bottom:1px solid var(--card-line); }
+  .cmp-tbl th.metric{ inset-inline-start:0; z-index:3; text-align:start; padding-inline-start:12px; min-width:88px; }
+  .cmp-phead{ display:flex; flex-direction:column; align-items:center; gap:5px; min-width:92px; position:relative; }
+  .cmp-phead .face{ width:44px; height:44px; }
+  .cmp-phead .cph-nm{ font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--text); text-align:center; line-height:1.2;
+    max-width:88px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cmp-phead .cph-mt{ font-family:'Tajawal'; font-size:9px; color:var(--muted); }
+  .cmp-phead .cph-x{ position:absolute; top:-4px; inset-inline-end:2px; width:18px; height:18px; border-radius:50%;
+    background:rgba(255,77,109,0.18); color:var(--coral); border:none; font-size:12px; font-weight:900; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1; }
+  .cmp-tbl td{ padding:9px 6px; text-align:center; font-size:12.5px; color:var(--text); font-weight:700;
+    border-bottom:1px solid rgba(255,255,255,0.05); white-space:nowrap; }
+  .cmp-tbl td.metric{ position:sticky; inset-inline-start:0; z-index:1; background:var(--card); text-align:start;
+    padding-inline-start:12px; font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--muted);
+    box-shadow:6px 0 8px -6px rgba(0,0,0,0.5); }
+  .cmp-tbl tr:last-child td{ border-bottom:none; }
+  .cmp-tbl td.best{ color:var(--accent); font-weight:900; }
+  .cmp-tbl td.best::after{ content:'★'; font-size:8px; color:var(--accent); vertical-align:super; margin-inline-start:2px; }
+  .cmp-fixrow .cmp-fixcell{ display:flex; gap:3px; justify-content:center; }
+  .cmp-fixcell .pp-fixcard{ padding:4px 3px; border-radius:6px; min-width:26px; }
 
 </style>
 </head>
@@ -3210,6 +3248,7 @@ let state = {
   fdrView:'overall',      // overall | attack | defence
   fixturesView:'matches', // تبويب المباريات: matches | fdr
   toolsBack:'home',       // الشاشة اللي نرجعلها من أدوات جدول اللاعبين/المخطط
+  compareIds:[], compareSearch:'', // مقارنة اللاعبين (حتى 3 لاعبين)
   // ===== إشعارات أحداث اللاعبين اللحظية (جول/أسيست/كارت/تسرب هدف) =====
   lastKnownStats: {},   // { [playerId]: {goals, assists, yellow, red, bonus} } — آخر نسخة معروفة لكل لاعب
   lastKnownScores: {},  // { [fixtureId]: {h, a} } — آخر نتيجة معروفة لكل مباراة (لتتبع تسرب الأهداف)
@@ -5821,6 +5860,10 @@ function renderMore(){
           '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 2v4"/><path d="M16 2v4"/><path d="M7.5 14h.01M12 14h.01M16.5 14h.01"/></svg></div>' +
           '<div><div class="ft-title">مخطط سهولة المباريات</div><div class="ft-sub">صعوبة مباريات كل الأندية على أقرب ٥ جولات (FDR) لتخطيط الانتقالات</div></div>' +
         '</button>' +
+        '<button class="feature-tile" data-goto="compare">' +
+          '<div class="ft-icon"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M6 8l-4 6h8z"/><path d="M18 8l-4 6h8z"/><path d="M6 8V6h12v2"/></svg></div>' +
+          '<div><div class="ft-title">مقارنة اللاعبين</div><div class="ft-sub">قارن حتى 3 لاعبين جنب بعض في التوقعات والإحصائيات والمباريات</div></div>' +
+        '</button>' +
       '</div>' +
     '</div>' +
 
@@ -6319,6 +6362,7 @@ function renderPredictions(){
   });
 
   const informRowsArr = inFormRanking(10).map(x=> predRow(x.p, fmt(x.total) + ' نقطة', null, (x.count>1 ? ('~' + fmt(x.score) + ' لكل جولة · ' + x.count + ' جولات') : null), false) );
+  const diffRowsArr = differentialPicks(10, 12).map(x=> predRow(x.p, fmt(x.total) + ' نقطة', 'mkt-in', x.p.ownership + '% ملكية', false) );
   const ownRowsArr = ownershipRanking(10).map(p=> predRow(p, p.ownership + '%') );
   
   // دمج التريندات الحقيقية فقط (الأكثر شراءً وبيعاً) وإزالة توقع الأسعار
@@ -6365,6 +6409,9 @@ function renderPredictions(){
   '<div class="pred-sec"><h2>الأعلى توقعًا</h2><span class="tag">أقرب 5 جولات</span></div>' +
   limitedListHtml(informRowsArr, 'predInformMore', '', 'margin:0 20px;') +
 
+  '<div class="pred-sec"><h2>ديفرنشيالز</h2><span class="tag">ملكية أقل من 12%</span></div>' +
+  limitedListHtml(diffRowsArr, 'predDiffMore', '', 'margin:0 20px;') +
+
   '<div class="pred-sec"><h2>الأعلى ملكية</h2></div>' +
   limitedListHtml(ownRowsArr, 'predOwnMore', '', 'margin:0 20px 16px;');
 }
@@ -6378,10 +6425,12 @@ const PTBL_COLS = [
   { key:'pred',  label:'متوقع',   get:p=>predictedPoints(p),                fmt:v=>fmt(v),        cls:'hi'  },
   { key:'proj5', label:'٥ جولات', get:p=>projectedPointsHorizon(p,5).total, fmt:v=>fmt(v),        cls:'hi'  },
   { key:'price', label:'السعر',   get:p=>p.price,                           fmt:v=>'£'+fmt(v),    cls:'pr'  },
+  { key:'val',   label:'قيمة',    get:p=>{ const pr=p.price||0; return pr>0 ? projectedPointsHorizon(p,5).total/pr : 0; }, fmt:v=>fmt(v), cls:'dim' },
   { key:'form',  label:'الفورم',  get:p=>p.form,                            fmt:v=>fmt(v),        cls:''    },
   { key:'own',   label:'الملكية', get:p=>p.ownership,                       fmt:v=>fmt(v)+'%',    cls:'dim' },
   { key:'xg',    label:'xG/90',   get:p=>p.xG90,                            fmt:v=>(+v).toFixed(2), cls:'' },
   { key:'xa',    label:'xA/90',   get:p=>p.xA90,                            fmt:v=>(+v).toFixed(2), cls:'' },
+  { key:'xgi',   label:'xGI',     get:p=>((+p.xG90||0)+(+p.xA90||0)),       fmt:v=>(+v).toFixed(2), cls:'hi' },
   { key:'ict',   label:'ICT',     get:p=>p.ictIndex,                        fmt:v=>fmt(v),        cls:'dim' },
   { key:'pts',   label:'النقاط',  get:p=>totalPoints(p),                    fmt:v=>Math.round(v), cls:''    },
 ];
@@ -6443,7 +6492,8 @@ function renderPlayersTable(){
     '<button class="btn-ghost" id="ptblMore" style="width:calc(100% - 24px); margin:10px 12px 0; display:block;">عرض المزيد (' + (full.length - t.limit) + ')</button>' : '';
 
   return '' +
-  '<div class="topbar"><button class="back" id="ptblBack">' + ICON_BACK + '</button><h1>جدول اللاعبين</h1><div class="spacer"></div></div>' +
+  '<div class="topbar"><button class="back" id="ptblBack">' + ICON_BACK + '</button><h1>جدول اللاعبين</h1>' +
+    '<button class="fchip on" id="ptblCompare" style="padding:8px 14px;font-size:12px;">قارن</button></div>' +
   '<div class="tool-controls">' +
     '<input class="tool-search" id="ptblSearch" type="text" inputmode="search" placeholder="ابحث باسم لاعب أو نادي…" value="' + escapeHtml(t.q||'') + '">' +
     '<div class="chip-row">' + chips + '</div>' +
@@ -6540,6 +6590,99 @@ function topCaptainPicks(limit){
     .filter(x=> x.pred > 0)
     .sort((a,b)=> b.pred - a.pred)
     .slice(0, limit||8);
+}
+
+// ===== الديفرنشيالز — لاعبون ملكيتهم منخفضة وتوقعهم مرتفع (على أقرب ٥ جولات) =====
+// (نستبعد الرخاص جدًا < £4.5 والملكية العالية عشان الترشيح يبقى فرق حقيقي عن دوريك)
+function differentialPicks(limit, maxOwn){
+  const cap = maxOwn || 12;
+  return state.players
+    .filter(p=> availabilityMultiplier(p) > 0 && p.ownership <= cap && p.price >= 4.5)
+    .map(p=>{ const h = projectedPointsHorizon(p,5); return { p, score:h.perGw, total:h.total, count:h.count }; })
+    .filter(x=> x.score > 3.0)
+    .sort((a,b)=> b.total - a.total)
+    .slice(0, limit||8);
+}
+
+// ===================================================================
+// ★ مقارنة اللاعبين — حتى 3 لاعبين جنب بعض، بأفضل قيمة مميّزة في كل صف
+// ===================================================================
+const CMP_METRICS = [
+  { label:'السعر',   get:p=>p.price,                            fmt:v=>'£'+fmt(v),      better:null  },
+  { label:'متوقع (ج)', get:p=>predictedPoints(p),               fmt:v=>fmt(v),          better:'max' },
+  { label:'٥ جولات', get:p=>projectedPointsHorizon(p,5).total,  fmt:v=>fmt(v),          better:'max' },
+  { label:'القيمة',  get:p=>{ const pr=p.price||0; return pr>0?projectedPointsHorizon(p,5).total/pr:0; }, fmt:v=>fmt(v), better:'max' },
+  { label:'الفورم',  get:p=>p.form,                             fmt:v=>fmt(v),          better:'max' },
+  { label:'الملكية', get:p=>p.ownership,                        fmt:v=>fmt(v)+'%',      better:null  },
+  { label:'xG/90',   get:p=>p.xG90,                             fmt:v=>(+v).toFixed(2), better:'max' },
+  { label:'xA/90',   get:p=>p.xA90,                             fmt:v=>(+v).toFixed(2), better:'max' },
+  { label:'xGI/90',  get:p=>((+p.xG90||0)+(+p.xA90||0)),        fmt:v=>(+v).toFixed(2), better:'max' },
+  { label:'ICT',     get:p=>p.ictIndex,                         fmt:v=>fmt(v),          better:'max' },
+  { label:'النقاط',  get:p=>totalPoints(p),                     fmt:v=>Math.round(v),   better:'max' },
+];
+
+function renderCompare(){
+  const sel = (state.compareIds||[]).map(id=>findPlayer(id)).filter(Boolean);
+  const q = (state.compareSearch||'').trim();
+
+  // نتائج البحث لإضافة لاعب (لو لسه أقل من 3)
+  let pickerHtml = '';
+  if(sel.length < 3){
+    let matches = [];
+    if(q){
+      matches = state.players
+        .filter(p=> state.compareIds.indexOf(p.id)<0 && ((p.name||'').indexOf(q)>=0 || (CLUB_NAME[p.club]||'').indexOf(q)>=0 || (CLUB_TAG[p.club]||'').toLowerCase().indexOf(q.toLowerCase())>=0))
+        .sort((a,b)=> predictedPoints(b)-predictedPoints(a))
+        .slice(0,8);
+    }
+    const resHtml = q ? (matches.length ? matches.map(p=>
+      '<div class="cmp-res" data-cmpadd="' + p.id + '">' + faceCircle(p) +
+        '<div><div class="cr-nm">' + escapeHtml(p.name) + '</div><div class="cr-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + ' · £' + fmt(p.price) + '</div></div>' +
+        '<div class="cr-add">+</div></div>'
+      ).join('') : '<div class="cmp-res" style="cursor:default;"><div class="cr-mt" style="color:var(--muted);">مفيش نتائج</div></div>') : '';
+    pickerHtml =
+      '<div class="cmp-picker">' +
+        '<input class="tool-search" id="cmpSearch" type="text" inputmode="search" placeholder="أضف لاعب للمقارنة…" value="' + escapeHtml(q) + '">' +
+        (resHtml ? '<div class="cmp-results">' + resHtml + '</div>' : '') +
+      '</div>';
+  }
+
+  let tableHtml;
+  if(sel.length < 2){
+    tableHtml = '<div class="cmp-hint">اختار لاعبين على الأقل (لحد 3) عشان تقارنهم جنب بعض في التوقعات، الإحصائيات، والمباريات الجاية.</div>';
+  } else {
+    const heads = sel.map(p=>
+      '<th><div class="cmp-phead"><button class="cph-x" data-cmpremove="' + p.id + '">×</button>' +
+        '<div data-viewprofile="' + p.id + '" style="display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;">' +
+        faceCircle(p) + '<div class="cph-nm">' + escapeHtml(p.name) + '</div></div>' +
+        '<div class="cph-mt">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + '</div></div></th>'
+    ).join('');
+
+    const rows = CMP_METRICS.map(m=>{
+      const vals = sel.map(p=>{ const v=m.get(p); return isFinite(v)?v:0; });
+      let bestIdx = -1;
+      if(m.better==='max'){ const mx=Math.max.apply(null,vals); if(mx>0) bestIdx = vals.indexOf(mx); }
+      else if(m.better==='min'){ const mn=Math.min.apply(null,vals); bestIdx = vals.indexOf(mn); }
+      const cells = vals.map((v,i)=> '<td class="' + (i===bestIdx?'best':'') + '">' + m.fmt(v) + '</td>').join('');
+      return '<tr><td class="metric">' + m.label + '</td>' + cells + '</tr>';
+    }).join('');
+
+    const fixCells = sel.map(p=> '<td><div class="cmp-fixcell">' + renderMiniFixtures(p) + '</div></td>').join('');
+    const fixRow = '<tr class="cmp-fixrow"><td class="metric">المباريات</td>' + fixCells + '</tr>';
+
+    tableHtml =
+      '<div class="cmp-scroll"><table class="cmp-tbl">' +
+        '<thead><tr><th class="metric"></th>' + heads + '</tr></thead>' +
+        '<tbody>' + rows + fixRow + '</tbody>' +
+      '</table></div>' +
+      '<div class="tool-count" style="margin:10px 20px 20px;">★ = الأفضل في الصف · اضغط اسم أي لاعب فوق لعرض صفحته الكاملة.</div>';
+  }
+
+  return '' +
+  '<div class="topbar"><button class="back" id="cmpBack">' + ICON_BACK + '</button><h1>مقارنة اللاعبين</h1><div class="spacer"></div></div>' +
+  pickerHtml +
+  tableHtml +
+  '<div style="height:18px;"></div>';
 }
 
 // ===== توقع تغيير الأسعار =====
@@ -6705,6 +6848,7 @@ function renderBody(){
   else if(state.tab==='predictions') html = renderPredictions();
   else if(state.tab==='players') html = renderPlayersTable();
   else if(state.tab==='fdr') html = renderFdrTicker();
+  else if(state.tab==='compare') html = renderCompare();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -6898,7 +7042,7 @@ function bindBody(){
 
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
-    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
+    b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
@@ -6984,6 +7128,37 @@ function bindBody(){
   });
   const ptblMore = el.querySelector('#ptblMore');
   if(ptblMore) ptblMore.addEventListener('click', ()=>{ state.ptbl.limit += 40; render(); });
+  const ptblCompare = el.querySelector('#ptblCompare');
+  if(ptblCompare) ptblCompare.addEventListener('click', ()=>{ state.toolsBack = 'players'; state.tab = 'compare'; render(); });
+
+  // ===== مقارنة اللاعبين: تحكّم =====
+  const cmpBack = el.querySelector('#cmpBack');
+  if(cmpBack) cmpBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
+  const cmpSearch = el.querySelector('#cmpSearch');
+  if(cmpSearch){
+    cmpSearch.addEventListener('input', (e)=>{
+      state.compareSearch = e.target.value;
+      render();
+      const box = document.getElementById('cmpSearch');
+      if(box){ box.focus(); const v = box.value; box.setSelectionRange(v.length, v.length); }
+    });
+  }
+  el.querySelectorAll('[data-cmpadd]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const id = parseInt(b.getAttribute('data-cmpadd'));
+      if(state.compareIds.indexOf(id)<0 && state.compareIds.length<3) state.compareIds.push(id);
+      state.compareSearch = '';
+      render();
+    });
+  });
+  el.querySelectorAll('[data-cmpremove]').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const id = parseInt(b.getAttribute('data-cmpremove'));
+      state.compareIds = state.compareIds.filter(x=>x!==id);
+      render();
+    });
+  });
 
   // ===== مخطط سهولة المباريات: تحكّم =====
   const fdrBack = el.querySelector('#fdrBack');
