@@ -2127,6 +2127,49 @@
   .plan-cta .pcta-s{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
   .plan-cta .pcta-chev{ margin-inline-start:auto; color:var(--muted); }
 
+  /* ---------- قيّم فريقك (Rate My Team) ---------- */
+  .rt-hero{ display:flex; align-items:center; gap:16px; margin:0 20px 14px; background:linear-gradient(150deg,var(--card),var(--card-2));
+    border:1px solid var(--card-line); border-radius:18px; padding:16px; }
+  .rt-ring{ width:96px; height:96px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .rt-hole{ width:74px; height:74px; border-radius:50%; background:var(--card); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; }
+  .rt-score{ font-family:'Cairo'; font-weight:900; font-size:30px; line-height:1; }
+  .rt-of{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
+  .rt-hero-tx{ min-width:0; }
+  .rt-grade{ font-family:'Cairo'; font-weight:900; font-size:20px; }
+  .rt-sub{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.7; }
+  .rt-sub b{ color:var(--text); font-weight:800; }
+  .rt-tags{ display:flex; flex-wrap:wrap; gap:7px; margin:0 20px 14px; }
+  .rt-tag{ font-family:'Cairo'; font-weight:800; font-size:11px; padding:6px 11px; border-radius:999px; }
+  .rt-tag.good{ background:rgba(0,255,135,0.12); color:var(--accent); border:1px solid rgba(0,255,135,0.28); }
+  .rt-tag.bad{ background:rgba(255,77,109,0.12); color:var(--coral); border:1px solid rgba(255,77,109,0.28); }
+  .rt-metrics{ margin:0 20px; display:flex; flex-direction:column; gap:13px; }
+  .rt-metric .rt-mtop{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .rt-mlabel{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
+  .rt-mval{ font-family:'Cairo'; font-weight:900; font-size:15px; }
+  .rt-bar{ height:8px; border-radius:6px; background:rgba(255,255,255,0.07); overflow:hidden; }
+  .rt-fill{ height:100%; border-radius:6px; transition:width .4s ease; }
+  .rt-detail{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:5px; }
+  .rt-rec{ display:flex; align-items:center; gap:11px; margin:0 20px 8px; background:var(--card);
+    border:1px solid var(--card-line); border-radius:14px; padding:12px; }
+  .rt-rec .rr-ic{ width:36px; height:36px; flex:0 0 auto; border-radius:11px; display:flex; align-items:center; justify-content:center;
+    background:rgba(233,0,82,0.13); color:var(--primary-soft); }
+  .rt-rec .rr-ic svg{ width:19px; height:19px; }
+  .rt-rec .rr-tx{ min-width:0; }
+  .rt-rec .rr-t{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
+  .rt-rec .rr-s{ font-family:'Tajawal'; font-size:11px; color:var(--muted); margin-top:2px; line-height:1.5; }
+
+  /* زر فتح تقييم الفريق من شاشة التوقعات */
+  .rt-cta{ display:flex; align-items:center; gap:11px; width:calc(100% - 40px); margin:0 20px 6px; cursor:pointer;
+    background:linear-gradient(135deg, rgba(232,196,104,0.16), rgba(232,196,104,0.06)); border:1px solid rgba(232,196,104,0.32);
+    border-radius:16px; padding:13px 14px; text-align:start; -webkit-tap-highlight-color:transparent; transition:transform .15s; }
+  .rt-cta:active{ transform:scale(.99); }
+  .rt-cta .rc-ic{ width:38px; height:38px; flex:0 0 auto; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:rgba(232,196,104,0.2); color:var(--gold); font-size:20px; font-weight:900; font-family:'Cairo'; }
+  .rt-cta .rc-t{ font-family:'Cairo'; font-weight:800; font-size:13px; color:var(--text); }
+  .rt-cta .rc-s{ font-family:'Tajawal'; font-size:10px; color:var(--muted); margin-top:2px; }
+  .rt-cta .rc-chev{ margin-inline-start:auto; color:var(--muted); }
+
 </style>
 </head>
 <body>
@@ -6440,6 +6483,12 @@ function renderPredictions(){
     '</div>' +
   '</div>' +
 
+  '<button class="rt-cta" data-goto="rateteam">' +
+    '<div class="rc-ic">★</div>' +
+    '<div><div class="rc-t">قيّم فريقك</div><div class="rc-s">تحليل تشكيلتك بالدرجات + نقاط القوة والضعف والتوصيات</div></div>' +
+    '<div class="rc-chev">' + ICON_CHEV + '</div>' +
+  '</button>' +
+
   captainCardHtml +
   lineupSwapsHtml +
   capPicksHtml +
@@ -6799,6 +6848,120 @@ function renderPlanner(){
 }
 
 // ===================================================================
+// ★ قيّم فريقك (Rate My Team) — تحليل تشكيلتك بالدرجات + توصيات
+//   كله محسوب من محرك التوقعات الموجود (توقع النقط، الكلين شيت، الفورم،
+//   صعوبة المباريات، الكابتن الأمثل، قوة الاحتياطي، القيمة).
+// ===================================================================
+function _clamp01(x){ return Math.max(0, Math.min(1, x)); }
+function _scoreScale(v, lo, hi){ return Math.round(_clamp01((v-lo)/(hi-lo))*100); }
+function rtColor(s){ return s>=68 ? 'var(--accent)' : (s>=50 ? 'var(--gold)' : 'var(--coral)'); }
+
+function rateTeam(){
+  const sq = squad(); const st = starters();
+  if(!sq.length || !st.length) return null;
+  const avg = (arr,f)=> arr.length ? arr.reduce((s,p)=>s+f(p),0)/arr.length : 0;
+  const atkStarters = st.filter(p=>p.pos==='MID'||p.pos==='FWD');
+  const defStarters = st.filter(p=>p.pos==='DEF'||p.pos==='GK');
+  const benchOutfield = benched().filter(p=>p.pos!=='GK');
+
+  const atkPred = avg(atkStarters, p=>predictedPoints(p));
+  const attack = _scoreScale(atkPred, 2.2, 5.8);
+  const csAvg = avg(defStarters, p=>cleanSheetProbability(p));
+  const defence = _scoreScale(csAvg, 0.16, 0.52);
+  const formAvg = avg(st, p=>p.form||0);
+  const form = _scoreScale(formAvg, 2.2, 6.2);
+  const fdrAvg = avg(st, p=>{ const fx=state.teamFixtures[p.club]; return (fx&&fx.avgFdrNext3)?fx.avgFdrNext3:3; });
+  const fixtures = _scoreScale(4.2 - fdrAvg, 0.2, 2.0);
+  const cap = captain(); const sugg = suggestedCaptain();
+  let captainScore = 65;
+  if(cap && sugg){ const cp=predictedPoints(cap), sp=predictedPoints(sugg)||1; captainScore = Math.round(_clamp01(cp/sp)*100); }
+  const benchPred = avg(benchOutfield, p=>predictedPoints(p));
+  const bench = _scoreScale(benchPred, 1.2, 3.6);
+  const xiPred = st.reduce((s,p)=>s+predictedPoints(p),0);
+  const sv = squadValue(); const ppm = sv>0? xiPred/sv : 0;
+  const value = _scoreScale(ppm, 0.5, 0.95);
+
+  const metrics = [
+    {key:'attack',   label:'الهجوم',    score:attack,      w:0.22, detail:'متوسط توقع وسطك ومهاجميك: '+fmt(atkPred)+' نقطة'},
+    {key:'defence',  label:'الدفاع',    score:defence,     w:0.17, detail:'احتمال الكلين شيت لدفاعك: '+Math.round(csAvg*100)+'%'},
+    {key:'form',     label:'الفورم',    score:form,        w:0.14, detail:'متوسط فورم أساسييك: '+fmt(formAvg)},
+    {key:'fixtures', label:'المباريات', score:fixtures,    w:0.15, detail:'متوسط صعوبة أقرب 3 جولات: '+fmt(fdrAvg)+'/5'},
+    {key:'captain',  label:'الكابتن',   score:captainScore,w:0.12, detail: cap ? ('كابتنك: '+cap.name) : 'لم تُعيّن كابتن'},
+    {key:'bench',    label:'الاحتياطي', score:bench,       w:0.10, detail:'متوسط توقع احتياطيك: '+fmt(benchPred)+' نقطة'},
+    {key:'value',    label:'القيمة',    score:value,       w:0.10, detail:fmt(ppm)+' نقطة متوقعة لكل £1م'},
+  ];
+  const overall = Math.round(metrics.reduce((s,m)=>s+m.score*m.w,0));
+  const grade = overall>=80?'ممتاز':(overall>=68?'جيد جدًا':(overall>=54?'جيد':(overall>=40?'مقبول':'محتاج تحسين')));
+  const strengths = metrics.filter(m=>m.score>=72).sort((a,b)=>b.score-a.score);
+  const weaknesses = metrics.filter(m=>m.score<=46).sort((a,b)=>a.score-b.score);
+
+  const recs=[];
+  if(cap && sugg && sugg.id!==cap.id && (predictedPoints(sugg)-predictedPoints(cap))>0.3){
+    recs.push({ic:ICON_CROWN, t:'غيّر الكابتن', s:'حوّل الشارة لـ '+escapeHtml(sugg.name)+' — توقع '+fmt(predictedPoints(sugg))+' مقابل '+fmt(predictedPoints(cap))});
+  }
+  const swaps = suggestedLineupSwaps();
+  if(swaps.length){ const s0=swaps[0]; recs.push({ic:ICON_SWAP_ALT, t:'عدّل تشكيلتك', s:'نزّل '+escapeHtml(s0.outP.name)+' وطلّع '+escapeHtml(s0.inP.name)+' (+'+fmt(s0.diff)+')'}); }
+  const trs = bestTransferSuggestions(5);
+  if(trs.length){ const t0=trs[0]; recs.push({ic:ICON_UP, t:'أفضل انتقال', s:'بيع '+escapeHtml(t0.sellP.name)+' وشراء '+escapeHtml(t0.buyP.name)+' (+'+fmt(t0.diff)+' على 5 جولات)'}); }
+  const bank = activeBank();
+  if(bank>=1.5){ recs.push({ic:ICON_PRICE, t:'رصيد غير مُستغل', s:'عندك £'+fmt(bank)+'م في البنك — تقدر ترقّي لاعب لأقوى منه.'}); }
+
+  return { overall, grade, metrics, strengths, weaknesses, recs,
+           projNext: predictedSquadPoints(),
+           proj5: Math.round(st.reduce((s,p)=>s+projectedPointsHorizon(p,5).total,0)*10)/10 };
+}
+
+function renderRateTeam(){
+  const r = rateTeam();
+  const back = '<div class="topbar"><button class="back" id="rtBack">' + ICON_BACK + '</button><h1>قيّم فريقك</h1><div class="spacer"></div></div>';
+  if(!r) return back + '<div class="hint" style="margin:20px;">مش لاقي تشكيلتك — تأكد إنك مسجّل بالـ FPL Team ID وإن البيانات حمّلت.</div>';
+
+  const col = rtColor(r.overall);
+  const ring =
+    '<div class="rt-ring" style="background:conic-gradient(' + col + ' 0 ' + r.overall + '%, rgba(255,255,255,0.08) ' + r.overall + '% 100%)">' +
+      '<div class="rt-hole"><div class="rt-score" style="color:' + col + '">' + r.overall + '</div><div class="rt-of">/100</div></div>' +
+    '</div>';
+
+  const heroHtml =
+    '<div class="rt-hero">' + ring +
+      '<div class="rt-hero-tx">' +
+        '<div class="rt-grade" style="color:' + col + '">' + r.grade + '</div>' +
+        '<div class="rt-sub">توقع الجولة الجاية <b>' + fmt(r.projNext) + '</b> · على 5 جولات <b>' + fmt(r.proj5) + '</b></div>' +
+      '</div>' +
+    '</div>';
+
+  const metricsHtml = r.metrics.map(m=>{
+    const c = rtColor(m.score);
+    return '<div class="rt-metric">' +
+      '<div class="rt-mtop"><span class="rt-mlabel">' + m.label + '</span><span class="rt-mval" style="color:' + c + '">' + m.score + '</span></div>' +
+      '<div class="rt-bar"><div class="rt-fill" style="width:' + m.score + '%;background:' + c + '"></div></div>' +
+      '<div class="rt-detail">' + m.detail + '</div>' +
+    '</div>';
+  }).join('');
+
+  const tagsHtml =
+    ((r.strengths.length || r.weaknesses.length) ?
+      '<div class="rt-tags">' +
+        r.strengths.map(m=>'<span class="rt-tag good">✓ ' + m.label + '</span>').join('') +
+        r.weaknesses.map(m=>'<span class="rt-tag bad">! ' + m.label + '</span>').join('') +
+      '</div>' : '');
+
+  const recsHtml = r.recs.length ? r.recs.map(rc=>
+    '<div class="rt-rec"><div class="rr-ic">' + rc.ic + '</div><div class="rr-tx"><div class="rr-t">' + rc.t + '</div><div class="rr-s">' + rc.s + '</div></div></div>'
+  ).join('') : '<div class="hint" style="margin:0 20px;">تشكيلتك في حالة كويسة — مفيش توصية ملحّة دلوقتي 👌</div>';
+
+  return '' + back +
+  '<div class="pred-note" style="margin:0 20px 12px;">تقييم تلقائي لتشكيلتك مبني على محرك التوقعات — النقط المتوقعة، الكلين شيت، الفورم، وصعوبة المباريات.</div>' +
+  heroHtml +
+  (tagsHtml || '') +
+  '<div class="pred-sec"><h2>تفصيل التقييم</h2></div>' +
+  '<div class="rt-metrics">' + metricsHtml + '</div>' +
+  '<div class="pred-sec"><h2>أهم التوصيات</h2></div>' +
+  recsHtml +
+  '<div style="height:18px;"></div>';
+}
+
+// ===================================================================
 // ★ مقارنة اللاعبين — حتى 3 لاعبين جنب بعض، بأفضل قيمة مميّزة في كل صف
 // ===================================================================
 const CMP_METRICS = [
@@ -7044,6 +7207,7 @@ function renderBody(){
   else if(state.tab==='fdr') html = renderFdrTicker();
   else if(state.tab==='compare') html = renderCompare();
   else if(state.tab==='planner') html = renderPlanner();
+  else if(state.tab==='rateteam') html = renderRateTeam();
   else if(state.tab==='prices') html = renderPrices();
   else if(state.tab==='support') html = renderSupport();
   else if(state.tab==='terms') html = renderTerms();
@@ -7057,7 +7221,7 @@ function renderBody(){
 }
 function updateNav(){
   document.querySelectorAll('.nav-item').forEach(btn=>{
-    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', planner:'transfers' };
+    const activeTabs = { home:'home', transfers:'transfers', fixtures:'fixtures', predictions:'predictions', leagues:'leagues', more:'more', admin:'more', prices:'more', support:'more', terms:'more', planner:'transfers', rateteam:'predictions' };
     btn.classList.toggle('active', activeTabs[state.tab]===btn.getAttribute('data-tab'));
   });
 }
@@ -7354,6 +7518,10 @@ function bindBody(){
       render();
     });
   });
+
+  // ===== قيّم فريقك: تحكّم =====
+  const rtBack = el.querySelector('#rtBack');
+  if(rtBack) rtBack.addEventListener('click', ()=>{ state.tab = 'predictions'; render(); });
 
   // ===== مخطّط الانتقالات: تحكّم =====
   const planBack = el.querySelector('#planBack');
