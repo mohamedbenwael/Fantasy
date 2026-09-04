@@ -2213,6 +2213,27 @@
   .wl-pv5{ font-family:'Cairo'; font-weight:800; font-size:11px; color:var(--text); margin-top:4px; }
   .wl-pv5 span{ font-family:'Tajawal'; font-weight:700; font-size:8px; color:var(--muted); }
 
+  /* ---------- إثراء صفحة اللاعب: توقّع النقط + إحصائيات + ضربات ثابتة ---------- */
+  .sp-badge{ display:inline-flex; align-items:center; gap:5px; margin-top:9px; font-family:'Cairo'; font-weight:800; font-size:11px;
+    color:var(--gold); background:rgba(232,196,104,0.13); border:1px solid rgba(232,196,104,0.3); padding:4px 11px; border-radius:999px; }
+  .sp-badge svg{ width:12px; height:12px; }
+  .xp-card{ margin:0 20px 6px; background:var(--card); border:1px solid var(--card-line); border-radius:16px; padding:14px 12px 12px; }
+  .xp-bars{ display:flex; align-items:flex-end; justify-content:space-around; gap:8px; height:120px; }
+  .xpb{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; min-width:0; height:100%; justify-content:flex-end; }
+  .xpb-val{ font-family:'Cairo'; font-weight:900; font-size:13px; color:var(--text); }
+  .xpb-wrap{ width:26px; height:74px; display:flex; align-items:flex-end; }
+  .xpb-bar{ width:100%; border-radius:6px 6px 3px 3px; min-height:6px; }
+  .xpb-bar.easy{ background:linear-gradient(180deg,var(--easy-green),#2AA86B); }
+  .xpb-bar.mid{ background:linear-gradient(180deg,var(--mid-grey),#7d7788); }
+  .xpb-bar.hard{ background:linear-gradient(180deg,var(--coral),var(--primary-deep)); }
+  .xpb-opp{ font-family:'Cairo'; font-weight:800; font-size:10px; color:var(--text); white-space:nowrap; }
+  .xpb-gw{ font-family:'Tajawal'; font-size:9px; color:var(--muted); }
+  .adv-grid{ margin:0 20px 14px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .adv-cell{ background:var(--card); border:1px solid var(--card-line); border-radius:12px; padding:11px 4px; text-align:center; }
+  .adv-v{ font-family:'Cairo'; font-weight:900; font-size:15px; color:var(--text); }
+  .adv-v.hi{ color:var(--accent); }
+  .adv-k{ font-family:'Tajawal'; font-size:8.5px; color:var(--muted); margin-top:3px; }
+
 </style>
 </head>
 <body>
@@ -6178,6 +6199,38 @@ function renderPlayerProfile(){
     return resultRow(h.gw, pts);
   }).join('');
 
+  // ===== إثراء: توقّع النقط لكل جولة جاية (bars) =====
+  const xpFix = lookahead.slice(0,5).map((f,i)=>({ f, xp: Math.max(0, blendedFixturePoints(p, f, i===0)) }));
+  const maxXp = Math.max(1, ...xpFix.map(x=>x.xp));
+  const xpHtml = xpFix.length ? ('<div class="section-title"><h2>توقّع النقط للجولات الجاية</h2></div>' +
+    '<div class="xp-card"><div class="xp-bars">' + xpFix.map(x=>{
+      const fdrCls = x.f.fdr<=2?'easy':(x.f.fdr>=4?'hard':'mid');
+      const hpct = Math.max(10,(x.xp/maxXp)*100);
+      return '<div class="xpb"><div class="xpb-val">'+fmt(x.xp)+'</div>' +
+        '<div class="xpb-wrap"><div class="xpb-bar '+fdrCls+'" style="height:'+hpct+'%"></div></div>' +
+        '<div class="xpb-opp">'+(CLUB_TAG[x.f.oppKey]||'؟')+(x.f.isHome?'':' ✈')+'</div><div class="xpb-gw">ج'+x.f.event+'</div></div>';
+    }).join('') + '</div>' +
+    '<div class="hint" style="text-align:center;font-size:9.5px;margin-top:8px;">تقدير من محرك التوقعات — أخضر=مباراة سهلة، أحمر=صعبة</div></div>') : '';
+
+  // ===== إثراء: إحصائيات متقدمة =====
+  const xgi90 = (p.xG90||0)+(p.xA90||0);
+  const advCells = [
+    ['المتوقع (ج)', fmt(predictedPoints(p)), 'hi'],
+    ['على 5 جولات', fmt(projectedPointsHorizon(p,5).total), 'hi'],
+    ['xG/90', (p.xG90||0).toFixed(2), ''],
+    ['xA/90', (p.xA90||0).toFixed(2), ''],
+    ['xGI/90', xgi90.toFixed(2), 'hi'],
+    ['ICT', fmt(p.ictIndex), ''],
+    ['نقطة/مباراة', fmt(p.pointsPerGame), ''],
+    ['الدقائق', String(p.minutes||0), ''],
+  ];
+  const advHtml = '<div class="section-title"><h2>إحصائيات متقدمة</h2></div>' +
+    '<div class="adv-grid">' + advCells.map(c=>
+      '<div class="adv-cell"><div class="adv-v '+(c[2]||'')+'">'+c[1]+'</div><div class="adv-k">'+c[0]+'</div></div>'
+    ).join('') + '</div>';
+
+  const spBadge = p.setPiece ? '<div class="sp-badge">' + ICON_STAR + p.setPiece + '</div>' : '';
+
   return '' +
   '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1>' +
     '<button class="prof-star' + (isWatched(p.id)?' on':'') + '" data-watch="' + p.id + '">★</button></div>' +
@@ -6187,7 +6240,7 @@ function renderPlayerProfile(){
     '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
     '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
     (chg!==0 ? '<span class="chg '+chgColor+'">'+chgIcon+(chg>0?'+':'')+fmt(chg)+'</span>' : '') +
-    '</div></div>' +
+    '</div>' + spBadge + '</div>' +
   '<div class="profile-stats">' +
     '<div class="cell"><div class="v">' + totalPoints(p) + '</div><div class="k">إجمالي النقط</div></div>' +
     '<div class="cell"><div class="v">' + currentGwPoints(p) + '</div><div class="k">نقاط الجولة</div></div>' +
@@ -6197,6 +6250,8 @@ function renderPlayerProfile(){
     '<div class="track"><div class="fill" style="width:' + Math.min(100,p.ownership) + '%;"></div></div></div>' +
   '<div class="section-title"><h2>جدول المباريات القادمة</h2></div>' +
   '<div class="pp-fixtures">' + fixturesHtml + '</div>' +
+  xpHtml +
+  advHtml +
   '<div class="section-title"><h2>النتائج (كل الجولات)</h2></div>' +
   '<div style="margin:0 20px;">' + (resultsRows || '<div class="hint">لا توجد نتائج بعد لهذا اللاعب</div>') +
   (resultsRows ? '<div class="hint" style="text-align:right; font-size:9.5px; margin-top:4px;">اضغط على أي مباراة لعرض تفاصيل نقاطها</div>' : '') + '</div>' +
