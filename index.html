@@ -2308,28 +2308,17 @@ const LIVE_CACHE_TTL_ACTIVE = 25 * 1000; // 25 ثانية — لما فيه مب
 // 🔁 محاولة بديلة لصورة اللاعب قبل الاستسلام للشكل الافتراضي: مقاس 250x250 بيفشل لكتير
 // من اللاعبين (مش موجود أو رفض لحظي من الـCDN)، بس مقاس 110x140 موجود لأغلب اللاعبين.
 // فأول ما 250x250 يفشل، بنجرّب 110x140، ولو فشل كمان ساعتها بس بنروح للشكل الافتراضي.
-// سلسلة بدائل صورة اللاعب: 250x250 → 110x140 → قميص النادي (بلون الفريق) → الشكل الافتراضي.
-// القميص موجود لكل الأندية، فبدل ما اللاعب اللي لسه صورته متحطتش يبان رمادي، بيبان بقميص فريقه.
+// محاولة بديلة لصورة اللاعب قبل الشكل الافتراضي: مقاس 250x250 بيفشل لكتير من اللاعبين،
+// بس مقاس 110x140 موجود لأغلبهم. فأول ما 250x250 يفشل بنجرّب 110x140، ولو فشل كمان
+// بنروح للشكل الافتراضي (الرمادي) زي الأول.
 function _photoAltRetry(img){
   try{
-    let stage = parseInt(img.getAttribute('data-fbstage') || '0', 10);
+    if(img.getAttribute('data-fb2')) return false;   // جرّبنا البديل خلاص
     const s = img.getAttribute('src') || '';
-    if(stage === 0){
-      img.setAttribute('data-fbstage','1');
-      if(s.indexOf('/250x250/') >= 0){ img.src = s.replace('/250x250/', '/110x140/'); return true; }
-      stage = 1; // مش المقاس الكبير — نعدّي للقميص على طول
-    }
-    if(stage === 1){
-      img.setAttribute('data-fbstage','2');
-      const tc = img.getAttribute('data-tc');
-      if(tc){
-        const gk = img.getAttribute('data-gk') === '1' ? '_1' : '';
-        img.classList.add('is-shirt');
-        img.src = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + tc + gk + '-66.webp';
-        return true;
-      }
-    }
-    return false; // خلصت البدائل → الشكل الافتراضي
+    if(s.indexOf('/250x250/') < 0) return false;      // مش المقاس الأساسي — مفيش بديل
+    img.setAttribute('data-fb2','1');
+    img.src = s.replace('/250x250/', '/110x140/');     // جرّب المقاس الأصغر الأكثر توفّرًا
+    return true;
   }catch(e){ return false; }
 }
 
