@@ -1774,6 +1774,10 @@
   }
   .face-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 14%;
     transform:scale(1.26); transform-origin:50% 14%; }
+  /* بديل قميص النادي للاعبين اللي لسه صورهم متحطتش — يظهر القميص كامل في المنتصف بدل الشكل الرمادي */
+  .face-img.is-shirt, .ptoken-img.is-shirt, .pj-photo.is-shirt{
+    object-fit:contain !important; object-position:center !important;
+    transform:none !important; padding:15%; box-sizing:border-box; }
   .face-silhouette{ position:absolute; inset:0; display:flex; align-items:flex-end; justify-content:center; }
   .face-silhouette svg{ width:74%; height:auto; margin-bottom:-2px; fill:rgba(255,255,255,0.9);
     filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35)); }
@@ -2304,14 +2308,28 @@ const LIVE_CACHE_TTL_ACTIVE = 25 * 1000; // 25 ثانية — لما فيه مب
 // 🔁 محاولة بديلة لصورة اللاعب قبل الاستسلام للشكل الافتراضي: مقاس 250x250 بيفشل لكتير
 // من اللاعبين (مش موجود أو رفض لحظي من الـCDN)، بس مقاس 110x140 موجود لأغلب اللاعبين.
 // فأول ما 250x250 يفشل، بنجرّب 110x140، ولو فشل كمان ساعتها بس بنروح للشكل الافتراضي.
+// سلسلة بدائل صورة اللاعب: 250x250 → 110x140 → قميص النادي (بلون الفريق) → الشكل الافتراضي.
+// القميص موجود لكل الأندية، فبدل ما اللاعب اللي لسه صورته متحطتش يبان رمادي، بيبان بقميص فريقه.
 function _photoAltRetry(img){
   try{
-    if(img.getAttribute('data-fb2')) return false;   // جرّبنا البديل خلاص
+    let stage = parseInt(img.getAttribute('data-fbstage') || '0', 10);
     const s = img.getAttribute('src') || '';
-    if(s.indexOf('/250x250/') < 0) return false;      // مش المقاس الأساسي — مفيش بديل
-    img.setAttribute('data-fb2','1');
-    img.src = s.replace('/250x250/', '/110x140/');     // جرّب المقاس الأصغر الأكثر توفّرًا
-    return true;
+    if(stage === 0){
+      img.setAttribute('data-fbstage','1');
+      if(s.indexOf('/250x250/') >= 0){ img.src = s.replace('/250x250/', '/110x140/'); return true; }
+      stage = 1; // مش المقاس الكبير — نعدّي للقميص على طول
+    }
+    if(stage === 1){
+      img.setAttribute('data-fbstage','2');
+      const tc = img.getAttribute('data-tc');
+      if(tc){
+        const gk = img.getAttribute('data-gk') === '1' ? '_1' : '';
+        img.classList.add('is-shirt');
+        img.src = 'https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + tc + gk + '-66.webp';
+        return true;
+      }
+    }
+    return false; // خلصت البدائل → الشكل الافتراضي
   }catch(e){ return false; }
 }
 
@@ -2361,7 +2379,7 @@ function pitchSilhouette(){ return '<div class="ptoken-img ptoken-silhouette">' 
 function pitchPhotoImg(p){
   if(!p.code) return pitchSilhouette();
   const photo = 'https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png';
-  return '<img class="ptoken-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
+  return '<img class="ptoken-img" src="' + photo + '" data-tc="' + (p.teamCode||'') + '" data-gk="' + (p.pos==='GK'?'1':'') + '" alt="' + escapeHtml(p.name) + '" onerror="pitchPhotoFallback(this)" loading="lazy">';
 }
 function pitchPhotoFallback(img){
   if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
@@ -2409,7 +2427,7 @@ function pitchBadgeFail(img){
 function facePhoto(p){
   if(!p.code) return '<div class="face-silhouette">' + SILHOUETTE_SVG + '</div>';
   const photo = 'https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png';
-  return '<img class="face-img" src="' + photo + '" alt="' + escapeHtml(p.name) + '" onerror="facePhotoFail(this)" loading="lazy">';
+  return '<img class="face-img" src="' + photo + '" data-tc="' + (p.teamCode||'') + '" data-gk="' + (p.pos==='GK'?'1':'') + '" alt="' + escapeHtml(p.name) + '" onerror="facePhotoFail(this)" loading="lazy">';
 }
 function facePhotoFail(img){
   if(_photoAltRetry(img)) return;   // جرّب المقاس البديل الأول
@@ -6395,7 +6413,7 @@ function renderPlayerProfile(){
   '<div class="topbar"><button class="back" id="profBack">'+ICON_BACK+'</button><h1>بروفايل اللاعب</h1>' +
     '<button class="prof-star' + (isWatched(p.id)?' on':'') + '" data-watch="' + p.id + '">★</button></div>' +
   '<div class="profile-hero"><div class="pj-stage"><div class="pj-disc"></div>' +
-    '<img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png" alt="' + p.name + '" onerror="imgFallback(this)"></div>' +
+    '<img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png" data-tc="' + (p.teamCode||'') + '" data-gk="' + (p.pos==='GK'?'1':'') + '" alt="' + p.name + '" onerror="imgFallback(this)"></div>' +
     '<div class="pn">' + p.name + '</div>' +
     '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
     '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
