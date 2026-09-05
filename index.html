@@ -616,6 +616,28 @@
   .onboard .ob-field input:focus{ border-color:var(--primary); box-shadow:0 0 0 4px rgba(233,0,82,0.16); }
   .ob-err{ color:var(--coral); font-family:'Cairo'; font-weight:700; font-size:11px; text-align:center;
     margin-top:10px; background:rgba(255,77,109,0.1); border:1px solid rgba(255,77,109,0.28); border-radius:10px; padding:9px; }
+  /* ===== paste button + live team preview + open-fpl (أسهل onboarding) ===== */
+  .onboard .ob-field .ob-input-wrap input{ padding-left:66px; }
+  .ob-paste{ position:absolute; left:8px; top:50%; transform:translateY(-50%); z-index:2;
+    font-family:'Cairo'; font-weight:900; font-size:12px; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg, rgba(233,0,82,0.92), rgba(233,0,82,0.72));
+    border:none; border-radius:10px; padding:8px 14px; transition:filter .15s ease, transform .1s ease; }
+  .ob-paste:hover{ filter:brightness(1.08); }
+  .ob-paste:active{ transform:translateY(-50%) scale(.94); }
+  .ob-preview{ margin-top:10px; display:flex; align-items:center; gap:8px;
+    font-family:'Cairo'; font-weight:800; font-size:12px; padding:10px 12px; border-radius:12px; }
+  .ob-preview.ok{ color:#c9ffe0; background:rgba(43,214,123,0.12); border:1px solid rgba(43,214,123,0.32); }
+  .ob-preview.loading{ color:var(--muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); }
+  .ob-preview .pv-team{ color:#fff; }
+  .ob-preview .pv-rank{ margin-inline-start:auto; color:var(--muted); font-weight:700; font-size:11px; direction:ltr; }
+  .ob-openfpl{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    margin-top:10px; padding:12px 16px; cursor:pointer;
+    font-family:'Cairo'; font-weight:800; font-size:12px; color:var(--text);
+    background:rgba(255,255,255,0.05); border:1.3px solid rgba(255,255,255,0.14); border-radius:14px;
+    transition:filter .15s ease, transform .1s ease; }
+  .ob-openfpl:hover{ filter:brightness(1.1); }
+  .ob-openfpl:active{ transform:scale(.99); }
+  .ob-openfpl svg{ width:15px; height:15px; stroke:var(--primary-soft); stroke-width:2.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
   .onboard .ob-cta{ width:100%; margin-top:14px; display:flex; align-items:center; justify-content:center; gap:9px;
     font-family:'Cairo'; font-weight:900; font-size:15px; padding:16px; border-radius:16px; letter-spacing:0.2px;
     transition:transform .12s ease, filter .2s ease; }
@@ -5133,16 +5155,75 @@ function obPhotoFail(img){
   }catch(e){ img.style.display = 'none'; }
 }
 
+// بياخد رقم فريق نضيف من: رقم مكتوب على طول، أو رابط الفانتازي كامل (.../entry/1234567/...)،
+// أو أي نص فيه الرابط. بيتجاهل أرقام الجولة القصيرة (زي /event/3).
+function extractFplId(raw){
+  if(!raw) return '';
+  var s = String(raw).trim();
+  var m = s.match(/entry\/(\d{1,9})/i);   // أهم حالة: لينك فيه entry/رقم
+  if(m) return m[1];
+  if(/^\d{1,9}$/.test(s)) return s;       // المستخدم كتب الرقم بس
+  var nums = s.match(/\d{2,9}/g);          // fallback: أطول سلسلة أرقام في النص
+  if(nums){ nums.sort(function(a,b){ return b.length - a.length; }); return nums[0]; }
+  return '';
+}
+function obEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+
+// معاينة فورية: أول ما يبقى فيه رقم/رابط صح، نجيب اسم الفريق ونأكده للمستخدم قبل ما يضغط ابدأ
+var _obPreviewToken = 0;
+async function previewFplTeam(){
+  const inputEl = document.getElementById('obFplId');
+  const pv = document.getElementById('obPreview');
+  const errEl = document.getElementById('obError');
+  if(!inputEl || !pv) return;
+  const id = extractFplId(inputEl.value);
+  if(!id || id.length < 2){ pv.style.display='none'; pv.className='ob-preview'; pv.innerHTML=''; return; }
+  if(errEl){ errEl.style.display='none'; }
+  const token = ++_obPreviewToken;
+  pv.style.display='flex'; pv.className='ob-preview loading'; pv.textContent='بندوّر على فريقك...';
+  let entry = null;
+  try{ entry = await fetchFplEntry(id); }catch(e){ entry = null; }
+  if(token !== _obPreviewToken) return;   // المستخدم غيّر المكتوب — نتجاهل النتيجة القديمة
+  if(!entry || entry.error){ pv.style.display='none'; pv.className='ob-preview'; pv.innerHTML=''; return; }
+  const rankTxt = (entry.overallRank != null) ? ('#' + Number(entry.overallRank).toLocaleString('en')) : '';
+  pv.className='ob-preview ok';
+  pv.innerHTML = '<span>✓</span><span class="pv-team">' + obEsc(entry.teamName || 'فريقك') + '</span>' +
+    (entry.managerName ? '<span style="color:var(--muted);font-weight:700;">— ' + obEsc(entry.managerName) + '</span>' : '') +
+    (rankTxt ? '<span class="pv-rank">' + rankTxt + '</span>' : '');
+}
+
+// زرار "لصق": يقرا من الكليبورد، يطلّع الـID، يملا الخانة، ويأكد الفريق
+async function pasteFplId(){
+  const inputEl = document.getElementById('obFplId');
+  const errEl = document.getElementById('obError');
+  if(!inputEl) return;
+  let text = '';
+  try{ if(navigator.clipboard && navigator.clipboard.readText){ text = await navigator.clipboard.readText(); } }catch(e){ text = ''; }
+  if(!text){
+    try{ inputEl.focus(); }catch(e){}
+    if(errEl){ errEl.textContent = 'متصفحك مش سامح بالّلصق التلقائي — الصق في الخانة بإيدك'; errEl.style.display='block'; }
+    return;
+  }
+  const id = extractFplId(text);
+  if(!id){
+    if(errEl){ errEl.textContent = 'اللي اتلصق مفيهوش رقم فريق — تأكد إنك ناسخ رابط صفحتك أو رقمك'; errEl.style.display='block'; }
+    return;
+  }
+  if(errEl){ errEl.style.display='none'; }
+  inputEl.value = id;
+  previewFplTeam();
+}
+
 async function submitOnboard(){
   const inputEl = document.getElementById('obFplId');
   const errEl = document.getElementById('obError');
   const btnEl = document.getElementById('obSubmit');
-  const fplId = inputEl.value.trim();
+  const fplId = extractFplId(inputEl.value);
 
   if(errEl){ errEl.style.display = 'none'; errEl.textContent = ''; }
 
   if(!fplId){
-    if(errEl){ errEl.textContent = 'اكتب الـ FPL Team ID الأول'; errEl.style.display = 'block'; }
+    if(errEl){ errEl.textContent = 'اكتب رقم فريقك أو الصق رابط صفحتك'; errEl.style.display = 'block'; }
     return;
   }
 
@@ -5300,12 +5381,14 @@ function renderOnboard(){
 
       // ===== entry card =====
       '<div class="ob-card">' +
-        '<div class="ob-card-head"><div class="ob-card-title">ابدأ في ثانية</div><div class="ob-card-sub">أدخل معرف فريقك واستورد تشكيلتك فورًا</div></div>' +
-        '<div class="field ob-field"><label>FPL Team ID</label>' +
-          '<div class="ob-input-wrap"><span class="ob-ic">#</span><input id="obFplId" type="number" inputmode="numeric" placeholder="مثلاً: 1234567"></div>' +
+        '<div class="ob-card-head"><div class="ob-card-title">ابدأ في ثانية</div><div class="ob-card-sub">الصق رابط صفحتك أو رقم فريقك واستورد تشكيلتك فورًا</div></div>' +
+        '<div class="field ob-field"><label>رقم فريقك أو رابط صفحتك في الفانتازي</label>' +
+          '<div class="ob-input-wrap"><span class="ob-ic">#</span><input id="obFplId" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1234567 أو الصق الرابط"><button type="button" class="ob-paste" id="obPaste">لصق</button></div>' +
         '</div>' +
+        '<div id="obPreview" class="ob-preview" style="display:none;"></div>' +
         '<div id="obError" class="err ob-err" style="display:none;"></div>' +
         '<button class="btn-primary ob-cta" id="obSubmit"><span>ابدأ اللعب</span><svg viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>' +
+        '<button type="button" class="ob-openfpl" id="obOpenFpl"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>افتح الفانتازي وانسخ رابط صفحتك</button>' +
         '<div class="ob-trust">' +
           '<b><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>مجاني تمامًا</b><span class="sep">•</span>' +
           '<b><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>بدون كلمة سر</b><span class="sep">•</span>' +
@@ -7809,8 +7892,16 @@ function bindBody(){
   const obInput = el.querySelector('#obFplId');
   if(obInput){
     obInput.addEventListener('keydown', (e)=>{ if(e.key === 'Enter'){ e.preventDefault(); submitOnboard(); } });
+    let _obPvTimer = null;
+    const _obPv = ()=>{ if(_obPvTimer) clearTimeout(_obPvTimer); _obPvTimer = setTimeout(previewFplTeam, 550); };
+    obInput.addEventListener('input', _obPv);
+    obInput.addEventListener('paste', ()=>{ setTimeout(previewFplTeam, 60); });
     setTimeout(()=>{ try{ obInput.focus(); }catch(e){} }, 350);
   }
+  const obPaste = el.querySelector('#obPaste');
+  if(obPaste) obPaste.addEventListener('click', pasteFplId);
+  const obOpenFpl = el.querySelector('#obOpenFpl');
+  if(obOpenFpl) obOpenFpl.addEventListener('click', ()=>{ try{ window.open('https://fantasy.premierleague.com/','_blank','noopener'); }catch(e){} });
 
   // ID guide modal (open / close)
   const obHelp = el.querySelector('#obHelpBtn');
