@@ -7272,7 +7272,8 @@ function fdrGridBlock(){
       if(!fx.length) return '<td><div class="fdr-blank">—</div></td>';
       const inner = fx.map(f=>{
         const d = ownDifficulty(f, state.fdrView);   // صعوبتنا إحنا حسب المنظور المختار
-        return '<div class="fdr-c ' + fdrColorClass(d) + '"><div class="op">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+        const hasOdds = !!(f.ownKey && oddsForFixture(f.ownKey, f));   // الماتش ده داخله أودز؟
+        return '<div class="fdr-c ' + fdrColorClass(d) + '"><div class="op">' + (hasOdds?'🎯':'') + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
         '<div class="ha">' + (f.isHome?'أرض':'خارج') + ' · ' + (Math.round(d*10)/10) + '</div></div>';
       }).join('');
       return '<td><div class="fdr-cellwrap">' + inner + '</div></td>';
@@ -7308,7 +7309,7 @@ function fdrGridBlock(){
     '<thead><tr><th class="tm">النادي</th>' + headGw + '<th>السهولة</th></tr></thead>' +
     '<tbody>' + bodyRows + '</tbody>' +
   '</table></div>' +
-  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا: <b>أودز الرهان</b> للمباراة (لو متوفرة) كأدق مصدر، فوق <b>أداء الموسم ده الفعلي</b> (أهداف كل فريق سجّلها/استقبلها + xG، بتسيطر بعد ٤ جولات)، وبدري بتكمّل بتقييم القوة/الفانتازي. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب).</div>';
+  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا: <b>أودز الرهان</b> للمباراة (لو متوفرة) كأدق مصدر، فوق <b>أداء الموسم ده الفعلي</b> (أهداف كل فريق سجّلها/استقبلها + xG)، وبدري بتكمّل بتقييم القوة/الفانتازي. علامة 🎯 معناها إن الماتش ده <b>داخله أودز</b> فعلًا؛ اللي من غيرها محسوب بأداء الموسم (الأودز بتغطّي الجولة الجاية بس). «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب).</div>';
 }
 
 function renderFdrTicker(){
