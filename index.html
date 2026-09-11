@@ -3188,12 +3188,12 @@ async function buildLiveDataset(){
       // بدل ما يتحول لتصنيف خشن (سهلة/متوسطة/صعبة) بيدي نفس النسبة لكل الأندية في نفس الفئة.
       // oppFdr = صعوبة المباراة من وجهة نظر الخصم = مؤشر على قوة *فريقنا* نفسه (كل ما الخصم
       // بيلاقي مباراته ضدنا أصعب، معناها إحنا فريق أقوى → دفاع أفضل → كلين شيت أعلى).
-      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, oppFdr:f.team_a_difficulty||3, isHome:true, oppKey:aKey,
+      if(hKey){ (lookaheadByTeam[hKey]=lookaheadByTeam[hKey]||[]).push({ event:f.event, fdr:f.team_h_difficulty||3, oppFdr:f.team_a_difficulty||3, isHome:true, oppKey:aKey, ownKey:hKey,
         ownDefHome: hTeam?hTeam.strength_defence_home:null, ownDefAway: hTeam?hTeam.strength_defence_away:null,
         ownAtkHome: hTeam?hTeam.strength_attack_home:null, ownAtkAway: hTeam?hTeam.strength_attack_away:null,
         oppAtkHome: aTeam?aTeam.strength_attack_home:null, oppAtkAway: aTeam?aTeam.strength_attack_away:null,
         oppDefHome: aTeam?aTeam.strength_defence_home:null, oppDefAway: aTeam?aTeam.strength_defence_away:null }); }
-      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, oppFdr:f.team_h_difficulty||3, isHome:false, oppKey:hKey,
+      if(aKey){ (lookaheadByTeam[aKey]=lookaheadByTeam[aKey]||[]).push({ event:f.event, fdr:f.team_a_difficulty||3, oppFdr:f.team_h_difficulty||3, isHome:false, oppKey:hKey, ownKey:aKey,
         ownDefHome: aTeam?aTeam.strength_defence_home:null, ownDefAway: aTeam?aTeam.strength_defence_away:null,
         ownAtkHome: aTeam?aTeam.strength_attack_home:null, ownAtkAway: aTeam?aTeam.strength_attack_away:null,
         oppAtkHome: hTeam?hTeam.strength_attack_home:null, oppAtkAway: hTeam?hTeam.strength_attack_away:null,
@@ -3889,10 +3889,22 @@ function _perfDiff(val, s, invert){
 // وزن أداء الموسم ده حسب عدد مباريات الخصم اللي خلصت: بيوصل للسيطرة الكاملة بعد ٤ جولات.
 // (المستخدم عايز الصعوبة تعتمد على أداء الموسم ده مش تقييم الفانتازي — فبنخلّي الأداء يسيطر بدري.)
 function _perfWeight(gp){ return Math.max(0, Math.min(1, (gp||0)/4)); }
-// f = عنصر من lookahead (فيه oppAtk*/oppDef*/fdr/isHome/oppKey). view: attack | defence | overall
-function ownDifficulty(f, view){
+// تحويل "الأهداف المتوقعة" (لامدا) من الأودز لصعوبة 1..5. المرجع = متوسط الدوري (1.35)،
+// و0.55 = نطاق الانتشار (لامدا 2.5 ≈ صعوبة 5، لامدا 0.5 ≈ صعوبة 1).
+function _lamToDiff(lam, invert){
+  if(lam==null || !isFinite(lam)) return null;
+  let diff = 3 + (lam - LEAGUE_AVG_GOALS)/0.55;
+  if(invert) diff = 3 - (lam - LEAGUE_AVG_GOALS)/0.55;   // للهجوم: أهداف متوقعة أكتر لفريقنا = أسهل
+  return _clamp15(diff);
+}
+const OWNDIFF_ODDS_W = 0.65;   // وزن الأودز في الصعوبة لو متوفرة (السوق أدق مصدر)
+// f = عنصر من lookahead (فيه oppAtk*/oppDef*/fdr/isHome/oppKey/ownKey). view: attack|defence|overall
+// opts.useOdds=false بيمنع دمج الأودز هنا (بيستخدمه محرك النقط اللي بيدمج الأودز بنفسه عشان
+// مايتحسبش مرتين). الافتراضي: بندمج الأودز (للعرض والجدول ونصايح الانتقال).
+function ownDifficulty(f, view, opts){
   if(!f) return 3;
   view = view || 'overall';
+  const useOdds = !opts || opts.useOdds !== false;
   const s  = _leagueStrengthStats();
   const ps = _leaguePerfStats();
   const oppK = f.oppKey;
@@ -3901,6 +3913,9 @@ function ownDifficulty(f, view){
   const fdrRep = _clamp15(f.fdr || 3);             // خط أساس أخير مضمون التوفّر
   const homeAdj = f.isHome ? -0.25 : 0.25;         // ميزة الأرض بتسهّل، والخارج بيصعّب
 
+  // 🎯 أودز الرهان لنفس المباراة (لو متوفرة) — أدق مصدر لأنها بتسعّر كل حاجة (إصابات/تشكيلة/فورم)
+  const od = (useOdds && f.ownKey) ? oddsForFixture(f.ownKey, f) : null;
+
   // صعوبة الحفاظ على الشباك (للمدافعين/الحارس) = خطورة هجوم الخصم
   function defenceDiff(){
     // السمعة: قوة هجوم الخصم التفصيلية لو متوفرة، وإلا تقييم الفانتازي
@@ -3908,8 +3923,12 @@ function ownDifficulty(f, view){
     if(rep==null) rep = fdrRep;
     // الأداء الفعلي الموسم ده: هجوم الخصم (أهداف مسجّلة + xG)
     const perf = _perfDiff(oppK ? teamAtkScore(oppK) : null, ps.atk, false);
-    const d = (perf==null) ? rep : (rep*(1-w) + perf*w);   // الأداء بيسيطر مع مرور الجولات
-    return d + homeAdj;
+    let d = (perf==null) ? rep : (rep*(1-w) + perf*w) + homeAdj;   // الأداء بيسيطر مع مرور الجولات
+    if(perf==null) d += homeAdj;
+    // الأودز بتاخد الأولوية: لامدا الأهداف اللي فريقنا هيستقبلها في المباراة دي (od.lamConcede)
+    const oddsD = od ? _lamToDiff(od.lamConcede, false) : null;
+    if(oddsD!=null) d = oddsD*OWNDIFF_ODDS_W + d*(1-OWNDIFF_ODDS_W);
+    return d;
   }
   // صعوبة التسجيل (للمهاجمين/الوسط) = قوة دفاع الخصم
   function attackDiff(){
@@ -3917,8 +3936,12 @@ function ownDifficulty(f, view){
     if(rep==null) rep = fdrRep;
     // الأداء الفعلي الموسم ده: ضعف دفاع الخصم (أهداف مستقبَلة + xGC) → invert
     const perf = _perfDiff(oppK ? teamDefWeakScore(oppK) : null, ps.def, true);
-    const d = (perf==null) ? rep : (rep*(1-w) + perf*w);
-    return d + homeAdj;
+    let d = (perf==null) ? rep : (rep*(1-w) + perf*w) + homeAdj;
+    if(perf==null) d += homeAdj;
+    // الأودز: لامدا الأهداف اللي فريقنا هيسجّلها (od.lamScore) — أكتر = أسهل = صعوبة أقل (invert)
+    const oddsD = od ? _lamToDiff(od.lamScore, true) : null;
+    if(oddsD!=null) d = oddsD*OWNDIFF_ODDS_W + d*(1-OWNDIFF_ODDS_W);
+    return d;
   }
 
   let d;
@@ -4212,7 +4235,7 @@ function expectedConcede(clubKey, fx){
   // ===== (أ) خط الأساس: صعوبة الكلين شيت بحسابنا إحنا (مش FDR الرسمي) =====
   // 1) صعوبة المباراة الدفاعية = صعوبتنا اللي بنحسبها من قوة هجوم الخصم + أدائه الفعلي (xG) +
   //    ميزة الأرض، نسبةً لباقي الدوري. بتستوعب فروق الخصوم بدقة أعلى من تصنيف 1..5 الخشن.
-  let base = _interp5(FDR_CONCEDE, ownDifficulty(fx, 'defence'));
+  let base = _interp5(FDR_CONCEDE, ownDifficulty(fx, 'defence', {useOdds:false}));  // الأودز بتتدمج تحت على مستوى اللامدا
   // 2) قوة دفاع فريقنا نفسه: مستنتجة من صعوبة المباراة عند الخصم (oppFdr) — بيدّي الفريق القوي فضله
   base *= (OWN_DEF_MULT[fx.oppFdr || 3] || 1.0);
 
@@ -4281,7 +4304,7 @@ function attackMultiplier(fx){
     m = m*(1-c) + realFactor*c;
   }
   m *= fx.isHome ? 1.05 : 0.95;              // ميزة الأرض للهجوم
-  const fm = fdrMultiplier(ownDifficulty(fx, 'attack'));   // صعوبة الهجوم بحسابنا مش تقييم الفانتازي
+  const fm = fdrMultiplier(ownDifficulty(fx, 'attack', {useOdds:false}));   // الأودز بتتدمج في fixtureExpectedPoints على مستوى العائد
   m = (m*0.6) + (fm*0.4);
   return Math.max(0.6, Math.min(1.5, m));
 }
@@ -7217,6 +7240,17 @@ function fdrGridBlock(){
   if(!cols.length || !rows.length){
     return '<div class="hint" style="margin:20px;">بيانات المباريات لسه بتحمّل — جرّب تحدّث الصفحة بعد شوية.</div>';
   }
+  // 🎯 مؤشر حالة الأودز — عشان تتأكد بنفسك إنها شغّالة فعلًا وبتدخل الحساب
+  const oddsN = Math.round(Object.keys(state.oddsByClub||{}).length/2);
+  const oddsOn = oddsN>0;
+  const _ot = state.oddsSyncedAt ? new Date(state.oddsSyncedAt) : null;
+  const _hhmm = _ot ? (('0'+_ot.getHours()).slice(-2)+':'+('0'+_ot.getMinutes()).slice(-2)) : '';
+  const oddsStatus = '<div style="margin:2px 20px 10px; padding:8px 12px; border-radius:10px; font-family:\'Cairo\'; font-weight:800; font-size:11.5px; display:flex; align-items:center; gap:7px; background:'
+    + (oddsOn?'rgba(61,214,140,0.12)':'rgba(255,255,255,0.05)') + '; color:' + (oddsOn?'var(--easy-green)':'var(--muted)') + ';">'
+    + (oddsOn
+        ? ('🎯 أودز الرهان مفعّلة وداخلة الحساب — ' + oddsN + ' ماتش مسعّر' + (_hhmm?(' · آخر تحديث ' + _hhmm):''))
+        : '⚠️ الأودز مش متوفرة دلوقتي — الحساب شغّال على أداء الموسم. (لو دايمًا كده راجع مفتاح /api/odds في السيرفر؛ أو ممكن الماتشات لسه ماتسعّرتش)')
+    + '</div>';
   const headGw = cols.map(g=>'<th>ج' + g + '</th>').join('');
   const bodyRows = rows.map(r=>{
     const logo = CLUB_CODE[r.key] ? 'https://resources.premierleague.com/premierleague/badges/t' + CLUB_CODE[r.key] + '.png' : '';
@@ -7249,6 +7283,7 @@ function fdrGridBlock(){
       '<button class="fchip' + (state.fdrSort?' on':'') + '" data-fdrsort="1">الأسهل أولًا</button>' +
     '</div>' +
   '</div>' +
+  oddsStatus +
   '<div class="fdr-legend">' +
     '<span class="lg"><span class="sw" style="background:#0E7A3B"></span>سهل جدًا</span>' +
     '<span class="lg"><span class="sw" style="background:#3DD68C"></span>سهل</span>' +
@@ -7260,7 +7295,7 @@ function fdrGridBlock(){
     '<thead><tr><th class="tm">النادي</th>' + headGw + '<th>السهولة</th></tr></thead>' +
     '<tbody>' + bodyRows + '</tbody>' +
   '</table></div>' +
-  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا على أساس <b>أداء الموسم ده الفعلي</b> (الأهداف اللي كل فريق سجّلها/استقبلها + xG)، وبتسيطر تمامًا بعد ٤ جولات؛ بدري في الموسم بتكمّل بتقييم القوة/الفانتازي لحد ما البيانات تتجمّع. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب).</div>';
+  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا: <b>أودز الرهان</b> للمباراة (لو متوفرة) كأدق مصدر، فوق <b>أداء الموسم ده الفعلي</b> (أهداف كل فريق سجّلها/استقبلها + xG، بتسيطر بعد ٤ جولات)، وبدري بتكمّل بتقييم القوة/الفانتازي. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب).</div>';
 }
 
 function renderFdrTicker(){
