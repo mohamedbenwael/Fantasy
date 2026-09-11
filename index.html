@@ -2605,21 +2605,43 @@ async function kvCall(payload){
   }
   return await res.json();
 }
+// ===== نسخة محلية احتياطية (localStorage) =====
+// السبب: كل التخزين بيمرّ على /api/kv (السيرفر). لو السيرفر مش موصول (تشغيل محلي، أو النت
+// فصل، أو الباك-إند واقف) كان الحفظ بيفشل في صمت والتعديلات بتضيع أول ريفريش. دلوقتي بنعمل
+// "مرآة" محلية لكل قيمة: القراءة بترجّح السيرفر، وبترجع للنسخة المحلية لو السيرفر مش متاح؛
+// والكتابة بتتخزّن محليًا دايمًا كباك-أب حتى لو نداء السيرفر فشل. دي بتحل مشكلة إن التشكيلة
+// مبتتحفظش بعد الريفريش. (localStorage بيخزّن نصوص، والقيم أصلاً JSON strings فمافيش تحويل.)
+const LS_MIRROR_PREFIX = 'kvmirror:';
+function lsGet(key){ try{ const v = localStorage.getItem(LS_MIRROR_PREFIX + key); return (v === null) ? null : v; } catch(e){ return null; } }
+function lsSet(key, val){ try{ localStorage.setItem(LS_MIRROR_PREFIX + key, val); return true; } catch(e){ return false; } }
+function lsDel(key){ try{ localStorage.removeItem(LS_MIRROR_PREFIX + key); } catch(e){} }
+
 async function sGet(key, shared){
   try{
     const data = await kvCall({ action: 'get', key });
-    return (data && 'value' in data) ? data.value : null;
-  } catch(e){ return null; }
+    const val = (data && 'value' in data) ? data.value : null;
+    if(val != null){ lsSet(key, val); return val; }   // السيرفر هو المصدر: نحدّث المرآة المحلية ونرجّعه
+    return lsGet(key);                                  // السيرفر موصول بس مفيش صف → نجرّب النسخة المحلية
+  } catch(e){
+    return lsGet(key);                                  // السيرفر مش موصول → النسخة المحلية هي الإنقاذ
+  }
 }
 async function sSet(key, value, shared){
+  const localOk = lsSet(key, value);                    // احفظ محليًا دايمًا (باك-أب) قبل ما نجرّب السيرفر
   try{
     const payload = { action: 'set', key, value };
     if(needsOwnerToken(key)) payload.owner = getOwnerToken();
     const data = await kvCall(payload);
     return !!(data && data.ok);
-  } catch(e){ console.warn('[kv] sSet فشل', key, e && e.message); return false; }
+  } catch(e){
+    console.warn('[kv] sSet فشل — اتحفظت محليًا كنسخة احتياطية', key, e && e.message);
+    // للمفاتيح الشخصية المحمية (تشكيلة/مدير): الحفظ المحلي بيكفي إن التعديل يفضل بعد الريفريش،
+    // فمانرجّعش "فشل" ونخوّف المستخدم برسالة غلط طالما اتخزّن محليًا. المفاتيح المشتركة لسه محتاجة السيرفر.
+    return needsOwnerToken(key) ? localOk : false;
+  }
 }
 async function sDelete(key){
+  lsDel(key);                                           // امسح المرآة المحلية كمان
   try{
     const payload = { action: 'delete', key };
     if(needsOwnerToken(key)) payload.owner = getOwnerToken();
@@ -3794,7 +3816,9 @@ const REAL_FORM_WEIGHT_MIN = 0.35;
 // وزن الدمج للحارس/المدافع أول الموسم: نعلي حصة إحصائياتنا (stat) اللي جواها محرك الكلين شيت،
 // لأن الكلين شيت هو المصدر الأساسي لنقط المدافع، ومحرّكنا بيفرّق بين المدافعين أدق من ep_next
 // الرسمي اللي بيبقى متقارب بينهم بدري. المجموع لازم = 1. (cls=فئة/سعر، ep=توقع FPL، stat=إحصائياتنا)
-const DEF_STAT_BLEND = { cls:0.20, ep:0.40, stat:0.40 };
+// زوّدنا حصة stat (اللي جواها محرك الكلين شيت الواعي بالخصم) على حساب ep_next والفئة،
+// عشان صعوبة المباراة (الخصم) توزن أكتر في نقط المدافع بدري في الموسم بدل ما تبقى شبه ثابتة.
+const DEF_STAT_BLEND = { cls:0.15, ep:0.30, stat:0.55 };
 // PERF_CONF_MIN: الحد الأدنى للثقة في إحصائيات اللاعب الفردية (xG/xA/بونص) بدري في الموسم.
 // 0.30 = أول الموسم بناخد ~ثلث قيمة إحصائيات الماتش الواحد بس (الباقي بيعتمد على ep_next/الفئة)،
 // وبتكبر لـ 1 حوالي الجولة 9. بيمنع هاتريك/أسيست الجولة الواحدة إنه يضخّم توقع اللاعب.
@@ -4269,6 +4293,18 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else {
       base = stat>0 ? stat : (cls*0.5*fxAtk);
     }
+  }
+
+  // ⚖️ صعوبة الخصم الهجومية تضغط/ترفع توقّع الحارس والمدافع ككل — مش بس جزء الكلين شيت.
+  // ده بيعالج بالظبط اللي رصدته: استريك كلين شيت ضد فرق ضعيفة كان بيخلّي المحرك يرشّح
+  // مدافعين قدام هجوم قوي (زي تشيلسي) وهو مغمّض عن الخصم. lamThis = الأهداف المتوقّع
+  // استقبالها في المباراة دي بالتحديد (بتدمج هجوم الخصم الحقيقي + التقييم الرسمي + الأودز).
+  // خصم خطير → lamThis عالية → عامل < 1 → توقّع أقل؛ خصم ضعيف → عامل > 1 → توقّع أعلى.
+  // بنطبّقه بنص القوة (0.5) عشان يبان بوضوح من غير ما يطغى على باقي الحساب.
+  if(p.pos === 'GK' || p.pos === 'DEF'){
+    const lamThis = fx ? expectedConcede(p.club, fx) : LEAGUE_AVG_GOALS;
+    const fixFactor = Math.max(0.55, Math.min(1.30, LEAGUE_AVG_GOALS / lamThis));
+    base *= (0.5 + 0.5 * fixFactor);
   }
 
   base = Math.max(0.5, base);
