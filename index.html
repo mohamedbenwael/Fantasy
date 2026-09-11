@@ -3056,6 +3056,17 @@ async function buildLiveDataset(){
   const teamsById = {};
   teams.forEach(t=>{ teamsById[t.id] = t; });
 
+  // قوة كل نادي (هجوم/دفاع، أرض/خارج) بمفتاح النادي — أساس حساب صعوبة الجدول بطريقتنا
+  const teamStrength = {};
+  teams.forEach(t=>{
+    const key = teamIdToKey[t.id];
+    if(!key) return;
+    teamStrength[key] = {
+      atkH: t.strength_attack_home || null, atkA: t.strength_attack_away || null,
+      defH: t.strength_defence_home || null, defA: t.strength_defence_away || null
+    };
+  });
+
   const fixturesMap = {};
   const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away, lookahead, avgFdrNext3 }
   var provisionalBonusByElement = {};
@@ -3278,7 +3289,7 @@ async function buildLiveDataset(){
     fixtures: fixturesMap,
   };
 
-  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures, fixturesByGw: fixturesByGw };
+  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, teamStrength, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures, fixturesByGw: fixturesByGw };
 }
 
 // ===== إشعارات أحداث اللاعبين اللحظية =====
@@ -3429,6 +3440,7 @@ function applyLiveDataset(d){
   CLUB_NAME = d.clubName;
   CLUB_CODE = d.clubCode || {};
   state.teamFixtures = d.teamFixtures || {};
+  state.teamStrength = d.teamStrength || {};
   if(typeof resetEngineCaches === 'function') resetEngineCaches(); // تصفير كاش المحرك (xGC لكل نادي) مع كل تحديث بيانات
   state.totalManagers = d.totalManagers || 0;
   state.hasLiveFixtures = d.live || false;
@@ -3459,6 +3471,7 @@ let state = {
   players:[],          // live shared player DB
   gwInfo:null,         // live shared gameweek info
   teamFixtures:{},     // live shared team strength/FDR data (لمحرك التوقعات)
+  teamStrength:{},     // قوة هجوم/دفاع كل نادي (أرض/خارج) — أساس حساب الصعوبة بطريقتنا
   totalManagers:0,     // إجمالي عدد مديري الفانتازي (لمؤشر توقع تغيير الأسعار)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
@@ -3736,7 +3749,8 @@ function teamFixtureInfo(clubKey){
 // صعوبة المباراة (FDR من فانتازي الرسمي: 1 سهلة جدًا -> 5 صعبة جدًا) بتتحول لمضاعف نقط
 function fdrMultiplier(fdr){
   const map = {1:1.28, 2:1.14, 3:1.0, 4:0.86, 5:0.72};
-  return map[fdr] || 1;
+  if(fdr==null) return 1;
+  return _interp5(map, fdr);   // بيتعامل مع صعوبة متصلة (بحسابنا) مش بس أرقام صحيحة 1..5
 }
 
 // احتمالية مشاركة اللاعب أصلاً (مصاب/موقوف/مشكوك فيه/انتقل بره الدوري/مش مسجل الموسم ده)
@@ -3761,7 +3775,7 @@ let _teamXgCache = {};
 // وكان بيتكرر مئات المرات في كل رسم لجدول اللاعبين. الحفظ ده بيخلي الفرز/البحث/الرسم سريع جدًا.
 let _predMemo = {};
 let _projMemo = {};
-function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; _predMemo = {}; _projMemo = {}; }
+function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; _predMemo = {}; _projMemo = {}; _leagueStrCache = null; _leagueXgStatsCache = null; }
 
 // متوسط الأهداف المتوقع استقبالها (xGC90) لدفاع النادي — من مدافعينه/حارسه اللي لعبوا فعليًا.
 // ده أقوى مؤشر على جودة الدفاع الحقيقية (مش بس تصنيف FPL الثابت). بيرجع null لو مفيش عينة كافية.
@@ -3787,6 +3801,97 @@ function teamAvgXG(clubKey){
   }
   _teamXgCache[clubKey] = val;
   return val;
+}
+
+// ============================================================
+// ===== صعوبة المباراة بحسابنا إحنا (بدل FDR الرسمي من الفانتازي) =====
+// الفكرة: تقييم الفانتازي (1..5) خشن وأحيانًا مش مظبوط. بنحسب صعوبة خاصة بينا بندمج فيها:
+//   (1) تقييم قوة الفرق الرسمي (strength_attack/defence) — متاح من الجولة الأولى، بيتقاس نسبةً
+//       لباقي فرق الدوري (z-score) فبيطلّع فروق حقيقية مش تصنيف موحّد.
+//   (2) الأداء الفعلي: هجوم الخصم الحقيقي (xG) لصعوبة الكلين شيت، ودفاع الخصم الحقيقي (xGC)
+//       لصعوبة التسجيل — بوزن بيكبر مع تقدّم الموسم (xgConfidence) لما العينة تكبر.
+// النتيجة رقم متصل 1..5 (1=أسهل، 5=أصعب) من منظور 'attack' أو 'defence' أو 'overall'.
+let _leagueStrCache = null;
+let _leagueXgStatsCache = null;
+function _meanStd(arr, fallbackMean, fallbackStd){
+  if(!arr || !arr.length) return { mean: fallbackMean, std: fallbackStd };
+  const mean = arr.reduce((a,b)=>a+b,0)/arr.length;
+  const varc = arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length;
+  return { mean, std: Math.sqrt(varc) || fallbackStd };
+}
+function _leagueStrengthStats(){
+  if(_leagueStrCache) return _leagueStrCache;
+  const ts = state.teamStrength || {};
+  const cols = { atkH:[], atkA:[], defH:[], defA:[] };
+  Object.keys(ts).forEach(k=>{ const t=ts[k]; if(!t) return;
+    if(t.atkH) cols.atkH.push(t.atkH); if(t.atkA) cols.atkA.push(t.atkA);
+    if(t.defH) cols.defH.push(t.defH); if(t.defA) cols.defA.push(t.defA);
+  });
+  _leagueStrCache = {
+    atkH:_meanStd(cols.atkH, STRENGTH_REF, 60), atkA:_meanStd(cols.atkA, STRENGTH_REF, 60),
+    defH:_meanStd(cols.defH, STRENGTH_REF, 60), defA:_meanStd(cols.defA, STRENGTH_REF, 60)
+  };
+  return _leagueStrCache;
+}
+function _leagueXgStats(){
+  if(_leagueXgStatsCache) return _leagueXgStatsCache;
+  const xg=[], xgc=[];
+  Object.keys(CLUB_TAG||{}).forEach(k=>{ const a=teamAvgXG(k), d=teamAvgXGC(k);
+    if(a!=null&&isFinite(a)) xg.push(a); if(d!=null&&isFinite(d)) xgc.push(d); });
+  _leagueXgStatsCache = { xg:(xg.length?_meanStd(xg,null,0.3):null), xgc:(xgc.length?_meanStd(xgc,null,0.3):null) };
+  return _leagueXgStatsCache;
+}
+// z-score → صعوبة 1..5 (كل ما القيمة أعلى من متوسط الدوري كل ما زادت الصعوبة؛ invert بتعكس)
+function _zToDiff(val, s, invert){
+  if(val==null || !isFinite(val) || !s || !s.std) return 3;
+  let z = (val - s.mean) / s.std;
+  if(invert) z = -z;
+  return Math.max(1, Math.min(5, 3 + z*1.15));   // ~0.87 انحراف معياري = درجة صعوبة كاملة
+}
+// f = عنصر من lookahead (فيه oppAtk*/oppDef*/isHome/oppKey). view: attack | defence | overall
+function ownDifficulty(f, view){
+  if(!f) return 3;
+  view = view || 'overall';
+  const s  = _leagueStrengthStats();
+  const xs = _leagueXgStats();
+  const c  = xgConfidence();                       // 0 أول الموسم (قوة الفرق بس) → 1 (الأداء الفعلي يسيطر)
+  const homeAdj = f.isHome ? -0.25 : 0.25;         // ميزة الأرض بتسهّل، والخارج بيصعّب
+
+  // صعوبة الحفاظ على الشباك (للمدافعين/الحارس) = قوة هجوم الخصم
+  function defenceDiff(){
+    const oppAtk = f.isHome ? f.oppAtkAway : f.oppAtkHome;   // الخصم بيلعب على العكس مننا
+    const strD  = _zToDiff(oppAtk, f.isHome ? s.atkA : s.atkH, false);
+    const perfD = _zToDiff(f.oppKey ? teamAvgXG(f.oppKey) : null, xs.xg, false);
+    return (strD*(1-c) + perfD*c) + homeAdj;
+  }
+  // صعوبة التسجيل (للمهاجمين/الوسط) = قوة دفاع الخصم
+  function attackDiff(){
+    const oppDef = f.isHome ? f.oppDefAway : f.oppDefHome;
+    const strD  = _zToDiff(oppDef, f.isHome ? s.defA : s.defH, false);
+    // xGC عالية للخصم = دفاعه بيستقبل كتير = أسهل نسجّل = صعوبة أقل → invert
+    const perfD = _zToDiff(f.oppKey ? teamAvgXGC(f.oppKey) : null, xs.xgc, true);
+    return (strD*(1-c) + perfD*c) + homeAdj;
+  }
+
+  let d;
+  if(view==='attack') d = attackDiff();
+  else if(view==='defence') d = defenceDiff();
+  else d = (attackDiff() + defenceDiff()) / 2;
+  return Math.max(1, Math.min(5, d));
+}
+// متوسط صعوبتنا لأقرب 3 مباريات لنادي (حسب المنظور) — لملخّصات تقييم الفريق
+function avgOwnDiffNext3(club, view){
+  const fx = state.teamFixtures[club];
+  const look = (fx && fx.lookahead) ? fx.lookahead.slice(0,3) : [];
+  if(!look.length) return 3;
+  return look.reduce((s,f)=>s+ownDifficulty(f, view||'overall'),0)/look.length;
+}
+// استيفاء خطي على خريطة مفاتيحها 1..5 عشان نتعامل مع صعوبة متصلة (مش عدد صحيح)
+function _interp5(map, d){
+  const x  = Math.max(1, Math.min(5, d));
+  const lo = Math.floor(x), hi = Math.ceil(x);
+  if(lo===hi) return map[lo];
+  return map[lo] + (map[hi]-map[lo])*(x-lo);
 }
 
 // ثقة بيانات الـ xG بتكبر مع تقدم الموسم: ~0 في أول 3 جولات (عينة صغيرة → نعتمد على تصنيفات
@@ -4056,17 +4161,12 @@ function oddsForFixture(clubKey, fx){
 function expectedConcede(clubKey, fx){
   if(!fx) return LEAGUE_AVG_GOALS;
 
-  // ===== (أ) خط أساس "السمعة": من التقييم الرسمي (FDR + قوة الفريق) — متاح من الجولة الأولى =====
-  // 1) صعوبة المباراة = قوة هجوم الخصم حسب التقييم الرسمي
-  let base = FDR_CONCEDE[fx.fdr] || 1.30;
+  // ===== (أ) خط الأساس: صعوبة الكلين شيت بحسابنا إحنا (مش FDR الرسمي) =====
+  // 1) صعوبة المباراة الدفاعية = صعوبتنا اللي بنحسبها من قوة هجوم الخصم + أدائه الفعلي (xG) +
+  //    ميزة الأرض، نسبةً لباقي الدوري. بتستوعب فروق الخصوم بدقة أعلى من تصنيف 1..5 الخشن.
+  let base = _interp5(FDR_CONCEDE, ownDifficulty(fx, 'defence'));
   // 2) قوة دفاع فريقنا نفسه: مستنتجة من صعوبة المباراة عند الخصم (oppFdr) — بيدّي الفريق القوي فضله
   base *= (OWN_DEF_MULT[fx.oppFdr || 3] || 1.0);
-  // 3) تعديل بسيط بتصنيف هجوم الخصم الرسمي لو كان متوفر ومتمايز (بيبقى موحّد أول الموسم فمايأثرش)
-  const oppAtk = fx.isHome ? fx.oppAtkAway : fx.oppAtkHome;
-  if(oppAtk && oppAtk>0){
-    const oppFactor = Math.max(0.80, Math.min(1.25, oppAtk/STRENGTH_REF));
-    base *= (0.80 + 0.20*oppFactor);
-  }
 
   // ===== (ب) خط أساس "الأداء الفعلي": من المباريات اللي اتلعبت فعلًا =====
   // λ الفعلي = (ضعف دفاعنا الحقيقي: xGC) × (خطورة هجوم الخصم الحقيقية: xG نسبةً لمتوسط الدوري).
@@ -4092,8 +4192,8 @@ function expectedConcede(clubKey, fx){
     lam = base*(1-c) + realLam*c;
   }
 
-  // ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده
-  lam *= fx.isHome ? 0.92 : 1.08;
+  // ميزة الأرض بتقلل الاستقبال، والخارج بيزوّده (مخفّفة لأن ownDifficulty بياخد جزء من ميزة الأرض)
+  lam *= fx.isHome ? 0.96 : 1.04;
 
   // 🎯 أودز الرهان: لو متوفرة لنفس المباراة، بتبقى المرساة الأقوى (السوق أدق من أي موديل).
   const od = oddsForFixture(clubKey, fx);
@@ -4119,7 +4219,7 @@ function cleanSheetProbability(p){
 }
 
 // عامل صعوبة الهجوم لمباراة معيّنة: كل ما دفاع الخصم أضعف كل ما زاد العائد الهجومي المتوقع.
-// بندمج المشتق من قوة دفاع الخصم (دقيق لكل خصم) مع مضاعف الـ FDR الرسمي (توازن).
+// بندمج المشتق من قوة دفاع الخصم (دقيق لكل خصم) مع صعوبة الهجوم بحسابنا إحنا (بدل FDR الرسمي).
 function attackMultiplier(fx){
   if(!fx) return 1;
   const oppDef = fx.isHome ? fx.oppDefAway : fx.oppDefHome;
@@ -4133,7 +4233,7 @@ function attackMultiplier(fx){
     m = m*(1-c) + realFactor*c;
   }
   m *= fx.isHome ? 1.05 : 0.95;              // ميزة الأرض للهجوم
-  const fm = fdrMultiplier(fx.fdr);
+  const fm = fdrMultiplier(ownDifficulty(fx, 'attack'));   // صعوبة الهجوم بحسابنا مش تقييم الفانتازي
   m = (m*0.6) + (fm*0.4);
   return Math.max(0.6, Math.min(1.5, m));
 }
@@ -4305,6 +4405,14 @@ function blendedFixturePoints(p, fx, isImmediate){
     const lamThis = fx ? expectedConcede(p.club, fx) : LEAGUE_AVG_GOALS;
     const fixFactor = Math.max(0.55, Math.min(1.30, LEAGUE_AVG_GOALS / lamThis));
     base *= (0.5 + 0.5 * fixFactor);
+  } else if(p.pos === 'MID' || p.pos === 'FWD'){
+    // 🎯 بالمثل للمهاجمين والوسط: قوة دفاع الخصم تضغط/ترفع توقّعهم ككل.
+    // attackMultiplier بيطلع > 1 قدام دفاع ضعيف (أسهل تسجيل) و < 1 قدام دفاع قوي — وبيدمج
+    // جودة دفاع الخصم الفعلية (xGC) + التقييم الرسمي + ميزة الأرض. بنطبّقه بنص القوة عشان
+    // مهاجم قدام دفاع حديدي ينزل توقّعه، والعكس، من غير ما يطغى على الفورم والأداء الفردي.
+    const am = fx ? attackMultiplier(fx) : 1;
+    const fixFactorAtk = Math.max(0.60, Math.min(1.30, am));
+    base *= (0.5 + 0.5 * fixFactorAtk);
   }
 
   base = Math.max(0.5, base);
@@ -4472,7 +4580,8 @@ function sellAdvice(){
     
     const fx = teamFixtureInfo(p.club);
     const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
-    if(nextFix && nextFix.fdr >= 4){ reasons.push('مباراة صعبة الجولة القادمة'); score -= 0.8; }
+    const sellView = (p.pos==='GK'||p.pos==='DEF') ? 'defence' : 'attack';
+    if(nextFix && ownDifficulty(nextFix, sellView) >= 3.7){ reasons.push('مباراة صعبة الجولة القادمة'); score -= 0.8; }
     
     if(score < 3.5 && p.price >= 5.5){ reasons.push('توقع نقاط ضعيف مقارنة بسعره'); score -= 1.5; }
     if(p.priceChange < 0){ reasons.push('مؤشر هبوط سعره'); }
@@ -4490,7 +4599,8 @@ function buyAdvice(){
       const fx = teamFixtureInfo(p.club);
       const nextFix = (fx && fx.lookahead && fx.lookahead[0]) ? fx.lookahead[0] : null;
       
-      if(nextFix && nextFix.fdr <= 2) reasons.push('مباراة سهلة الجولة القادمة');
+      const buyView = (p.pos==='GK'||p.pos==='DEF') ? 'defence' : 'attack';
+      if(nextFix && ownDifficulty(nextFix, buyView) <= 2.3) reasons.push('مباراة سهلة الجولة القادمة');
       if(pred >= 4.8) reasons.push('توقع نقاط ممتاز الجولة القادمة');
       if(p.priceChange > 0) reasons.push('مؤشر صعود سعره');
       
@@ -6443,15 +6553,17 @@ function renderPlayerProfile(){
   ) : '';
 
   const lookahead = (state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || [];
+  const ppView = (p.pos==='GK'||p.pos==='DEF') ? 'defence' : 'attack';   // منظور الصعوبة حسب مركز اللاعب
   const fixturesHtml = lookahead.length ? lookahead.map(f=>{
-    const fdrCls = f.fdr<=2 ? 'easy' : (f.fdr>=4 ? 'hard' : 'mid');
+    const d = ownDifficulty(f, ppView);
+    const fdrCls = d<=2.3 ? 'easy' : (d>=3.7 ? 'hard' : 'mid');
     const oppCode = CLUB_CODE[f.oppKey] || '';
     const logoSrc = oppCode ? `https://resources.premierleague.com/premierleague/badges/t${oppCode}.png` : '';
     return '<div class="pp-next-fix ' + fdrCls + '">' +
       '<img src="' + logoSrc + '" class="opp-logo" onerror="this.style.display=\'none\'">' +
       '<div class="opp-name">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
       '<div class="venue">' + (f.isHome?'أرض':'خارج') + '</div>' +
-      '<div class="fdr-box">' + f.fdr + '</div></div>';
+      '<div class="fdr-box">' + (Math.round(d*10)/10) + '</div></div>';
   }).join('') : '<div class="hint">لا توجد بيانات مباريات قادمة حاليًا</div>';
 
   // كل الجولات المتاحة للاعب — الأحدث فوق. كل صف بيوري الخصم + النتيجة + النقط،
@@ -6492,7 +6604,8 @@ function renderPlayerProfile(){
   const maxXp = Math.max(1, ...xpFix.map(x=>x.xp));
   const xpHtml = xpFix.length ? ('<div class="section-title"><h2>توقّع النقط للجولات الجاية</h2></div>' +
     '<div class="xp-card"><div class="xp-bars">' + xpFix.map(x=>{
-      const fdrCls = x.f.fdr<=2?'easy':(x.f.fdr>=4?'hard':'mid');
+      const dxp = ownDifficulty(x.f, ppView);
+      const fdrCls = dxp<=2.3?'easy':(dxp>=3.7?'hard':'mid');
       const hpct = Math.max(10,(x.xp/maxXp)*100);
       return '<div class="xpb"><div class="xpb-val">'+fmt(x.xp)+'</div>' +
         '<div class="xpb-wrap"><div class="xpb-bar '+fdrCls+'" style="height:'+hpct+'%"></div></div>' +
@@ -6658,9 +6771,11 @@ function renderMiniFixtures(p) {
   // ودجت مصغّرة داخل كروت الانتقال — بنعرض أقرب 3 بس عشان متزحمش المساحة الصغيرة
   const lookahead = ((state.teamFixtures[p.club] && state.teamFixtures[p.club].lookahead) || []).slice(0,3);
   if (!lookahead.length) return '<div class="hint" style="font-size:8px;">لا توجد مباريات</div>';
+  const mfView = (p.pos==='GK'||p.pos==='DEF') ? 'defence' : 'attack';
   const fixCards = lookahead.map(f => {
-    const fdrCls = f.fdr <= 2 ? 'easy' : (f.fdr >= 4 ? 'hard' : 'mid');
-    return '<div class="pp-fixcard ' + fdrCls + '" style="padding:4px 2px; border-radius:6px; min-width:30px;"><div class="opp" style="font-size:9px;">' + (CLUB_TAG[f.oppKey]||'؟') + '</div><div class="fdr ' + fdrCls + '" style="font-size:8px; padding:1px; margin-top:2px;">' + f.fdr + '</div></div>';
+    const d = ownDifficulty(f, mfView);
+    const fdrCls = d <= 2.3 ? 'easy' : (d >= 3.7 ? 'hard' : 'mid');
+    return '<div class="pp-fixcard ' + fdrCls + '" style="padding:4px 2px; border-radius:6px; min-width:30px;"><div class="opp" style="font-size:9px;">' + (CLUB_TAG[f.oppKey]||'؟') + '</div><div class="fdr ' + fdrCls + '" style="font-size:8px; padding:1px; margin-top:2px;">' + (Math.round(d*10)/10) + '</div></div>';
   }).join('');
   return '<div style="display:flex; gap:4px; margin-top:6px; justify-content:center;">' + fixCards + '</div>';
 }
@@ -7035,9 +7150,11 @@ function fdrTickerRows(){
     const look = (state.teamFixtures[key] && state.teamFixtures[key].lookahead) || [];
     const byGw = {};
     look.forEach(f=>{ (byGw[f.event]=byGw[f.event]||[]).push(f); });
-    // نقاط السهولة: مجموع (6 − fdr) لكل مباراة (يكافئ السهل + الجولة المزدوجة، يعاقب البلانك)
+    // نقاط السهولة: مجموع (6 − صعوبتنا) لكل مباراة (يكافئ السهل + الجولة المزدوجة، يعاقب البلانك).
+    // بنستخدم صعوبتنا إحنا حسب المنظور المختار (إجمالي/هجوم/دفاع) بدل تقييم الفانتازي.
     let ease = 0, played = 0;
-    cols.forEach(g=>{ (byGw[g]||[]).forEach(f=>{ ease += (6 - Math.max(1,Math.min(5,f.fdr||3))); played++; }); });
+    cols.forEach(g=>{ (byGw[g]||[]).forEach(f=>{ ease += (6 - ownDifficulty(f, state.fdrView)); played++; }); });
+    ease = Math.round(ease*10)/10;
     return { key, byGw, ease, played };
   });
   if(state.fdrSort) rows.sort((a,b)=> (b.ease - a.ease) || (a.key<b.key?-1:1));
@@ -7058,10 +7175,11 @@ function fdrGridBlock(){
     const cells = cols.map(g=>{
       const fx = r.byGw[g] || [];
       if(!fx.length) return '<td><div class="fdr-blank">—</div></td>';
-      const inner = fx.map(f=>
-        '<div class="fdr-c ' + fdrColorClass(f.fdr) + '"><div class="op">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
-        '<div class="ha">' + (f.isHome?'أرض':'خارج') + '</div></div>'
-      ).join('');
+      const inner = fx.map(f=>{
+        const d = ownDifficulty(f, state.fdrView);   // صعوبتنا إحنا حسب المنظور المختار
+        return '<div class="fdr-c ' + fdrColorClass(d) + '"><div class="op">' + (CLUB_TAG[f.oppKey]||'؟') + '</div>' +
+        '<div class="ha">' + (f.isHome?'أرض':'خارج') + ' · ' + (Math.round(d*10)/10) + '</div></div>';
+      }).join('');
       return '<td><div class="fdr-cellwrap">' + inner + '</div></td>';
     }).join('');
     return '<tr>' +
@@ -7073,6 +7191,11 @@ function fdrGridBlock(){
 
   return '' +
   '<div class="tool-controls">' +
+    '<div class="chip-row">' +
+      '<button class="fchip' + (state.fdrView==='overall'?' on':'') + '" data-fdrview="overall">إجمالي</button>' +
+      '<button class="fchip' + (state.fdrView==='attack'?' on':'') + '" data-fdrview="attack">للهجوم</button>' +
+      '<button class="fchip' + (state.fdrView==='defence'?' on':'') + '" data-fdrview="defence">للدفاع</button>' +
+    '</div>' +
     '<div class="chip-row">' +
       '<button class="fchip' + (!state.fdrSort?' on':'') + '" data-fdrsort="0">ترتيب أبجدي</button>' +
       '<button class="fchip' + (state.fdrSort?' on':'') + '" data-fdrsort="1">الأسهل أولًا</button>' +
@@ -7089,7 +7212,7 @@ function fdrGridBlock(){
     '<thead><tr><th class="tm">النادي</th>' + headGw + '<th>السهولة</th></tr></thead>' +
     '<tbody>' + bodyRows + '</tbody>' +
   '</table></div>' +
-  '<div class="tool-count" style="margin:10px 20px 20px;">«السهولة» = مجموع سهولة أقرب ٥ جولات (كل ما زاد الرقم، الرن أسهل — والجولة المزدوجة بتزوّده).</div>';
+  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا (قوة الفرق + الأداء الفعلي xG/xGC) مش تقييم الفانتازي. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب)، و«السهولة» = مجموع سهولة أقرب ٥ جولات.</div>';
 }
 
 function renderFdrTicker(){
@@ -7330,7 +7453,7 @@ function rateTeam(){
   const defence = _scoreScale(csAvg, 0.16, 0.52);
   const formAvg = avg(st, p=>p.form||0);
   const form = _scoreScale(formAvg, 2.2, 6.2);
-  const fdrAvg = avg(st, p=>{ const fx=state.teamFixtures[p.club]; return (fx&&fx.avgFdrNext3)?fx.avgFdrNext3:3; });
+  const fdrAvg = avg(st, p=>avgOwnDiffNext3(p.club, (p.pos==='GK'||p.pos==='DEF')?'defence':'attack'));
   const fixtures = _scoreScale(4.2 - fdrAvg, 0.2, 2.0);
   const cap = captain(); const sugg = suggestedCaptain();
   let captainScore = 65;
@@ -7459,7 +7582,7 @@ function chipAdvisor(){
   const fhBlank = perGw.slice().sort((a,b)=> b.blanks-a.blanks)[0];
   const fhDouble = perGw.slice().sort((a,b)=> b.doubles-a.doubles)[0];
   const flagged = sq.filter(p=>availabilityMultiplier(p)<1).length;
-  const avgFdr = sq.reduce((s,p)=>{ const fx=state.teamFixtures[p.club]; return s+((fx&&fx.avgFdrNext3)?fx.avgFdrNext3:3); },0)/sq.length;
+  const avgFdr = sq.reduce((s,p)=>s+avgOwnDiffNext3(p.club,'overall'),0)/sq.length;
   return { perGw, bb, tc, fhBlank, fhDouble, flagged, avgFdr };
 }
 
@@ -8131,6 +8254,9 @@ function bindBody(){
   // ===== مخطط سهولة المباريات: تحكّم =====
   const fdrBack = el.querySelector('#fdrBack');
   if(fdrBack) fdrBack.addEventListener('click', ()=>{ state.tab = state.toolsBack || 'home'; render(); });
+  el.querySelectorAll('[data-fdrview]').forEach(b=>{
+    b.addEventListener('click', ()=>{ state.fdrView = b.getAttribute('data-fdrview'); render(); });
+  });
   el.querySelectorAll('[data-fdrsort]').forEach(b=>{
     b.addEventListener('click', ()=>{ state.fdrSort = b.getAttribute('data-fdrsort')==='1'; render(); });
   });
