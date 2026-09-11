@@ -3852,19 +3852,31 @@ function _leagueStrengthStats(){
 // ===== أداء الموسم ده الفعلي لكل نادي (أهم مصدر للصعوبة) =====
 // قوة هجوم النادي = أهدافه المسجّلة/مباراة مدموجة مع xG بتاعه (الاتنين أداء الموسم ده).
 // قوة "ضعف الدفاع" = أهدافه المستقبَلة/مباراة مدموجة مع xGC. (كل ما زادت = دفاع أضعف = أسهل نسجّل عليه).
+// 🔑 تنعيم العينة الصغيرة (regression to mean): مع ٢-٣ جولات بس، رقم زي "استقبل ٣ في ٣" ممكن
+// يكون حظ/خصوم سُهال، فلو أخدناه على علّاته بيخلي فريق ضعيف يبان دفاعه حديدي. بنسحب التقدير
+// ناحية متوسط الدوري بوزن = ٣ مباريات وهمية، فبيهدأ لحد ما تتجمّع مباريات حقيقية كفاية.
+function _shrinkToMean(val, gp, prior){
+  if(!(gp>0)) return val;
+  const K = 3;   // "مباريات وهمية" بمتوسط الدوري
+  return (val*gp + prior*K) / (gp + K);
+}
 function teamAtkScore(k){
   const fm = state.teamForm && state.teamForm[k];
-  const gpg = (fm && fm.gp>0) ? (fm.gf/fm.gp) : null;   // أهداف مسجّلة/مباراة (الموسم ده)
+  const gp  = (fm && fm.gp) || 0;
+  const gpg = gp>0 ? (fm.gf/gp) : null;                 // أهداف مسجّلة/مباراة (الموسم ده)
   const xg  = teamAvgXG(k);                             // xG هجومي (الموسم ده)
-  if(gpg!=null && xg!=null) return gpg*0.5 + xg*0.5;
-  return (gpg!=null) ? gpg : (xg!=null ? xg : null);
+  let v = (gpg!=null && xg!=null) ? (gpg*0.5 + xg*0.5) : (gpg!=null ? gpg : (xg!=null ? xg : null));
+  if(v==null) return null;
+  return _shrinkToMean(v, gp, LEAGUE_AVG_GOALS);
 }
 function teamDefWeakScore(k){
   const fm = state.teamForm && state.teamForm[k];
-  const cpg = (fm && fm.gp>0) ? (fm.ga/fm.gp) : null;   // أهداف مستقبَلة/مباراة (الموسم ده)
+  const gp  = (fm && fm.gp) || 0;
+  const cpg = gp>0 ? (fm.ga/gp) : null;                 // أهداف مستقبَلة/مباراة (الموسم ده)
   const xgc = teamAvgXGC(k);                            // xGC (الموسم ده)
-  if(cpg!=null && xgc!=null) return cpg*0.5 + xgc*0.5;
-  return (cpg!=null) ? cpg : (xgc!=null ? xgc : null);
+  let v = (cpg!=null && xgc!=null) ? (cpg*0.5 + xgc*0.5) : (cpg!=null ? cpg : (xgc!=null ? xgc : null));
+  if(v==null) return null;
+  return _shrinkToMean(v, gp, LEAGUE_AVG_GOALS);
 }
 let _leaguePerfCache = null;
 function _leaguePerfStats(){
@@ -3886,9 +3898,10 @@ function _perfDiff(val, s, invert){
   let z = (val - s.mean)/s.std; if(invert) z = -z;
   return _clamp15(3 + z*1.15);
 }
-// وزن أداء الموسم ده حسب عدد مباريات الخصم اللي خلصت: بيوصل للسيطرة الكاملة بعد ٤ جولات.
-// (المستخدم عايز الصعوبة تعتمد على أداء الموسم ده مش تقييم الفانتازي — فبنخلّي الأداء يسيطر بدري.)
-function _perfWeight(gp){ return Math.max(0, Math.min(1, (gp||0)/4)); }
+// وزن أداء الموسم ده حسب عدد مباريات الخصم اللي خلصت: بيوصل للسيطرة الكاملة بعد ٥ جولات.
+// (بدري بيسيب مساحة لتقييم القوة/الفانتازي عشان عيّنة ٢-٣ ماتشات ماتطغاش لوحدها — والأودز
+// بتغطّي المباراة الجاية بدقة على أي حال.)
+function _perfWeight(gp){ return Math.max(0, Math.min(1, (gp||0)/5)); }
 // تحويل "الأهداف المتوقعة" (لامدا) من الأودز لصعوبة 1..5. المرجع = متوسط الدوري (1.35)،
 // و0.55 = نطاق الانتشار (لامدا 2.5 ≈ صعوبة 5، لامدا 0.5 ≈ صعوبة 1).
 function _lamToDiff(lam, invert){
