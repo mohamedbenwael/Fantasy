@@ -3805,79 +3805,91 @@ function teamAvgXG(clubKey){
 
 // ============================================================
 // ===== صعوبة المباراة بحسابنا إحنا (بدل FDR الرسمي من الفانتازي) =====
-// الفكرة: تقييم الفانتازي (1..5) خشن وأحيانًا مش مظبوط. بنحسب صعوبة خاصة بينا بندمج فيها:
-//   (1) تقييم قوة الفرق الرسمي (strength_attack/defence) — متاح من الجولة الأولى، بيتقاس نسبةً
-//       لباقي فرق الدوري (z-score) فبيطلّع فروق حقيقية مش تصنيف موحّد.
-//   (2) الأداء الفعلي: هجوم الخصم الحقيقي (xG) لصعوبة الكلين شيت، ودفاع الخصم الحقيقي (xGC)
-//       لصعوبة التسجيل — بوزن بيكبر مع تقدّم الموسم (xgConfidence) لما العينة تكبر.
+// الفكرة: بنحسب صعوبة خاصة بينا بترتيب أفضلية للمصادر:
+//   (1) الأداء الفعلي: هجوم الخصم الحقيقي (xG) لصعوبة الكلين شيت، ودفاع الخصم الحقيقي (xGC)
+//       لصعوبة التسجيل — بوزن بيكبر مع تقدّم الموسم (xgConfidence) لما العينة تكبر. ده جوهر
+//       "بطريقتنا" لأنه مبني على اللي بيحصل في الملعب فعلًا.
+//   (2) تقييم قوة الفرق التفصيلي (strength_attack/defence) لو الفانتازي وفّره فعلًا (قيمة > 0)
+//       — بيتقاس نسبةً لباقي الدوري (z-score). ⚠️ مهم: الفانتازي بيسيبها = 0 بدري في الموسم،
+//       فلازم نتعامل مع الصفر كـ"غير متوفر" مش كفريق ضعيف جدًا (ده كان بيخلي كل الصعوبات = 1).
+//   (3) لو مفيش لا ولا دي: بنرجع لتقييم الفانتازي (fdr) كخط أساس أخير (متاح دايمًا) لحد ما
+//       بياناتنا الحقيقية تتجمّع وتسيطر.
 // النتيجة رقم متصل 1..5 (1=أسهل، 5=أصعب) من منظور 'attack' أو 'defence' أو 'overall'.
 let _leagueStrCache = null;
 let _leagueXgStatsCache = null;
-function _meanStd(arr, fallbackMean, fallbackStd){
-  if(!arr || !arr.length) return { mean: fallbackMean, std: fallbackStd };
+function _clamp15(x){ return Math.max(1, Math.min(5, x)); }
+function _meanStd(arr){
+  if(!arr || arr.length<8) return null;   // محتاجين عينة معقولة من الدوري عشان الـ z-score يبقى له معنى
   const mean = arr.reduce((a,b)=>a+b,0)/arr.length;
   const varc = arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length;
-  return { mean, std: Math.sqrt(varc) || fallbackStd };
+  const std = Math.sqrt(varc);
+  return std>0 ? { mean, std, n:arr.length } : null;
 }
 function _leagueStrengthStats(){
   if(_leagueStrCache) return _leagueStrCache;
   const ts = state.teamStrength || {};
   const cols = { atkH:[], atkA:[], defH:[], defA:[] };
   Object.keys(ts).forEach(k=>{ const t=ts[k]; if(!t) return;
-    if(t.atkH) cols.atkH.push(t.atkH); if(t.atkA) cols.atkA.push(t.atkA);
-    if(t.defH) cols.defH.push(t.defH); if(t.defA) cols.defA.push(t.defA);
+    if(t.atkH>0) cols.atkH.push(t.atkH); if(t.atkA>0) cols.atkA.push(t.atkA);
+    if(t.defH>0) cols.defH.push(t.defH); if(t.defA>0) cols.defA.push(t.defA);
   });
-  _leagueStrCache = {
-    atkH:_meanStd(cols.atkH, STRENGTH_REF, 60), atkA:_meanStd(cols.atkA, STRENGTH_REF, 60),
-    defH:_meanStd(cols.defH, STRENGTH_REF, 60), defA:_meanStd(cols.defA, STRENGTH_REF, 60)
-  };
-  return _leagueStrCache;
+  _leagueStrCache = { atkH:_meanStd(cols.atkH), atkA:_meanStd(cols.atkA), defH:_meanStd(cols.defH), defA:_meanStd(cols.defA) };
+  return _leagueStrCache;   // أي عمود ممكن يبقى null لو القيم كلها صفر/ناقصة
 }
 function _leagueXgStats(){
   if(_leagueXgStatsCache) return _leagueXgStatsCache;
   const xg=[], xgc=[];
   Object.keys(CLUB_TAG||{}).forEach(k=>{ const a=teamAvgXG(k), d=teamAvgXGC(k);
     if(a!=null&&isFinite(a)) xg.push(a); if(d!=null&&isFinite(d)) xgc.push(d); });
-  _leagueXgStatsCache = { xg:(xg.length?_meanStd(xg,null,0.3):null), xgc:(xgc.length?_meanStd(xgc,null,0.3):null) };
+  _leagueXgStatsCache = { xg:_meanStd(xg), xgc:_meanStd(xgc) };
   return _leagueXgStatsCache;
 }
-// z-score → صعوبة 1..5 (كل ما القيمة أعلى من متوسط الدوري كل ما زادت الصعوبة؛ invert بتعكس)
-function _zToDiff(val, s, invert){
-  if(val==null || !isFinite(val) || !s || !s.std) return 3;
-  let z = (val - s.mean) / s.std;
-  if(invert) z = -z;
-  return Math.max(1, Math.min(5, 3 + z*1.15));   // ~0.87 انحراف معياري = درجة صعوبة كاملة
+// z-score لقيمة قوة فريق → صعوبة 1..5. بترجّع null لو القيمة مش متوفرة (<=0) أو مفيش إحصاء دوري.
+function _strDiff(val, s){
+  if(!(val>0) || !s) return null;
+  return _clamp15(3 + ((val - s.mean)/s.std)*1.15);   // ~0.87 انحراف معياري = درجة صعوبة كاملة
 }
-// f = عنصر من lookahead (فيه oppAtk*/oppDef*/isHome/oppKey). view: attack | defence | overall
+// z-score لأداء فعلي (xG/xGC) → صعوبة 1..5. invert=true للـ xGC (دفاع بيستقبل كتير = أسهل).
+function _perfDiff(val, s, invert){
+  if(val==null || !isFinite(val) || !s) return null;
+  let z = (val - s.mean)/s.std; if(invert) z = -z;
+  return _clamp15(3 + z*1.15);
+}
+// f = عنصر من lookahead (فيه oppAtk*/oppDef*/fdr/isHome/oppKey). view: attack | defence | overall
 function ownDifficulty(f, view){
   if(!f) return 3;
   view = view || 'overall';
   const s  = _leagueStrengthStats();
   const xs = _leagueXgStats();
-  const c  = xgConfidence();                       // 0 أول الموسم (قوة الفرق بس) → 1 (الأداء الفعلي يسيطر)
+  const c  = xgConfidence();                       // وزن الأداء الفعلي: 0 بدري → 1 أواخر الموسم
+  const fdrRep = _clamp15(f.fdr || 3);             // خط أساس أخير مضمون التوفّر
   const homeAdj = f.isHome ? -0.25 : 0.25;         // ميزة الأرض بتسهّل، والخارج بيصعّب
 
   // صعوبة الحفاظ على الشباك (للمدافعين/الحارس) = قوة هجوم الخصم
   function defenceDiff(){
     const oppAtk = f.isHome ? f.oppAtkAway : f.oppAtkHome;   // الخصم بيلعب على العكس مننا
-    const strD  = _zToDiff(oppAtk, f.isHome ? s.atkA : s.atkH, false);
-    const perfD = _zToDiff(f.oppKey ? teamAvgXG(f.oppKey) : null, xs.xg, false);
-    return (strD*(1-c) + perfD*c) + homeAdj;
+    let rep = _strDiff(oppAtk, f.isHome ? s.atkA : s.atkH);
+    if(rep==null) rep = fdrRep;                              // قوة الخصم مش متوفرة → تقييم الفانتازي
+    const perf = _perfDiff(f.oppKey ? teamAvgXG(f.oppKey) : null, xs.xg, false);
+    const d = (perf==null) ? rep : (rep*(1-c) + perf*c);     // مفيش أداء فعلي لسه → السمعة بس
+    return d + homeAdj;
   }
   // صعوبة التسجيل (للمهاجمين/الوسط) = قوة دفاع الخصم
   function attackDiff(){
     const oppDef = f.isHome ? f.oppDefAway : f.oppDefHome;
-    const strD  = _zToDiff(oppDef, f.isHome ? s.defA : s.defH, false);
+    let rep = _strDiff(oppDef, f.isHome ? s.defA : s.defH);
+    if(rep==null) rep = fdrRep;
     // xGC عالية للخصم = دفاعه بيستقبل كتير = أسهل نسجّل = صعوبة أقل → invert
-    const perfD = _zToDiff(f.oppKey ? teamAvgXGC(f.oppKey) : null, xs.xgc, true);
-    return (strD*(1-c) + perfD*c) + homeAdj;
+    const perf = _perfDiff(f.oppKey ? teamAvgXGC(f.oppKey) : null, xs.xgc, true);
+    const d = (perf==null) ? rep : (rep*(1-c) + perf*c);
+    return d + homeAdj;
   }
 
   let d;
   if(view==='attack') d = attackDiff();
   else if(view==='defence') d = defenceDiff();
   else d = (attackDiff() + defenceDiff()) / 2;
-  return Math.max(1, Math.min(5, d));
+  return _clamp15(d);
 }
 // متوسط صعوبتنا لأقرب 3 مباريات لنادي (حسب المنظور) — لملخّصات تقييم الفريق
 function avgOwnDiffNext3(club, view){
