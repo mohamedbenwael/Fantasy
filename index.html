@@ -3069,6 +3069,7 @@ async function buildLiveDataset(){
 
   const fixturesMap = {};
   const teamFixtures = {}; // clubKey -> { oppKey, isHome, fdr, ownDefHome/Away, oppAtkHome/Away, lookahead, avgFdrNext3 }
+  const teamForm = {};     // clubKey -> { gf, ga, gp } أهداف الموسم ده الفعلية (سُجّلت/استُقبلت + عدد المباريات)
   var provisionalBonusByElement = {};
   var hasLiveNow = false;
   try{
@@ -3207,6 +3208,16 @@ async function buildLiveDataset(){
       teamFixtures[key].lookahead = list;
       teamFixtures[key].avgFdrNext3 = avgFdr;
     });
+
+    // 📊 فورم الأهداف الفعلي للموسم ده: أهداف كل نادي سجّلها/استقبلها في المباريات اللي خلصت.
+    // ده أوضح مؤشر "أداء حقيقي" وبيتوفر من الجولة الأولى — أساس حساب الصعوبة بطريقتنا.
+    (allFx||[]).forEach(f=>{
+      if(!(f.finished || f.finished_provisional)) return;
+      if(f.team_h_score==null || f.team_a_score==null) return;
+      const hk = teamIdToKey[f.team_h], ak = teamIdToKey[f.team_a];
+      if(hk){ const t=(teamForm[hk]=teamForm[hk]||{gf:0,ga:0,gp:0}); t.gf+=f.team_h_score; t.ga+=f.team_a_score; t.gp++; }
+      if(ak){ const t=(teamForm[ak]=teamForm[ak]||{gf:0,ga:0,gp:0}); t.gf+=f.team_a_score; t.ga+=f.team_h_score; t.gp++; }
+    });
   }catch(e){}
 
   const players = elements.map(el=>{
@@ -3289,7 +3300,7 @@ async function buildLiveDataset(){
     fixtures: fixturesMap,
   };
 
-  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, teamStrength, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures, fixturesByGw: fixturesByGw };
+  return { players, gwInfo, clubTag, clubName, clubCode, teamFixtures, teamStrength, teamForm, totalManagers, live: hasLiveNow, fixturesList: parsedFixtures, fixturesByGw: fixturesByGw };
 }
 
 // ===== إشعارات أحداث اللاعبين اللحظية =====
@@ -3441,6 +3452,7 @@ function applyLiveDataset(d){
   CLUB_CODE = d.clubCode || {};
   state.teamFixtures = d.teamFixtures || {};
   state.teamStrength = d.teamStrength || {};
+  state.teamForm = d.teamForm || {};
   if(typeof resetEngineCaches === 'function') resetEngineCaches(); // تصفير كاش المحرك (xGC لكل نادي) مع كل تحديث بيانات
   state.totalManagers = d.totalManagers || 0;
   state.hasLiveFixtures = d.live || false;
@@ -3472,6 +3484,7 @@ let state = {
   gwInfo:null,         // live shared gameweek info
   teamFixtures:{},     // live shared team strength/FDR data (لمحرك التوقعات)
   teamStrength:{},     // قوة هجوم/دفاع كل نادي (أرض/خارج) — أساس حساب الصعوبة بطريقتنا
+  teamForm:{},         // أهداف الموسم ده الفعلية لكل نادي {gf,ga,gp} — أهم مصدر لحساب الصعوبة
   totalManagers:0,     // إجمالي عدد مديري الفانتازي (لمؤشر توقع تغيير الأسعار)
   deviceId:null, managerName:'', teamName:'',
   mySquadIds:[],        // [{id, slot}]
@@ -3775,7 +3788,7 @@ let _teamXgCache = {};
 // وكان بيتكرر مئات المرات في كل رسم لجدول اللاعبين. الحفظ ده بيخلي الفرز/البحث/الرسم سريع جدًا.
 let _predMemo = {};
 let _projMemo = {};
-function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; _predMemo = {}; _projMemo = {}; _leagueStrCache = null; _leagueXgStatsCache = null; }
+function resetEngineCaches(){ _teamXgcCache = {}; _teamXgCache = {}; _predMemo = {}; _projMemo = {}; _leagueStrCache = null; _leagueXgStatsCache = null; _leaguePerfCache = null; }
 
 // متوسط الأهداف المتوقع استقبالها (xGC90) لدفاع النادي — من مدافعينه/حارسه اللي لعبوا فعليًا.
 // ده أقوى مؤشر على جودة الدفاع الحقيقية (مش بس تصنيف FPL الثابت). بيرجع null لو مفيش عينة كافية.
@@ -3836,52 +3849,75 @@ function _leagueStrengthStats(){
   _leagueStrCache = { atkH:_meanStd(cols.atkH), atkA:_meanStd(cols.atkA), defH:_meanStd(cols.defH), defA:_meanStd(cols.defA) };
   return _leagueStrCache;   // أي عمود ممكن يبقى null لو القيم كلها صفر/ناقصة
 }
-function _leagueXgStats(){
-  if(_leagueXgStatsCache) return _leagueXgStatsCache;
-  const xg=[], xgc=[];
-  Object.keys(CLUB_TAG||{}).forEach(k=>{ const a=teamAvgXG(k), d=teamAvgXGC(k);
-    if(a!=null&&isFinite(a)) xg.push(a); if(d!=null&&isFinite(d)) xgc.push(d); });
-  _leagueXgStatsCache = { xg:_meanStd(xg), xgc:_meanStd(xgc) };
-  return _leagueXgStatsCache;
+// ===== أداء الموسم ده الفعلي لكل نادي (أهم مصدر للصعوبة) =====
+// قوة هجوم النادي = أهدافه المسجّلة/مباراة مدموجة مع xG بتاعه (الاتنين أداء الموسم ده).
+// قوة "ضعف الدفاع" = أهدافه المستقبَلة/مباراة مدموجة مع xGC. (كل ما زادت = دفاع أضعف = أسهل نسجّل عليه).
+function teamAtkScore(k){
+  const fm = state.teamForm && state.teamForm[k];
+  const gpg = (fm && fm.gp>0) ? (fm.gf/fm.gp) : null;   // أهداف مسجّلة/مباراة (الموسم ده)
+  const xg  = teamAvgXG(k);                             // xG هجومي (الموسم ده)
+  if(gpg!=null && xg!=null) return gpg*0.5 + xg*0.5;
+  return (gpg!=null) ? gpg : (xg!=null ? xg : null);
+}
+function teamDefWeakScore(k){
+  const fm = state.teamForm && state.teamForm[k];
+  const cpg = (fm && fm.gp>0) ? (fm.ga/fm.gp) : null;   // أهداف مستقبَلة/مباراة (الموسم ده)
+  const xgc = teamAvgXGC(k);                            // xGC (الموسم ده)
+  if(cpg!=null && xgc!=null) return cpg*0.5 + xgc*0.5;
+  return (cpg!=null) ? cpg : (xgc!=null ? xgc : null);
+}
+let _leaguePerfCache = null;
+function _leaguePerfStats(){
+  if(_leaguePerfCache) return _leaguePerfCache;
+  const atk=[], def=[];
+  Object.keys(CLUB_TAG||{}).forEach(k=>{ const a=teamAtkScore(k), d=teamDefWeakScore(k);
+    if(a!=null&&isFinite(a)) atk.push(a); if(d!=null&&isFinite(d)) def.push(d); });
+  _leaguePerfCache = { atk:_meanStd(atk), def:_meanStd(def) };
+  return _leaguePerfCache;
 }
 // z-score لقيمة قوة فريق → صعوبة 1..5. بترجّع null لو القيمة مش متوفرة (<=0) أو مفيش إحصاء دوري.
 function _strDiff(val, s){
   if(!(val>0) || !s) return null;
   return _clamp15(3 + ((val - s.mean)/s.std)*1.15);   // ~0.87 انحراف معياري = درجة صعوبة كاملة
 }
-// z-score لأداء فعلي (xG/xGC) → صعوبة 1..5. invert=true للـ xGC (دفاع بيستقبل كتير = أسهل).
+// z-score لأداء الموسم ده → صعوبة 1..5. invert=true لضعف الدفاع (بيستقبل كتير = أسهل نسجّل = أسهل).
 function _perfDiff(val, s, invert){
   if(val==null || !isFinite(val) || !s) return null;
   let z = (val - s.mean)/s.std; if(invert) z = -z;
   return _clamp15(3 + z*1.15);
 }
+// وزن أداء الموسم ده حسب عدد مباريات الخصم اللي خلصت: بيوصل للسيطرة الكاملة بعد ٤ جولات.
+// (المستخدم عايز الصعوبة تعتمد على أداء الموسم ده مش تقييم الفانتازي — فبنخلّي الأداء يسيطر بدري.)
+function _perfWeight(gp){ return Math.max(0, Math.min(1, (gp||0)/4)); }
 // f = عنصر من lookahead (فيه oppAtk*/oppDef*/fdr/isHome/oppKey). view: attack | defence | overall
 function ownDifficulty(f, view){
   if(!f) return 3;
   view = view || 'overall';
   const s  = _leagueStrengthStats();
-  const xs = _leagueXgStats();
-  const c  = xgConfidence();                       // وزن الأداء الفعلي: 0 بدري → 1 أواخر الموسم
+  const ps = _leaguePerfStats();
+  const oppK = f.oppKey;
+  const oppGp = (oppK && state.teamForm && state.teamForm[oppK]) ? (state.teamForm[oppK].gp||0) : 0;
+  const w  = _perfWeight(oppGp);                    // وزن أداء الموسم ده (بيكبر بسرعة مع المباريات)
   const fdrRep = _clamp15(f.fdr || 3);             // خط أساس أخير مضمون التوفّر
   const homeAdj = f.isHome ? -0.25 : 0.25;         // ميزة الأرض بتسهّل، والخارج بيصعّب
 
-  // صعوبة الحفاظ على الشباك (للمدافعين/الحارس) = قوة هجوم الخصم
+  // صعوبة الحفاظ على الشباك (للمدافعين/الحارس) = خطورة هجوم الخصم
   function defenceDiff(){
-    const oppAtk = f.isHome ? f.oppAtkAway : f.oppAtkHome;   // الخصم بيلعب على العكس مننا
-    let rep = _strDiff(oppAtk, f.isHome ? s.atkA : s.atkH);
-    if(rep==null) rep = fdrRep;                              // قوة الخصم مش متوفرة → تقييم الفانتازي
-    const perf = _perfDiff(f.oppKey ? teamAvgXG(f.oppKey) : null, xs.xg, false);
-    const d = (perf==null) ? rep : (rep*(1-c) + perf*c);     // مفيش أداء فعلي لسه → السمعة بس
+    // السمعة: قوة هجوم الخصم التفصيلية لو متوفرة، وإلا تقييم الفانتازي
+    let rep = _strDiff(f.isHome ? f.oppAtkAway : f.oppAtkHome, f.isHome ? s.atkA : s.atkH);
+    if(rep==null) rep = fdrRep;
+    // الأداء الفعلي الموسم ده: هجوم الخصم (أهداف مسجّلة + xG)
+    const perf = _perfDiff(oppK ? teamAtkScore(oppK) : null, ps.atk, false);
+    const d = (perf==null) ? rep : (rep*(1-w) + perf*w);   // الأداء بيسيطر مع مرور الجولات
     return d + homeAdj;
   }
   // صعوبة التسجيل (للمهاجمين/الوسط) = قوة دفاع الخصم
   function attackDiff(){
-    const oppDef = f.isHome ? f.oppDefAway : f.oppDefHome;
-    let rep = _strDiff(oppDef, f.isHome ? s.defA : s.defH);
+    let rep = _strDiff(f.isHome ? f.oppDefAway : f.oppDefHome, f.isHome ? s.defA : s.defH);
     if(rep==null) rep = fdrRep;
-    // xGC عالية للخصم = دفاعه بيستقبل كتير = أسهل نسجّل = صعوبة أقل → invert
-    const perf = _perfDiff(f.oppKey ? teamAvgXGC(f.oppKey) : null, xs.xgc, true);
-    const d = (perf==null) ? rep : (rep*(1-c) + perf*c);
+    // الأداء الفعلي الموسم ده: ضعف دفاع الخصم (أهداف مستقبَلة + xGC) → invert
+    const perf = _perfDiff(oppK ? teamDefWeakScore(oppK) : null, ps.def, true);
+    const d = (perf==null) ? rep : (rep*(1-w) + perf*w);
     return d + homeAdj;
   }
 
@@ -7224,7 +7260,7 @@ function fdrGridBlock(){
     '<thead><tr><th class="tm">النادي</th>' + headGw + '<th>السهولة</th></tr></thead>' +
     '<tbody>' + bodyRows + '</tbody>' +
   '</table></div>' +
-  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا (قوة الفرق + الأداء الفعلي xG/xGC) مش تقييم الفانتازي. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب)، و«السهولة» = مجموع سهولة أقرب ٥ جولات.</div>';
+  '<div class="tool-count" style="margin:10px 20px 20px;">الصعوبة محسوبة بطريقتنا على أساس <b>أداء الموسم ده الفعلي</b> (الأهداف اللي كل فريق سجّلها/استقبلها + xG)، وبتسيطر تمامًا بعد ٤ جولات؛ بدري في الموسم بتكمّل بتقييم القوة/الفانتازي لحد ما البيانات تتجمّع. «للهجوم» = صعوبة التسجيل (دفاع الخصم)، «للدفاع» = صعوبة الكلين شيت (هجوم الخصم). الرقم جوه الخانة صعوبة الماتش (١ أسهل، ٥ أصعب).</div>';
 }
 
 function renderFdrTicker(){
