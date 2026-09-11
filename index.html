@@ -4103,10 +4103,19 @@ async function loadOddsModel(){
 
     const map = {};
     let unmatched = [];
-    raw.forEach(m=>{
+    // 🔑 مهم: شركات الرهان بتسعّر أكتر من جولة قدّام أحيانًا. لازم ناخد لكل فريق ماتشه
+    // الأقرب (الجولة الجاية) مش أي ماتش. فبنرتّب حسب وقت البداية تصاعديًا، وأول ماتش لكل
+    // فريق (الأقرب) هو اللي بيتسجّل — عشان الأودز تقع على الجولة الصح مش جولة بعدها.
+    const rawSorted = raw.slice().sort((a,b)=>{
+      const ta = a && a.commence_time ? Date.parse(a.commence_time) : 0;
+      const tb = b && b.commence_time ? Date.parse(b.commence_time) : 0;
+      return ta - tb;
+    });
+    rawSorted.forEach(m=>{
       const home=m.home_team, away=m.away_team;
       const hKey=_matchOddsTeam(home), aKey=_matchOddsTeam(away);
       if(!hKey||!aKey){ if(!hKey) unmatched.push(home); if(!aKey) unmatched.push(away); return; }
+      if(map[hKey] && map[aKey]) return;   // الفريقين ليهم ماتش أقرب اتسجّل بالفعل
       // نجمّع الأسعار عبر كل شركات الرهان (وسيط)
       const hP=[],dP=[],aP=[],ovP=[],unP=[];
       (m.bookmakers||[]).forEach(bk=>{
@@ -4126,9 +4135,10 @@ async function loadOddsModel(){
       if(mov!=null && mun!=null){ pUnder=_devig([mov,mun])[1]; }
       const fit=_fitLambdas(pH,pD,pA,pUnder);
       if(!fit) return;
-      // للفريق صاحب الأرض: يستقبل la (أهداف الخارج)، يسجّل lh
-      map[hKey] = { lamConcede:fit.la, lamScore:fit.lh, oppKey:aKey, isHome:true,  csProb:Math.exp(-fit.la) };
-      map[aKey] = { lamConcede:fit.lh, lamScore:fit.la, oppKey:hKey, isHome:false, csProb:Math.exp(-fit.lh) };
+      // للفريق صاحب الأرض: يستقبل la (أهداف الخارج)، يسجّل lh — بنسجّل بس لو الفريق لسه
+      // ماخدش ماتش أقرب (عشان أول ماتش = الأقرب هو اللي يفضل)
+      if(!map[hKey]) map[hKey] = { lamConcede:fit.la, lamScore:fit.lh, oppKey:aKey, isHome:true,  csProb:Math.exp(-fit.la) };
+      if(!map[aKey]) map[aKey] = { lamConcede:fit.lh, lamScore:fit.la, oppKey:hKey, isHome:false, csProb:Math.exp(-fit.lh) };
     });
     if(unmatched.length){ try{ console.warn('أودز: فرق لم تُطابَق:', unmatched.join(', ')); }catch(e){} }
     state.oddsByClub = map;
