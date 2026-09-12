@@ -4449,6 +4449,10 @@ function blendedFixturePoints(p, fx, isImmediate){
   const stat = fixtureExpectedPoints(p, fx);
   const cls  = classBaseline(p);
   const isEarlySeason = state.gwInfo && state.gwInfo.current <= 3;
+  // للحارس/المدافع: نقطهم أساسها الكلين شيت اللي بيعتمد على الخصم بالكامل — فالفورم (نقط سابقة)
+  // مش مؤشر كويس (كلين شيت ضد فرق ضعيفة ما يتنبّأش بكلين شيت ضد تشيلسي). فبنخلي توقّعهم
+  // يعتمد بالأساس على stat (محرك الكلين شيت الواعي بالخصم) ونقلّل وزن الفورم.
+  const isDef = (p.pos==='GK' || p.pos==='DEF');
 
   let base;
   if(isImmediate){
@@ -4463,7 +4467,9 @@ function blendedFixturePoints(p, fx, isImmediate){
         base = isDefPos ? (cls*0.3) + (stat*0.7) : (cls*0.6) + (stat*0.4);
       }
     } else if(p.epNext && p.epNext>0 && p.formWeighted>0){
-      base = (p.epNext*0.35) + (stat*0.40) + (p.formWeighted*0.25);
+      base = isDef
+        ? (p.epNext*0.30) + (stat*0.60) + (p.formWeighted*0.10)   // دفاع: الكلين شيت (stat) هو الأساس، الفورم إشارة صغيرة
+        : (p.epNext*0.35) + (stat*0.40) + (p.formWeighted*0.25);
     } else if(p.epNext && p.epNext>0){
       base = (p.epNext*0.45) + (stat*0.55);
     } else if(p.formWeighted>0){
@@ -4483,7 +4489,9 @@ function blendedFixturePoints(p, fx, isImmediate){
     if(isEarlySeason){
       base = ((cls*0.55) + (stat*0.45)) * (0.7 + 0.3*fxAtk);
     } else if(p.formWeighted>0){
-      base = (stat*0.6) + (p.formWeighted*0.4*fxAtk);
+      base = isDef
+        ? (stat*0.85) + (p.formWeighted*0.15)                 // دفاع: الأفق يعتمد على صعوبة كل ماتش مش الفورم
+        : (stat*0.6) + (p.formWeighted*0.4*fxAtk);
     } else {
       base = stat>0 ? stat : (cls*0.5*fxAtk);
     }
@@ -4620,6 +4628,10 @@ function inFormRanking(limit){
 function bestTransferSuggestions(horizon){
   const N = horizon || 5;
   const owned = new Set(state.mySquadIds.map(e=>e.id));
+  // 🎯 قيمة الانتقال = ٦٠٪ إسقاط ٥ جولات + ٤٠٪ الماتش الجاي (مضروب في N عشان يبقى على نفس المقياس).
+  // ده بيوزن الجولة الجاية أكتر — عشان مانرشّحش بيع لاعب قدّامه ماتش سهل (زي حارس قدّام كوفنتري)
+  // وشراء واحد قدّامه أصعب ماتش (زي حارس قدّام تشيلسي) لمجرد إن فورمه/رنّه البعيد أحسن.
+  const tScore = p => 0.6*projectedPointsHorizon(p, N).total + 0.4*predictedPoints(p)*N;
   const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
   pool().forEach(p=>{
     if(availabilityMultiplier(p) <= 0) return;
@@ -4628,13 +4640,13 @@ function bestTransferSuggestions(horizon){
     byPos[p.pos].push(p);
   });
   Object.keys(byPos).forEach(k=>{
-    byPos[k].forEach(p=>{ p._proj = projectedPointsHorizon(p, N).total; });
+    byPos[k].forEach(p=>{ p._proj = tScore(p); });
     byPos[k].sort((a,b)=>b._proj - a._proj);
   });
 
   const suggestions = [];
   squad().forEach(sellP=>{
-    const sellProj = projectedPointsHorizon(sellP, N).total;
+    const sellProj = tScore(sellP);
     const budget = (state.bank||0) + sellP.price;
     const list = byPos[sellP.pos] || [];
     let bestBuy = null, bestGain = 0;
