@@ -4413,14 +4413,20 @@ function _blendRecent(seasonVal, recentVal, n){
 }
 function effXG90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xG90||0, f.xg90, f.n) : (p.xG90||0); }
 function effXA90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xA90||0, f.xa90, f.n) : (p.xA90||0); }
-// عامل الدقايق: الدقايق الحديثة أدق مؤشر لدقايق الجولة الجاية من نسبة التأسيس الموسمية
+// عامل الدقايق: الدقايق الحديثة أدق مؤشر لدقايق الجولة الجاية من نسبة التأسيس الموسمية.
+// مهم: startsFactor محسوب دايمًا (نسبة مباريات اللاعب للجولات). لو = 0 يبقى اللاعب مش بيلعب
+// أساسي — منستخدمش fallback الـ 0.6 (اللي كان بيدّي لاعب لعب 11 دقيقة عامل 0.6 كأنه أساسي!).
+// الـ fallback بس لو startsFactor مش متوفر خالص (null).
 function effStartsFactor(p){
-  const base = (p.startsFactor!=null && p.startsFactor>0) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
+  let base = (p.startsFactor!=null) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
   const f=_recentForm(p);
   if(!f || f.n<2) return base;
   const recentStartRatio = Math.max(0, Math.min(1, f.starts/Math.max(1,f.n)));
   return base*0.4 + recentStartRatio*0.6;
 }
+// ثقة العينة حسب إجمالي الدقايق: أرقام "لكل 90" من عيّنة صغيرة (زي 11 دقيقة) وهمية — بنقلّل
+// وزنها. ~240 دقيقة (≈ 2.7 ماتش كامل) = ثقة كاملة؛ 11 دقيقة ≈ 0.05 (يعني نتجاهلها تقريبًا).
+function _minsConf(p){ return Math.max(0, Math.min(1, (p.minutes||0) / 240)); }
 
 // 🔑 جوهر الدقة: توقع نقاط اللاعب في مباراة واحدة محددة — بيفصل بين:
 //   • نقط الظهور: ثابتة، مش بتتأثر بصعوبة الخصم إطلاقًا (الخطأ القديم كان بيضرب FDR في كل النقط)
@@ -4557,7 +4563,8 @@ function blendedFixturePoints(p, fx, isImmediate){
   // بيحسم حالات زي تافيرنييه (xGI 0.61) مقابل سكوت (0.21) لصالح صاحب الأرقام الأقوى.
   if(p.pos === 'MID' || p.pos === 'FWD'){
     const xgi90 = (p.xG90||0) + (p.xA90||0);
-    base += Math.max(-0.6, Math.min(1.2, (xgi90 - 0.30) * 1.2));
+    // × ثقة العينة: بونص الأرقام التحتية مايتصدّقش من لاعب لعب دقايق قليلة (per-90 وهمية)
+    base += Math.max(-0.6, Math.min(1.2, (xgi90 - 0.30) * 1.2)) * _minsConf(p);
   }
 
   // ⚖️ صعوبة الكلين شيت تحكم توقّع الحارس/المدافع — و"خطر الخصم" هو المُسيطر، مش سجل الفريق السابق.
