@@ -4009,9 +4009,10 @@ const REAL_FORM_WEIGHT_MIN = 0.35;
 // عشان صعوبة المباراة (الخصم) توزن أكتر في نقط المدافع بدري في الموسم بدل ما تبقى شبه ثابتة.
 const DEF_STAT_BLEND = { cls:0.15, ep:0.30, stat:0.55 };
 // PERF_CONF_MIN: الحد الأدنى للثقة في إحصائيات اللاعب الفردية (xG/xA/بونص) بدري في الموسم.
-// 0.30 = أول الموسم بناخد ~ثلث قيمة إحصائيات الماتش الواحد بس (الباقي بيعتمد على ep_next/الفئة)،
-// وبتكبر لـ 1 حوالي الجولة 9. بيمنع هاتريك/أسيست الجولة الواحدة إنه يضخّم توقع اللاعب.
-const PERF_CONF_MIN = 0.30;
+// رفعناه لـ 0.45 عشان الأرقام التحتية (xGI) توزن أكتر وبدري — ده اللي بيخلّي المحرك يفضّل
+// لاعب أرقامه التحتية قوية (زي تافيرنييه) على لاعب نقطه لمعت فوق مستواه (بيهدأ). لسه بيمنع
+// طفرة الماتش الواحد إنها تطغى تمامًا، بس بيثق في الاستحقاق الحقيقي أسرع.
+const PERF_CONF_MIN = 0.45;
 
 // ============================================================
 // 🎯 محرك أودز الرهان (Bookmaker Odds) — "حكمة السوق" أدق مصدر لاحتمالات المباراة
@@ -4469,7 +4470,7 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else if(p.epNext && p.epNext>0 && p.formWeighted>0){
       base = isDef
         ? (p.epNext*0.30) + (stat*0.60) + (p.formWeighted*0.10)   // دفاع: الكلين شيت (stat) هو الأساس، الفورم إشارة صغيرة
-        : (p.epNext*0.35) + (stat*0.40) + (p.formWeighted*0.25);
+        : (p.epNext*0.20) + (stat*0.60) + (p.formWeighted*0.20);   // هجوم: الأرقام التحتية (xGI جوه stat) هي الأساس، مش النقط اللي جابها
     } else if(p.epNext && p.epNext>0){
       base = (p.epNext*0.45) + (stat*0.55);
     } else if(p.formWeighted>0){
@@ -4490,7 +4491,7 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else if(p.formWeighted>0){
       base = isDef
         ? (stat*0.85) + (p.formWeighted*0.15)                 // دفاع: الأفق يعتمد على صعوبة كل ماتش مش الفورم
-        : (stat*0.6) + (p.formWeighted*0.4*fxAtk);
+        : (stat*0.72) + (p.formWeighted*0.28*fxAtk);          // هجوم: الأرقام التحتية (xGI) هي الأساس، الفورم أقل
     } else {
       base = stat>0 ? stat : (cls*0.5*fxAtk);
     }
