@@ -4477,12 +4477,11 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else {
       base = stat>0 ? stat : cls;
     }
-    // تأثير السوق (حكمة الجمهور) — إشارة قصيرة المدى للجولة الجاية بس، بوزن مخفّض (كان مبالغ فيه قبل كده)
+    // تأثير السوق (حكمة الجمهور) — بقى مجرد كسر تعادل بسيط جدًا، مش محرّك للتوقّع. التوقّع
+    // المفروض يعتمد على الأداء + الخصم + الأودز، مش على إن الناس بتشتري/تبيع اللاعب. وشِلنا
+    // تضخيم أول الموسم لأنه بالظبط وقت هجمة الجمهور على لاعيبة الفرق الصاعدة (إشارة مضلّلة).
     const net = (p.transfersInEvent||0) - (p.transfersOutEvent||0);
-    let marketBonus = 0;
-    if(net!==0) marketBonus = Math.max(-1.2, Math.min(1.2, (net/40000) * 0.25));
-    if(isEarlySeason) marketBonus *= 1.3;
-    base += marketBonus;
+    if(net!==0) base += Math.max(-0.35, Math.min(0.35, (net/40000) * 0.08));
   } else {
     // جولات أبعد: مفيش ep_next مخصص ليها → الإحصائي هو الأساس، مع مرساة فئة بصعوبة الجولة دي
     const fxAtk = fx ? attackMultiplier(fx) : 1;
