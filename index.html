@@ -4470,7 +4470,7 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else if(p.epNext && p.epNext>0 && p.formWeighted>0){
       base = isDef
         ? (p.epNext*0.30) + (stat*0.60) + (p.formWeighted*0.10)   // دفاع: الكلين شيت (stat) هو الأساس، الفورم إشارة صغيرة
-        : (p.epNext*0.20) + (stat*0.60) + (p.formWeighted*0.20);   // هجوم: الأرقام التحتية (xGI جوه stat) هي الأساس، مش النقط اللي جابها
+        : (p.epNext*0.15) + (stat*0.70) + (p.formWeighted*0.15);   // هجوم: الأرقام التحتية (xGI جوه stat) هي المُسيطرة، مش النقط اللي جابها
     } else if(p.epNext && p.epNext>0){
       base = (p.epNext*0.45) + (stat*0.55);
     } else if(p.formWeighted>0){
@@ -4482,7 +4482,7 @@ function blendedFixturePoints(p, fx, isImmediate){
     // المفروض يعتمد على الأداء + الخصم + الأودز، مش على إن الناس بتشتري/تبيع اللاعب. وشِلنا
     // تضخيم أول الموسم لأنه بالظبط وقت هجمة الجمهور على لاعيبة الفرق الصاعدة (إشارة مضلّلة).
     const net = (p.transfersInEvent||0) - (p.transfersOutEvent||0);
-    if(net!==0) base += Math.max(-0.35, Math.min(0.35, (net/40000) * 0.08));
+    if(net < 0) base += Math.max(-0.4, (net/40000) * 0.10);   // بيع جماعي كبير بس → خصم بسيط (تنبيه إصابة مبكّر). مفيش بونص للشراء الجماعي.
   } else {
     // جولات أبعد: مفيش ep_next مخصص ليها → الإحصائي هو الأساس، مع مرساة فئة بصعوبة الجولة دي
     const fxAtk = fx ? attackMultiplier(fx) : 1;
@@ -4491,7 +4491,7 @@ function blendedFixturePoints(p, fx, isImmediate){
     } else if(p.formWeighted>0){
       base = isDef
         ? (stat*0.85) + (p.formWeighted*0.15)                 // دفاع: الأفق يعتمد على صعوبة كل ماتش مش الفورم
-        : (stat*0.72) + (p.formWeighted*0.28*fxAtk);          // هجوم: الأرقام التحتية (xGI) هي الأساس، الفورم أقل
+        : (stat*0.82) + (p.formWeighted*0.18*fxAtk);          // هجوم: الأرقام التحتية (xGI) هي المُسيطرة، الفورم إشارة صغيرة
     } else {
       base = stat>0 ? stat : (cls*0.5*fxAtk);
     }
