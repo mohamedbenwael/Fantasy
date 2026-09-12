@@ -2041,6 +2041,60 @@
     font-size:12.5px; padding:10px 6px; border-radius:10px; cursor:pointer; transition:all .16s; -webkit-tap-highlight-color:transparent; }
   .fx-seg .fxs.on{ background:linear-gradient(135deg,var(--primary),var(--primary-deep)); color:#fff;
     box-shadow:0 3px 10px rgba(233,0,82,0.28); }
+  .fx-seg .fxs{ font-size:11.5px; padding:10px 4px; }
+
+  /* ---------- جدول ترتيب الدوري ---------- */
+  .lg-wrap{ margin:0 14px 20px; overflow-x:auto; border-radius:14px; border:1px solid var(--card-line); background:var(--card); }
+  .lg-tbl{ width:100%; min-width:340px; border-collapse:collapse; font-family:'Cairo'; }
+  .lg-tbl th{ font-size:9.5px; color:var(--muted); font-weight:800; padding:8px 3px; text-align:center; background:var(--card-2); }
+  .lg-tbl th.tm{ text-align:start; padding-inline-start:34px; }
+  .lg-tbl td{ font-size:11.5px; color:var(--text); padding:9px 3px; text-align:center; border-top:1px solid rgba(255,255,255,0.05); }
+  .lg-row{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .lg-row:active{ background:rgba(255,255,255,0.03); }
+  .lg-pos{ width:26px; font-weight:900; color:var(--muted); position:relative; }
+  .lg-row.zone-ucl .lg-pos::before, .lg-row.zone-uel .lg-pos::before, .lg-row.zone-rel .lg-pos::before{
+    content:''; position:absolute; inset-inline-start:0; top:6px; bottom:6px; width:3px; border-radius:2px; }
+  .lg-row.zone-ucl .lg-pos::before{ background:var(--easy-green); }
+  .lg-row.zone-uel .lg-pos::before{ background:var(--gold); }
+  .lg-row.zone-rel .lg-pos::before{ background:var(--coral); }
+  .lg-td-team{ text-align:start; }
+  .lg-team{ display:flex; align-items:center; gap:8px; }
+  .lg-team img{ width:20px; height:20px; flex:0 0 auto; }
+  .lg-team span{ font-weight:800; font-size:12px; color:var(--text); }
+  .lg-pts{ font-weight:900; color:var(--text); }
+  .lg-gd-pos{ color:var(--easy-green); } .lg-gd-neg{ color:var(--coral); }
+  .lg-legend{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin:0 20px 10px; font-family:'Cairo'; font-size:9.5px; color:var(--muted); font-weight:700; }
+  .lg-legend .lgd{ display:inline-flex; align-items:center; gap:4px; }
+  .lg-legend .sw{ width:10px; height:10px; border-radius:3px; }
+  .lg-live{ display:inline-flex; align-items:center; gap:5px; color:var(--coral); font-weight:800; font-size:11px; justify-content:center; margin:0 20px 10px; }
+  [data-viewclub]{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+
+  /* ---------- بروفايل النادي ---------- */
+  .cm-hd{ display:flex; align-items:center; gap:13px; margin-bottom:16px; }
+  .cm-hd img{ width:48px; height:48px; flex:0 0 auto; }
+  .cm-nm{ font-family:'Cairo'; font-weight:900; font-size:19px; color:var(--text); }
+  .cm-sub{ font-size:11.5px; color:var(--muted); font-weight:700; margin-top:3px; }
+  .cm-stats{ display:flex; gap:7px; margin-bottom:12px; }
+  .cm-stat{ flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--card-line); border-radius:12px; padding:9px 3px; text-align:center; }
+  .cm-stat .v{ font-family:'Cairo'; font-weight:900; font-size:16px; color:var(--text); }
+  .cm-stat .l{ font-size:9px; color:var(--muted); font-weight:700; margin-top:3px; }
+  .cm-rankrow{ display:flex; gap:8px; margin-bottom:8px; }
+  .cm-rank{ flex:1; border-radius:12px; padding:10px 6px; text-align:center; font-family:'Cairo'; font-weight:800; font-size:11.5px; border:1px solid var(--card-line); }
+  .cm-rank .rk{ font-size:17px; font-weight:900; display:block; margin-bottom:2px; }
+  .cm-rank.atk{ background:rgba(61,214,140,0.10); color:var(--easy-green); }
+  .cm-rank.def{ background:rgba(88,166,255,0.10); color:#58a6ff; }
+  .cm-sechd{ font-family:'Cairo'; font-weight:800; font-size:12.5px; color:var(--text); margin:16px 0 8px; }
+  .cm-res{ display:flex; align-items:center; gap:9px; padding:8px 2px; border-top:1px solid rgba(255,255,255,0.05); font-size:12px; color:var(--text); }
+  .cm-res .gwk{ font-size:9.5px; color:var(--muted); font-weight:700; width:28px; flex:0 0 auto; }
+  .cm-res img{ width:20px; height:20px; flex:0 0 auto; }
+  .cm-res .opp{ flex:1; font-weight:700; }
+  .cm-res .sc{ font-family:'Cairo'; font-weight:900; }
+  .cm-res .ha{ font-size:9px; color:var(--muted); font-weight:700; width:26px; text-align:center; flex:0 0 auto; }
+  .cm-wdl{ width:19px; height:19px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:10px; color:#fff; flex:0 0 auto; }
+  .cm-wdl.w{ background:var(--easy-green); color:#04321B; } .cm-wdl.d{ background:var(--mid-grey); } .cm-wdl.l{ background:var(--coral); }
+  .cm-nx{ display:flex; gap:6px; flex-wrap:wrap; }
+  .cm-nx .nxc{ min-width:52px; border-radius:9px; padding:6px 5px; text-align:center; font-family:'Cairo'; }
+  .cm-nx .nxc .op{ font-weight:800; font-size:11px; } .cm-nx .nxc .hh{ font-size:8px; opacity:.85; margin-top:1px; }
 
   /* ---------- أدوات سريعة في الشاشة الرئيسية ---------- */
   .qtools{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:2px 20px 14px; }
@@ -3511,7 +3565,7 @@ let state = {
   _pushKey:null,          // مفتاح الاشتراك المحفوظ في Supabase
   _pushPlayersHash:'',    // بصمة لاعيبة المستخدم آخر مرة اتسجّلت (عشان نحدّث بس لو اتغيّرت)
   flash:null,
-  viewPlayerId:null, profileBack:'home', viewMatchId:null, viewBreakdownPlayerId:null, viewBreakdownGw:null,
+  viewPlayerId:null, profileBack:'home', viewMatchId:null, viewClubKey:null, viewBreakdownPlayerId:null, viewBreakdownGw:null,
   activeChip:null,      // الشيب المُفعّل في الجولة الحالية (من الفانتازي): 3xc/bboost/wildcard/freehit
   // ===== تصفّح الجولات (آلة الزمن) =====
   viewGw:null,          // الجولة اللي بنعرضها دلوقتي (null = اتبع الجولة الحالية تلقائيًا)
@@ -4841,6 +4895,19 @@ function dreamTeamXI(){
 
   if(byPos.GK.length<1) return null;
 
+  // بياخد أعلى `count` لاعبين من مركز مرتّب، مع احترام حد ٣ لاعبين لكل نادي (زي الفانتازي الحقيقي).
+  // بيحدّث عدّاد الأندية المشترك عشان القيد يسري على التشكيلة كلها.
+  function pickTop(arr, count, clubCount){
+    const out = [];
+    for(let i=0;i<arr.length && out.length<count;i++){
+      const c = arr[i].p.club;
+      if((clubCount[c]||0) >= MAX_PER_CLUB) continue;   // النادي وصل ٣ لاعيبة → نتخطّاه
+      clubCount[c] = (clubCount[c]||0) + 1;
+      out.push(arr[i]);
+    }
+    return out;
+  }
+
   let best = null;
   for(let def=FORMATION_RULES.DEF.min; def<=FORMATION_RULES.DEF.max; def++){
     for(let mid=FORMATION_RULES.MID.min; mid<=FORMATION_RULES.MID.max; mid++){
@@ -4848,7 +4915,16 @@ function dreamTeamXI(){
       if(fwd < FORMATION_RULES.FWD.min || fwd > FORMATION_RULES.FWD.max) continue;
       if(byPos.DEF.length<def || byPos.MID.length<mid || byPos.FWD.length<fwd) continue;
 
-      const picks = [].concat(byPos.GK.slice(0,1), byPos.DEF.slice(0,def), byPos.MID.slice(0,mid), byPos.FWD.slice(0,fwd));
+      // بنملأ المراكز الأعلى قيمة الأول (هجوم ← وسط ← دفاع ← حراسة) عشان نادي قوي ياخد
+      // أفضل ٣ لاعيبة له (غالبًا مهاجمين/وسط) بدل ما يستهلك حصته في حارس/مدافع أقل قيمة.
+      const clubCount = {};
+      const fwdP = pickTop(byPos.FWD, fwd, clubCount);
+      const midP = pickTop(byPos.MID, mid, clubCount);
+      const defP = pickTop(byPos.DEF, def, clubCount);
+      const gkP  = pickTop(byPos.GK, 1, clubCount);
+      if(gkP.length<1 || defP.length<def || midP.length<mid || fwdP.length<fwd) continue; // مقدرناش نملأ التشكيلة بالقيد
+
+      const picks = [].concat(gkP, defP, midP, fwdP);
       const total = picks.reduce((s,x)=>s+x.score, 0);
 
       if(!best || total > best.total){
@@ -5803,7 +5879,7 @@ function renderFixturesList(onlyLive) {
 
     return `
     <div class="match-card" data-match="${f.id}">
-      <div class="match-team">
+      <div class="match-team" data-viewclub="${f.team_h}">
         <img class="match-team-logo" src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_h]}.png" onerror="this.style.display='none'">
         <div class="match-team-name">${CLUB_NAME[f.team_h]}</div>
       </div>
@@ -5811,7 +5887,7 @@ function renderFixturesList(onlyLive) {
         ${timeOrScore}
         ${badge}
       </div>
-      <div class="match-team">
+      <div class="match-team" data-viewclub="${f.team_a}">
         <img class="match-team-logo" src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_a]}.png" onerror="this.style.display='none'">
         <div class="match-team-name">${CLUB_NAME[f.team_a]}</div>
       </div>
@@ -5823,15 +5899,156 @@ function renderFixturesList(onlyLive) {
          '<div class="match-list" style="margin: 0 20px 20px;">' + listHtml + '</div>';
 }
 
+// ===== ترتيب الدوري (لايف) — محسوب من نتائج كل الجولات =====
+// بيمرّ على كل ماتشات الموسم اللي خلصت (+ اللي شغّالة لايف لو فيها نتيجة) ويجمّع لكل نادي:
+// لعب/فوز/تعادل/خسارة/سجّل/استقبل/فرق/نقط + سجل نتايجه، وبيرتّب بالنقط ثم الفرق ثم المسجّل.
+// بيرجّع كمان ترتيب كل نادي هجوميًا (بالأهداف المسجّلة) ودفاعيًا (بالأقل استقبالًا).
+function computeStandings(){
+  const t = {};
+  Object.keys(CLUB_TAG||{}).forEach(k=>{ t[k] = { club:k, P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0, live:false, results:[] }; });
+  const byGw = state.fixturesByGw || {};
+  Object.keys(byGw).map(Number).sort((a,b)=>a-b).forEach(gw=>{
+    (byGw[gw]||[]).forEach(f=>{
+      if(f.score_h==null || f.score_a==null) return;
+      const live = !!(f.started && !f.finished);
+      if(!f.finished && !live) return;                 // لسه ماتلعبتش
+      const h = t[f.team_h], a = t[f.team_a];
+      if(!h || !a) return;
+      h.P++; a.P++;
+      h.GF+=f.score_h; h.GA+=f.score_a; a.GF+=f.score_a; a.GA+=f.score_h;
+      if(f.score_h > f.score_a){ h.W++; h.Pts+=3; a.L++; }
+      else if(f.score_h < f.score_a){ a.W++; a.Pts+=3; h.L++; }
+      else { h.D++; a.D++; h.Pts++; a.Pts++; }
+      if(live){ h.live=true; a.live=true; }
+      h.results.push({ gw, opp:f.team_a, home:true,  gf:f.score_h, ga:f.score_a, live });
+      a.results.push({ gw, opp:f.team_h, home:false, gf:f.score_a, ga:f.score_h, live });
+    });
+  });
+  const arr = Object.keys(t).map(k=>t[k]);
+  arr.forEach(x=>{ x.GD = x.GF - x.GA; });
+  arr.sort((a,b)=> b.Pts-a.Pts || b.GD-a.GD || b.GF-a.GF || ((CLUB_NAME[a.club]||'')<(CLUB_NAME[b.club]||'')?-1:1));
+  arr.forEach((x,i)=>{ x.pos = i+1; });
+  // ترتيب هجومي (الأكثر تسجيلًا) ودفاعي (الأقل استقبالًا)
+  arr.slice().sort((a,b)=> b.GF-a.GF || a.GA-b.GA).forEach((x,i)=>{ t[x.club].atkRank = i+1; });
+  arr.slice().sort((a,b)=> a.GA-b.GA || b.GF-a.GF).forEach((x,i)=>{ t[x.club].defRank = i+1; });
+  return arr;
+}
+
+// بلوك جدول الترتيب
+function standingsBlock(){
+  const rows = computeStandings();
+  const played = rows.some(r=>r.P>0);
+  if(!played){
+    return '<div class="hint" style="margin:20px;">لسه مفيش نتائج — الترتيب هيبان بعد أول جولة.</div>';
+  }
+  const anyLive = rows.some(r=>r.live);
+  const n = rows.length;
+  const body = rows.map(r=>{
+    // مناطق: أول 4 (أبطال أوروبا)، الخامس (يوروبا)، آخر 3 (هبوط)
+    let zone = '';
+    if(r.pos<=4) zone=' zone-ucl'; else if(r.pos===5) zone=' zone-uel'; else if(r.pos> n-3) zone=' zone-rel';
+    const logo = CLUB_CODE[r.club] ? 'https://resources.premierleague.com/premierleague/badges/t'+CLUB_CODE[r.club]+'.png' : '';
+    const gdCls = r.GD>0?'lg-gd-pos':(r.GD<0?'lg-gd-neg':'');
+    const gdTxt = (r.GD>0?'+':'') + r.GD;
+    return '<tr class="lg-row'+zone+'" data-viewclub="'+r.club+'">' +
+      '<td class="lg-pos">'+r.pos+(r.live?' <span style="color:var(--coral)">●</span>':'')+'</td>' +
+      '<td class="lg-td-team"><div class="lg-team"><img src="'+logo+'" onerror="this.style.display=\'none\'"><span>'+(CLUB_TAG[r.club]||'')+'</span></div></td>' +
+      '<td>'+r.P+'</td><td>'+r.W+'</td><td>'+r.D+'</td><td>'+r.L+'</td>' +
+      '<td class="'+gdCls+'">'+gdTxt+'</td>' +
+      '<td class="lg-pts">'+r.Pts+'</td></tr>';
+  }).join('');
+  return '' +
+    (anyLive ? '<div class="lg-live">'+ICON_LIVE+' الترتيب بيتحدّث لايف مع الماتشات الشغّالة</div>' : '') +
+    '<div class="lg-legend">' +
+      '<span class="lgd"><span class="sw" style="background:var(--easy-green)"></span>أبطال أوروبا</span>' +
+      '<span class="lgd"><span class="sw" style="background:var(--gold)"></span>يوروبا ليج</span>' +
+      '<span class="lgd"><span class="sw" style="background:var(--coral)"></span>الهبوط</span>' +
+    '</div>' +
+    '<div class="lg-wrap"><table class="lg-tbl">' +
+      '<thead><tr><th class="lg-pos">#</th><th class="tm">النادي</th><th>لعب</th><th>ف</th><th>ت</th><th>خ</th><th>+/-</th><th>نقاط</th></tr></thead>' +
+      '<tbody>'+body+'</tbody>' +
+    '</table></div>' +
+    '<div class="tool-count" style="margin:6px 20px 20px;">اضغط على أي نادي عشان تشوف نتائجه وأهدافه وترتيبه هجوميًا/دفاعيًا.</div>';
+}
+
+// ترتيب النادي بلاحقة عربية (1 = الأول)
+function _ordAr(n){ return n===1?'الأول':(n===2?'الثاني':(n===3?'الثالث':'المركز '+n)); }
+
+// بروفايل النادي (مودال) — نتائجه + أهدافه + ترتيبه الهجومي/الدفاعي + مبارياته الجاية
+function renderClubModal(){
+  if(!state.viewClubKey) return '';
+  const key = state.viewClubKey;
+  const rows = computeStandings();
+  const r = rows.find(x=>x.club===key);
+  if(!r) return '';
+  const logo = CLUB_CODE[key] ? 'https://resources.premierleague.com/premierleague/badges/t'+CLUB_CODE[key]+'.png' : '';
+  const n = rows.length;
+
+  // نتايج (الأحدث فوق)
+  const resHtml = r.results.slice().sort((a,b)=>b.gw-a.gw).map(m=>{
+    const res = m.gf>m.ga?'w':(m.gf<m.ga?'l':'d');
+    const resL = res==='w'?'ف':(res==='l'?'خ':'ت');
+    const oLogo = CLUB_CODE[m.opp] ? 'https://resources.premierleague.com/premierleague/badges/t'+CLUB_CODE[m.opp]+'.png' : '';
+    return '<div class="cm-res">' +
+      '<span class="gwk">ج'+m.gw+'</span>' +
+      '<div class="cm-wdl '+res+'">'+resL+'</div>' +
+      '<img data-viewclub="'+m.opp+'" src="'+oLogo+'" onerror="this.style.display=\'none\'">' +
+      '<span class="opp" data-viewclub="'+m.opp+'">'+(CLUB_NAME[m.opp]||CLUB_TAG[m.opp]||'؟')+'</span>' +
+      '<span class="ha">'+(m.home?'أرض':'خارج')+'</span>' +
+      '<span class="sc">'+m.gf+' : '+m.ga+'</span>' +
+      (m.live?' <span style="color:var(--coral)">'+ICON_LIVE+'</span>':'') +
+    '</div>';
+  }).join('') || '<div class="hint" style="margin-top:8px;">لسه مفيش نتايج.</div>';
+
+  // المباريات الجاية بصعوبتنا
+  const look = (state.teamFixtures[key] && state.teamFixtures[key].lookahead) || [];
+  const nxHtml = look.slice(0,5).map(f=>{
+    const d = ownDifficulty(f, 'overall');
+    return '<div class="nxc '+fdrColorClass(d)+'"><div class="op">'+(CLUB_TAG[f.oppKey]||'؟')+'</div><div class="hh">'+(f.isHome?'أرض':'خارج')+'</div></div>';
+  }).join('');
+
+  return '' +
+  '<div class="modal-overlay open" id="clubModalOverlay">' +
+    '<div class="modal-content" id="clubModalContent" onclick="event.stopPropagation()">' +
+      '<button class="modal-close" id="closeClubModal">'+ICON_CLOSE+'</button>' +
+      '<div class="cm-hd">' +
+        '<img src="'+logo+'" onerror="this.style.display=\'none\'">' +
+        '<div><div class="cm-nm">'+(CLUB_NAME[key]||CLUB_TAG[key]||'')+'</div>' +
+        '<div class="cm-sub">'+_ordAr(r.pos)+' في الدوري · '+r.Pts+' نقطة'+(r.live?' · <span style="color:var(--coral)">لايف</span>':'')+'</div></div>' +
+      '</div>' +
+      '<div class="cm-stats">' +
+        '<div class="cm-stat"><div class="v">'+r.P+'</div><div class="l">لعب</div></div>' +
+        '<div class="cm-stat"><div class="v">'+r.W+'-'+r.D+'-'+r.L+'</div><div class="l">ف-ت-خ</div></div>' +
+        '<div class="cm-stat"><div class="v">'+r.GF+'</div><div class="l">سجّل</div></div>' +
+        '<div class="cm-stat"><div class="v">'+r.GA+'</div><div class="l">استقبل</div></div>' +
+      '</div>' +
+      '<div class="cm-rankrow">' +
+        '<div class="cm-rank atk"><span class="rk">'+_ordAr(r.atkRank)+'</span>هجوميًا ('+r.GF+' هدف)</div>' +
+        '<div class="cm-rank def"><span class="rk">'+_ordAr(r.defRank)+'</span>دفاعيًا ('+r.GA+' عليه)</div>' +
+      '</div>' +
+      (nxHtml ? ('<div class="cm-sechd">المباريات الجاية</div><div class="cm-nx">'+nxHtml+'</div>') : '') +
+      '<div class="cm-sechd">النتايج</div>' + resHtml +
+    '</div>' +
+  '</div>';
+}
+
 // دالة منفصلة لشاشة كل المباريات
 function renderFixtures(){
-  const isFdr = state.fixturesView==='fdr';
+  const view = state.fixturesView;   // matches | fdr | table
   const seg = '<div class="fx-seg">' +
-    '<button class="fxs' + (!isFdr?' on':'') + '" data-fxview="matches">مباريات الجولة</button>' +
-    '<button class="fxs' + (isFdr?' on':'') + '" data-fxview="fdr">سهولة المباريات</button>' +
+    '<button class="fxs' + (view==='matches'?' on':'') + '" data-fxview="matches">المباريات</button>' +
+    '<button class="fxs' + (view==='fdr'?' on':'') + '" data-fxview="fdr">السهولة</button>' +
+    '<button class="fxs' + (view==='table'?' on':'') + '" data-fxview="table">الترتيب</button>' +
   '</div>';
 
-  if(isFdr){
+  if(view==='table'){
+    return '' +
+    '<div class="topbar"><div class="spacer"></div><h1>المباريات</h1><div class="spacer"></div></div>' +
+    seg +
+    standingsBlock();
+  }
+
+  if(view==='fdr'){
     return '' +
     '<div class="topbar"><div class="spacer"></div><h1>المباريات</h1><div class="spacer"></div></div>' +
     seg +
@@ -5934,9 +6151,9 @@ function renderMatchModal() {
       <button class="modal-close" id="closeMatchModal">${ICON_CLOSE}</button>
       <div style="text-align:center; margin-bottom:20px;">
         <div style="display:flex; justify-content:center; align-items:center; gap:14px; margin-bottom:10px;">
-          <img src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_h]}.png" style="width:40px;">
+          <img data-viewclub="${f.team_h}" src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_h]}.png" style="width:40px;">
           <div style="font-family:'Cairo'; font-size:22px; font-weight:900; color:var(--text);">${f.score_h!=null?f.score_h:'-'} : ${f.score_a!=null?f.score_a:'-'}</div>
-          <img src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_a]}.png" style="width:40px;">
+          <img data-viewclub="${f.team_a}" src="https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[f.team_a]}.png" style="width:40px;">
         </div>
         <div style="font-size:12px; color:var(--muted); font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">${f.started && !f.finished ? '<span style="color:var(--coral);display:flex;align-items:center;">'+ICON_LIVE+' مباشر</span> - الدقيقة '+f.minutes+"'" : (f.finished ? 'انتهت المباراة' : 'لم تبدأ بعد')}</div>
       </div>
@@ -7112,7 +7329,7 @@ function renderPredictions(){
 
   const csRowsArr = topCleanSheetTeams(8).map(x=>{
     const logoSrc = CLUB_CODE[x.club] ? `https://resources.premierleague.com/premierleague/badges/t${CLUB_CODE[x.club]}.png` : '';
-    return '<div class="cs-row2">' +
+    return '<div class="cs-row2" data-viewclub="'+x.club+'">' +
       '<img class="cs-logo" src="' + logoSrc + '" alt="" onerror="this.style.display=\'none\'">' +
       '<div class="cs-main"><div class="cs-nm">' + escapeHtml(CLUB_NAME[x.club]||'') + '</div>' +
       '<div class="cs-mt">' + (CLUB_TAG[x.fx.oppKey]||'') + ' · ' + (x.fx.isHome?'أرض':'خارج') + '</div></div>' +
@@ -7327,7 +7544,7 @@ function fdrGridBlock(){
       return '<td><div class="fdr-cellwrap">' + inner + '</div></td>';
     }).join('');
     return '<tr>' +
-      '<td class="tm"><div class="fdr-tm"><img src="' + logo + '" onerror="this.style.display=\'none\'"><span>' + (CLUB_TAG[r.key]||'') + '</span></div></td>' +
+      '<td class="tm"><div class="fdr-tm" data-viewclub="' + r.key + '"><img src="' + logo + '" onerror="this.style.display=\'none\'"><span>' + (CLUB_TAG[r.key]||'') + '</span></div></td>' +
       cells +
       '<td class="fdr-sumcell"><span class="fdr-sum" style="color:' + (r.ease>=13?'var(--easy-green)':(r.ease<=8?'var(--coral)':'var(--mid-grey)')) + '">' + r.ease + '</span></td>' +
     '</tr>';
@@ -8034,6 +8251,7 @@ function renderBody(){
   el.innerHTML = html;
   document.getElementById('navbar').style.display = (state.phase==='app') ? 'flex' : 'none';
   if(state.viewMatchId) el.innerHTML += renderMatchModal();
+  if(state.viewClubKey) el.innerHTML += renderClubModal();
   if(state.viewBreakdownPlayerId) el.innerHTML += renderPlayerBreakdownModal();
   bindBody();
 }
@@ -8166,6 +8384,15 @@ function bindBody(){
   const matchOverlay = el.querySelector('#matchModalOverlay');
   if(closeMatchBtn) closeMatchBtn.addEventListener('click', ()=>{ state.viewMatchId = null; renderBody(); });
   if(matchOverlay) matchOverlay.addEventListener('click', ()=>{ state.viewMatchId = null; renderBody(); });
+
+  // بروفايل النادي: فتح بالضغط على صف في جدول الترتيب، وإغلاق المودال
+  el.querySelectorAll('[data-viewclub]').forEach(b=>{
+    b.addEventListener('click', (e)=>{ e.stopPropagation(); state.viewClubKey = b.getAttribute('data-viewclub'); renderBody(); });
+  });
+  const closeClubBtn = el.querySelector('#closeClubModal');
+  const clubOverlay = el.querySelector('#clubModalOverlay');
+  if(closeClubBtn) closeClubBtn.addEventListener('click', ()=>{ state.viewClubKey = null; renderBody(); });
+  if(clubOverlay) clubOverlay.addEventListener('click', ()=>{ state.viewClubKey = null; renderBody(); });
 
   // فتح تفاصيل نقط اللاعب
   el.querySelectorAll('[data-breakdown]').forEach(b=>{
