@@ -6831,6 +6831,9 @@ function renderMore(){
           '<div class="switch ' + (state.toggles.notifCards?'on':'') + '" data-toggle="notifCards"><div class="knob"></div></div></div>' +
         '<div class="grouped-row"><div class="gr-left"><div class="gr-icon" style="background:rgba(143,203,242,0.16);color:#8FCBF2;">' + ICON_CLOCK + '</div><div class="gr-text"><span>تذكير الديدلاين</span></div></div>' +
           '<div class="switch ' + (state.toggles.deadlineReminder?'on':'') + '" data-toggle="deadlineReminder"><div class="knob"></div></div></div>' +
+        '<button class="grouped-row" id="testPushBtn"><div class="gr-left"><div class="gr-icon" style="background:rgba(61,214,140,0.16);color:var(--easy-green);">' + ICON_BELL + '</div>' +
+          '<div class="gr-text"><span>جرّب إشعار الآن</span><div class="gr-sub">يطلّع إشعار تجريبي على جهازك — لو ظهر يبقى جهازك تمام</div></div></div>' +
+          '<div class="gr-chev">' + ICON_CHEV + '</div></button>' +
       '</div>' +
     '</div>' +
 
@@ -8737,6 +8740,23 @@ function bindBody(){
       // الإذن ممكن يكون granted بس من غير اشتراك (وقّفها قبل كده) — enablePush هيعيد الاشتراك
       enablePush();
     }
+  });
+
+  // زرار "جرّب إشعار الآن" — بيطلّع إشعار محلي من الـ service worker (من غير السيرفر) عشان نفرّق
+  // بين مشكلة الجهاز/الإذن ومشكلة سيرفر الإرسال.
+  const testPushBtn = el.querySelector('#testPushBtn');
+  if(testPushBtn) testPushBtn.addEventListener('click', async ()=>{
+    try{
+      if(!('Notification' in window)){ alert('متصفحك مايدعمش الإشعارات.'); return; }
+      let perm = Notification.permission;
+      if(perm !== 'granted'){ try{ perm = await Notification.requestPermission(); }catch(e){} }
+      if(perm !== 'granted'){ alert('لازم تسمح بالإشعارات الأول من إعدادات الموقع.'); return; }
+      const reg = ('serviceWorker' in navigator) ? await navigator.serviceWorker.ready : null;
+      const title = '🔔 إشعار تجريبي — المزاريطة';
+      const opts = { body: 'لو شفت الإشعار ده يبقى جهازك تمام. لو الإشعارات وقت الجولة مبتوصلش، المشكلة في سيرفر الإرسال.', icon: 'https://resources.premierleague.com/premierleague/badges/t3.png', tag: 'mazareta-test' };
+      if(reg && reg.showNotification){ await reg.showNotification(title, opts); }
+      else { new Notification(title, opts); }
+    }catch(e){ alert('متقدرناش نطلّع الإشعار التجريبي: ' + (e && e.message ? e.message : 'خطأ غير معروف')); }
   });
 
   // more tab: install app
