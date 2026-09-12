@@ -4709,6 +4709,11 @@ function bestTransferSuggestions(horizon){
   const suggestions = [];
   squad().forEach(sellP=>{
     const sellProj = tScore(sellP);
+    const sellNext = predictedPoints(sellP);   // توقّع الجولة الجاية للّي هنبيعه
+    const avail = availabilityMultiplier(sellP);
+    const flagged  = (sellP.status==='i' || sellP.status==='s' || sellP.status==='u' || sellP.status==='n' || avail<=0);
+    const doubtful = (sellP.status==='d');
+    const isStarter = sellP.slot === 'start';
     const budget = (state.bank||0) + sellP.price;
     const list = byPos[sellP.pos] || [];
     let bestBuy = null, bestGain = 0;
@@ -4716,6 +4721,9 @@ function bestTransferSuggestions(horizon){
       const b = list[i];
       if(b.price > budget) continue;
       if(b.club !== sellP.club && clubCountInSquad(b.club, sellP.id) >= MAX_PER_CLUB) continue;
+      // ⛔ ممنوع تنزيل الجولة الجاية: لو اللي هنشتريه أضعف في الماتش الجاي نفسه (زي حارس هيلاعب
+      // تشيلسي بدل حارس هيلاعب أضعف هجوم) مايتقترحش — إلا لو اللي بنبيعه مصاب/موقوف/مشكوك.
+      if(!flagged && !doubtful && predictedPoints(b) < sellNext - 0.6) continue;
       const gain = b._proj - sellProj;
       if(gain > bestGain){ bestGain = gain; bestBuy = b; }
     }
@@ -4724,11 +4732,6 @@ function bestTransferSuggestions(horizon){
     // 🎯 الأولوية مش مجرد مكسب النقط — لأن ترقية احتياطي رخيّص برن سهل ممكن يطلّع رقم كبير
     // وهو مش مؤثر في نقطك الحقيقي. فبنرتّب طبقات: إصابة/إيقاف (لازم يتشال فورًا) → مشكوك →
     // ترقية لاعب أساسي (بتفرق فعلًا) → ترقية احتياطي (أقل أولوية بكتير).
-    const avail = availabilityMultiplier(sellP);
-    const flagged  = (sellP.status==='i' || sellP.status==='s' || sellP.status==='u' || sellP.status==='n' || avail<=0);
-    const doubtful = (sellP.status==='d');
-    const isStarter = sellP.slot === 'start';
-
     let priority, reason, urgent=false;
     if(flagged){        priority = 1000 + bestGain; reason = (sellP.status==='s' ? 'موقوف — لازم يتشال' : 'مصاب/مش متاح — لازم يتشال'); urgent=true; }
     else if(doubtful){  priority = 500  + bestGain; reason = 'مشكوك في مشاركته'; urgent=true; }
