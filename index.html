@@ -4517,13 +4517,12 @@ function blendedFixturePoints(p, fx, isImmediate){
     const fixFactor = Math.max(0.55, Math.min(1.30, LEAGUE_AVG_GOALS / lamThis));
     base *= (0.5 + 0.5 * fixFactor);
   } else if(p.pos === 'MID' || p.pos === 'FWD'){
-    // 🎯 بالمثل للمهاجمين والوسط: قوة دفاع الخصم تضغط/ترفع توقّعهم ككل.
-    // attackMultiplier بيطلع > 1 قدام دفاع ضعيف (أسهل تسجيل) و < 1 قدام دفاع قوي — وبيدمج
-    // جودة دفاع الخصم الفعلية (xGC) + التقييم الرسمي + ميزة الأرض. بنطبّقه بنص القوة عشان
-    // مهاجم قدام دفاع حديدي ينزل توقّعه، والعكس، من غير ما يطغى على الفورم والأداء الفردي.
-    const am = fx ? attackMultiplier(fx) : 1;
-    const fixFactorAtk = Math.max(0.60, Math.min(1.30, am));
-    base *= (0.5 + 0.5 * fixFactorAtk);
+    // 🎯 صعوبة التسجيل للمهاجمين/الوسط: بتضغط توقّعهم كله (فورم + xGI + ep) حسب قوة دفاع الخصم
+    // في المباراة دي بالذات. attDiff من 1 (سهل التسجيل) لـ 5 (صعب جدًا) — بتاخد في حسابها دفاع
+    // الخصم الفعلي + الأودز. ضغط أقوى من قبل عشان مهاجم قدّام دفاع قوي (زي السيتي) ما يتصدّرش
+    // الدريم تيم رغم إن أرقامه كويسة. دفاع قوي → عامل أقل من 1، دفاع ضعيف → أعلى من 1.
+    const attDiff = fx ? ownDifficulty(fx, 'attack') : 3;
+    base *= Math.max(0.58, Math.min(1.32, 1 + (3 - attDiff) * 0.18));
   }
 
   base = Math.max(0.5, base);
