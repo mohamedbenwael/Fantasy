@@ -4645,13 +4645,32 @@ function bestTransferSuggestions(horizon){
       const gain = b._proj - sellProj;
       if(gain > bestGain){ bestGain = gain; bestBuy = b; }
     }
-    if(bestBuy && bestGain > 0.5){
-      suggestions.push({ sellP: sellP, buyP: bestBuy, diff: Math.round(bestGain*10)/10, horizon: N });
-    }
+    if(!bestBuy) return;
+
+    // 🎯 الأولوية مش مجرد مكسب النقط — لأن ترقية احتياطي رخيّص برن سهل ممكن يطلّع رقم كبير
+    // وهو مش مؤثر في نقطك الحقيقي. فبنرتّب طبقات: إصابة/إيقاف (لازم يتشال فورًا) → مشكوك →
+    // ترقية لاعب أساسي (بتفرق فعلًا) → ترقية احتياطي (أقل أولوية بكتير).
+    const avail = availabilityMultiplier(sellP);
+    const flagged  = (sellP.status==='i' || sellP.status==='s' || sellP.status==='u' || sellP.status==='n' || avail<=0);
+    const doubtful = (sellP.status==='d');
+    const isStarter = sellP.slot === 'start';
+
+    let priority, reason, urgent=false;
+    if(flagged){        priority = 1000 + bestGain; reason = (sellP.status==='s' ? 'موقوف — لازم يتشال' : 'مصاب/مش متاح — لازم يتشال'); urgent=true; }
+    else if(doubtful){  priority = 500  + bestGain; reason = 'مشكوك في مشاركته'; urgent=true; }
+    else if(isStarter){ priority = 100  + bestGain; reason = 'ترقية لاعب أساسي'; }
+    else {              priority = bestGain * 0.25;  reason = 'ترقية احتياطي'; }   // مؤثر أقل بكتير
+
+    // فلترة "الأولويات": إصابة/إيقاف/مشكوك دايمًا يظهروا؛ ترقية أساسي محتاجة مكسب معقول؛
+    // ترقية احتياطي محتاجة مكسب كبير عشان تستاهل أصلًا.
+    const worth = flagged || doubtful || (isStarter ? bestGain >= 2.5 : bestGain >= 6);
+    if(!worth) return;
+
+    suggestions.push({ sellP, buyP: bestBuy, diff: Math.round(bestGain*10)/10, horizon: N, priority, reason, urgent });
   });
 
-  // نتفادى ترشيح نفس لاعب البيع أو الشراء أكتر من مرة
-  suggestions.sort((a,b)=>b.diff-a.diff);
+  // ترتيب بالأولوية (مش المكسب الخام)، ونتفادى ترشيح نفس لاعب بيع/شراء أكتر من مرة
+  suggestions.sort((a,b)=> b.priority - a.priority);
   const usedBuy = new Set(), usedSell = new Set(), out = [];
   for(const s of suggestions){
     if(usedBuy.has(s.buyP.id) || usedSell.has(s.sellP.id)) continue;
@@ -5188,10 +5207,27 @@ async function savePersonal(){
   const ok = await sSet('mazareta_squad:'+state.deviceId, JSON.stringify({
     mySquadIds:state.mySquadIds, captainId:state.captainId, bank:state.bank,
     freeTransfers:state.freeTransfers, seasonBaseline:state.seasonBaseline,
-    squadGw: state.gwInfo && state.gwInfo.current // الجولة اللي التشكيلة دي خاصة بيها
+    squadGw: state.gwInfo && state.gwInfo.current, // الجولة اللي التشكيلة دي خاصة بيها
+    savedAt: Date.now()                            // طابع زمني عشان نعرف أحدث نسخة (محلي مقابل سيرفر)
   }), false);
   pushPublicEntry();
   return ok;
+}
+// قراءة خام من السيرفر من غير ما نلمس المرآة المحلية (عشان نقارن الاتنين بأنفسنا)
+async function _kvGetRaw(key){
+  try{ const data = await kvCall({ action:'get', key }); return (data && 'value' in data) ? data.value : null; }
+  catch(e){ return null; }
+}
+// بيرجّع أحدث تشكيلة عمل محفوظة (savedAt الأعلى) للجولة gw — بيقارن النسخة المحلية بنسخة السيرفر.
+// ده بيحل مشكلة إن حفظ السيرفر لو فشل بصمت (توكن/kv) وفضل راجع نسخة قديمة، كان بيمسح تعديلك كل ريفريش.
+async function _loadWorkingSquad(gw){
+  let best = null;
+  const pick = raw => { if(!raw) return; try{ const s=JSON.parse(raw);
+    if(s && s.mySquadIds && s.mySquadIds.length && s.squadGw === gw && (!best || (s.savedAt||0) >= (best.savedAt||0))) best = s;
+  }catch(e){} };
+  pick(lsGet('mazareta_squad:'+state.deviceId));           // النسخة المحلية (بتحمل تعديلك الأحدث دايمًا)
+  pick(await _kvGetRaw('mazareta_squad:'+state.deviceId));  // نسخة السيرفر (للمزامنة بين الأجهزة)
+  return best;
 }
 async function pushPublicEntry(){
   await sSet('public_entry:'+state.deviceId, JSON.stringify({
@@ -5302,19 +5338,16 @@ async function loadSquadOrDraft(){
   // بس أول ما الجولة تقفل فعليًا (isStarted = true).
   if(!isStarted){
     try{
-      const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
-      if(savedRaw){
-        const saved = JSON.parse(savedRaw);
-        if(saved && saved.mySquadIds && saved.mySquadIds.length && saved.squadGw === gw){
-          state.mySquadIds = saved.mySquadIds;
-          state.captainId = saved.captainId;
-          state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
-          state.activeChip = null; // التشكيلة التجريبية مفيهاش شيب رسمي
-          state.freeTransfers = (gw === 1) ? 'غير محدود' : 1;
-          state.seasonBaseline = saved.seasonBaseline || 0;
-          await syncDraftForGw(gw);
-          return;
-        }
+      const saved = await _loadWorkingSquad(gw);   // الأحدث بين المحلي والسيرفر
+      if(saved){
+        state.mySquadIds = saved.mySquadIds;
+        state.captainId = saved.captainId;
+        state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
+        state.activeChip = null; // التشكيلة التجريبية مفيهاش شيب رسمي
+        state.freeTransfers = (gw === 1) ? 'غير محدود' : 1;
+        state.seasonBaseline = saved.seasonBaseline || 0;
+        await syncDraftForGw(gw);
+        return;
       }
     }catch(e){}
   }
@@ -5345,22 +5378,19 @@ async function loadSquadOrDraft(){
     // الجولة لسه مقفلتش (الفانتازي مخبي التشكيلة) أو مفيش إنترنت
   }
 
-  // ٢. لو وصلنا هنا والجولة مقفولة (فشل الفتش لأسباب زي مفيش إنترنت): نرجع لآخر تشكيلة محفوظة محليًا
+  // ٢. لو وصلنا هنا والجولة مقفولة (فشل الفتش لأسباب زي مفيش إنترنت): نرجع لأحدث تشكيلة محفوظة
   if(isStarted){
     try{
-      const savedRaw = await sGet('mazareta_squad:'+state.deviceId, false);
-      if(savedRaw){
-        const saved = JSON.parse(savedRaw);
-        if(saved && saved.mySquadIds && saved.mySquadIds.length && saved.squadGw === gw){
-          state.mySquadIds = saved.mySquadIds;
-          state.captainId = saved.captainId;
-          state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
-          state.activeChip = null;
-          state.freeTransfers = 1;
-          state.seasonBaseline = saved.seasonBaseline || 0;
-          await syncDraftForGw(gw);
-          return;
-        }
+      const saved = await _loadWorkingSquad(gw);
+      if(saved){
+        state.mySquadIds = saved.mySquadIds;
+        state.captainId = saved.captainId;
+        state.bank = typeof saved.bank === 'number' ? saved.bank : 100;
+        state.activeChip = null;
+        state.freeTransfers = 1;
+        state.seasonBaseline = saved.seasonBaseline || 0;
+        await syncDraftForGw(gw);
+        return;
       }
     }catch(e){}
   }
@@ -7043,7 +7073,7 @@ function renderPredictions(){
   const suggestionsHtml = topSwaps.length ? topSwaps.map(sug=>
     '<div class="tr-card">' +
       '<div class="tr-top">' +
-        '<div class="tr-kick">مقترح انتقال</div>' +
+        '<div class="tr-kick"' + (sug.urgent ? ' style="color:var(--coral);"' : '') + '>' + escapeHtml(sug.reason || 'مقترح انتقال') + '</div>' +
         '<div class="tr-gain">' + ICON_UP + '+' + fmt(sug.diff) + '<span>' + (sug.horizon||5) + ' جولات</span></div>' +
       '</div>' +
       '<div class="tr-body">' +
