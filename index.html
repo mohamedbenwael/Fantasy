@@ -5261,6 +5261,10 @@ function mazaretaTeamView(){
 }
 
 function renderAiEvaluationCard(){
+  // تشكيلة المزاريطة = توصية قبل الجولة بس. أول ما الجولة تبدأ (الديدلاين يقفل والمباريات
+  // لسه شغّالة) بنخفيها خالص — عشان ماتفضلش تتغيّر قدام المستخدم بالنقط والبيانات اللايف،
+  // وترجع تظهر لوحدها للجولة الجاية بعد ما مباريات الحالية تخلص كلها.
+  if(mazaretaLiveGw() != null) return '';
   const dt = mazaretaTeamView();
   if(!dt) return '';
   const gk  = dt.xi.filter(p=>p.pos==='GK');
