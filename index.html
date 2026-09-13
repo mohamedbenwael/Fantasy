@@ -1728,6 +1728,19 @@
     filter:drop-shadow(0 0 5px rgba(255,60,60,0.8));
   }
 
+  /* علامة حالة اللاعب على التوكن (مصاب/موقوف/مشكوك) — ركن تحت-يمين عشان ما تتخبطش
+     مع الكابتن (شمال-فوق) ولا النار/الفروست ونقطة اللايف (يمين-فوق) */
+  .jersey.ptoken .st-mark{
+    position:absolute; bottom:-5px; right:-5px; z-index:6;
+    width:17px; height:17px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:900; line-height:1; color:#fff;
+    border:2px solid #0C7C3E; box-shadow:0 2px 5px rgba(0,0,0,0.45);
+  }
+  .jersey.ptoken .st-mark.out{ background:var(--coral); }
+  .jersey.ptoken .st-mark.susp{ background:#e11d1d; }
+  .jersey.ptoken .st-mark.doubt{ background:var(--gold); color:#3A2A05; }
+
   /* الاسم */
   .player .pname{
     margin-top:8px; font-size:9.5px; font-weight:700; color:#fff;
@@ -2514,9 +2527,15 @@ function renderPitchToken(p, o){
   if(o.selected) cls += ' selected';
   if(o.isLiveNow) cls += ' live-now';
   const dataAttr = o.mode ? (' data-player="' + p.id + '" data-mode="' + o.mode + '"') : '';
+  // علامة حالة اللاعب: موقوف (طرد أو رسمي) / مصاب / مشكوك في مشاركته
+  let stMark = '';
+  if(isSuspendedByRed(p) || p.status==='s'){ stMark = '<div class="st-mark susp" title="موقوف">✕</div>'; }
+  else if(p.status==='i'){ stMark = '<div class="st-mark out" title="مصاب">✚</div>'; }
+  else if(p.status==='d'){ stMark = '<div class="st-mark doubt" title="مشكوك في مشاركته'+(p.chanceNext!=null?(' '+p.chanceNext+'%'):'')+'">؟</div>'; }
   return '<div class="player" data-viewprofile="' + p.id + '">' +
     '<div class="' + cls + '"' + dataAttr + ' style="--club:' + club + '">' +
       '<div class="ptoken-photo">' + pitchPhotoImg(p) + pitchClubBadge(p) + '</div>' +
+      stMark +
       (o.isCap ? '<div class="cap">C</div>' : '') +
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
       (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية فعّالة قليلة)">🔥</div>' : '') +
@@ -3829,6 +3848,18 @@ function fdrMultiplier(fdr){
 // الجولة اللحظية (gwRed). أول ما الجولة الجاية تبدأ بيتصفّر gwRed وساعتها الـstatus بيكون
 // اتحدّث لـ"موقوف"، فمفيش ازدواجية.
 function isSuspendedByRed(p){ return (p.gwRed||0) > 0 && p.status!=='s'; }
+
+// شارة حالة صغيرة جنب اسم اللاعب في القوايم — بترجع '' لو اللاعب متاح عادي.
+// أحمر: موقوف/مصاب، ذهبي: مشكوك في مشاركته (بنسبة اللعب لو متوفرة).
+function statusTag(p){
+  let txt='', bg='';
+  if(isSuspendedByRed(p) || p.status==='s'){ txt='موقوف'; bg='#e11d1d'; }
+  else if(p.status==='i'){ txt='مصاب'; bg='var(--coral)'; }
+  else if(p.status==='d'){ txt='مشكوك'+(p.chanceNext!=null?(' '+p.chanceNext+'%'):''); bg='var(--gold)'; }
+  else return '';
+  const col = (bg==='var(--gold)') ? '#3A2A05' : '#fff';
+  return '<span class="st-tag" style="display:inline-block;margin-inline-start:6px;padding:1px 7px;border-radius:10px;background:'+bg+';color:'+col+';font-size:9px;font-weight:800;vertical-align:middle;white-space:nowrap;">'+txt+'</span>';
+}
 
 function availabilityMultiplier(p){
   if(isSuspendedByRed(p)) return 0; // اتطرد لسه — موقوف الجولة الجاية، نستبعده من كل الترشيحات
@@ -6624,7 +6655,7 @@ function renderTransferMarket(){
       return '<div class="p-row">' +
         '<div class="p-left" data-viewprofile="' + p.id + '">' +
           '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK'?'_1':'') + '-66.webp" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+          '<div class="p-info"><div class="p-name">' + p.name + statusTag(p) + '</div>' +
           '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · £' + fmt(p.price) + 'm' +
             ' · ' + totalPoints(p) + ' نقطة · متوقع ' + fmt(predictedPoints(p)) + '</div></div></div>' +
         '<button class="p-btn in" data-in="' + p.id + '"' + (disabled ? ' disabled' : '') + '>إضافة</button>' +
@@ -6653,7 +6684,7 @@ function renderTransfers(){
       return '<div class="p-row' + (isOut ? ' out-selected' : '') + '">' +
         '<div class="p-left" data-viewprofile="' + p.id + '">' +
           '<img class="p-mini jersey-photo" src="https://fantasy.premierleague.com/dist/img/shirts/standard/shirt_' + p.teamCode + (p.pos==='GK'?'_1':'') + '-66.webp" alt="' + p.name + '" onerror="imgFallback(this)" loading="lazy">' +
-          '<div class="p-info"><div class="p-name">' + p.name + '</div>' +
+          '<div class="p-info"><div class="p-name">' + p.name + statusTag(p) + '</div>' +
           '<div class="p-meta">' + (CLUB_TAG[p.club] || '') + ' · ' + p.pos +
             ' · £' + fmt(p.price) + 'm · ' + fmt(predictedPoints(p)) + ' متوقعة' +
             (p.slot === 'bench' ? ' · احتياطي' : '') + '</div></div></div>' +
@@ -6930,6 +6961,10 @@ function renderPlayerProfile(){
   const chgColor = chg>0?'up':(chg<0?'down':'');
 
   const statusNote = isSuspendedByRed(p) ? 'موقوف (طرد)' : ({i:'مصاب', s:'موقوف', d:'مشكوك في مشاركته'}[p.status] || '');
+  // شارة حالة واضحة في رأس البروفايل (مش مخبّاية في بلوك الأدمن) — أي زائر يشوف إن اللاعب
+  // مصاب/موقوف/مشكوك فيه. أحمر للإصابة/الإيقاف، ذهبي للمشكوك فيه.
+  const statusBadgeColor = (isSuspendedByRed(p) || p.status==='i' || p.status==='s') ? 'var(--coral)' : 'var(--gold)';
+  const statusBadge = statusNote ? ('<div class="pp-status" style="display:inline-block;margin-top:8px;padding:5px 14px;border-radius:20px;background:'+statusBadgeColor+';color:#fff;font-weight:800;font-size:12.5px;">⚠ '+statusNote+(p.status==='d'&&p.chanceNext!=null&&p.chanceNext<100?(' ('+p.chanceNext+'%)'):'')+'</div>') : '';
   const adminBlock = state.adminUnlocked ? (
     '<div class="admin-card"><h3>مصدر البيانات</h3>' +
     '<div style="font-size:11.5px;color:var(--muted);line-height:1.7;">بيانات هذا اللاعب (السعر/النقاط/نسبة الملكية) تُجلب مباشرة من واجهة برمجة التطبيقات (API) الرسمية لـ Fantasy Premier League، ويتم تحديثها تلقائياً دون أي تعديل يدوي.' +
@@ -7028,6 +7063,7 @@ function renderPlayerProfile(){
     '<img class="pj-photo" src="https://resources.premierleague.com/premierleague/photos/players/250x250/p' + p.code + '.png" data-tc="' + (p.teamCode||'') + '" data-gk="' + (p.pos==='GK'?'1':'') + '" alt="' + p.name + '" onerror="imgFallback(this)"></div>' +
     '<div class="pn">' + p.name + '</div>' +
     '<div class="pm">' + CLUB_NAME[p.club] + ' · ' + p.pos + '</div>' +
+    statusBadge +
     '<div class="price-tag"><span class="amt">£' + fmt(p.price) + 'm</span>' +
     (chg!==0 ? '<span class="chg '+chgColor+'">'+chgIcon+(chg>0?'+':'')+fmt(chg)+'</span>' : '') +
     '</div>' + spBadge + '</div>' +
@@ -7144,7 +7180,7 @@ function predRow(p, chipText, chipClass, metaExtra, showBonus){
   return '<div class="pl-row" data-viewprofile="' + p.id + '">' +
     faceCircle(p) +
     '<div class="pl-main">' +
-      '<div class="pl-name">' + escapeHtml(p.name) + '</div>' +
+      '<div class="pl-name">' + escapeHtml(p.name) + statusTag(p) + '</div>' +
       '<div class="pl-meta">' + (CLUB_TAG[p.club]||'') + ' · ' + p.pos + (metaExtra?(' · '+escapeHtml(String(metaExtra))):'') + '</div>' +
     '</div>' +
     (hasBonus ? '<div class="bonus-badge">' + ICON_STAR + ' +' + p.provisionalBonus + '</div>' : '') +
