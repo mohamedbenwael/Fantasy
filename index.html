@@ -6863,6 +6863,7 @@ function renderLeagues(){
     state.viewPtsById = vm.ptsById || {};
     state.fixturesList = (state.fixturesByGw && state.fixturesByGw[vm.squadGw]) || state.fixturesList;
     const pitchHtml = renderPitchCard(false);
+    const memberTotal = roundPoints(); // إجمالي نقاط تشكيلة العضو ده للجولة المعروضة (بنفس منطق نقطي بالظبط)
     state.mySquadIds = savedSquad;
     state.captainId = savedCap;
     state.activeChip = savedChip;
@@ -6874,6 +6875,7 @@ function renderLeagues(){
     return header +
       (vm.managerName ? '<div class="hint" style="margin:0 20px 4px;">' + escapeHtml(vm.managerName) + '</div>' : '') +
       gwNote +
+      '<div class="gw-pts-line">نقاط الجولة ' + (vm.squadGw || '') + ': <strong>' + memberTotal + '</strong></div>' +
       pitchHtml;
   }
 
