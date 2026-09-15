@@ -1741,6 +1741,17 @@
   .jersey.ptoken .st-mark.susp{ background:#e11d1d; }
   .jersey.ptoken .st-mark.doubt{ background:var(--gold); color:#3A2A05; }
 
+  /* علامة التبديل التلقائي — ركن تحت-شمال (فاضي، مش متعارض مع أي علامة تانية) */
+  .jersey.ptoken .auto-sub-mark{
+    position:absolute; bottom:-5px; left:-5px; z-index:6;
+    width:17px; height:17px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:900; line-height:1; color:#fff;
+    border:2px solid #0C7C3E; box-shadow:0 2px 5px rgba(0,0,0,0.45);
+  }
+  .jersey.ptoken .auto-sub-mark.in{ background:#2fe38a; color:#06331d; }
+  .jersey.ptoken .auto-sub-mark.out{ background:var(--coral); }
+
   /* الاسم */
   .player .pname{
     margin-top:8px; font-size:9.5px; font-weight:700; color:#fff;
@@ -2540,6 +2551,8 @@ function renderPitchToken(p, o){
       (o.isLiveNow ? '<div class="live-dot pulse" title="بيلعب دلوقتي"></div>' : '') +
       (o.isHot ? '<div class="flame" title="لاعب فارق 🔥 — طلّعك في ترتيبك العام كتير الجولة دي (نقط كتير وملكية فعّالة قليلة)">🔥</div>' : '') +
       (o.isCold ? '<div class="frost" title="🔻 بيسحبك لتحت — ملكيته الفعّالة عالية (ناس كتير مكبتناه) وانت مش مكبتنه، فنقطه بتنزّلك في الترتيب">🔻</div>' : '') +
+      (o.autoSubMark==='in'  ? '<div class="auto-sub-mark in" title="نزل بديل تلقائي — لاعبه الأساسي ملعبش خالص، ونقطه هي اللي اتحسبت">↑</div>' : '') +
+      (o.autoSubMark==='out' ? '<div class="auto-sub-mark out" title="طلع تلقائي من التشكيلة (ملعبش خالص) — ونزل بديله من الدكة بدل منه">↓</div>' : '') +
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
@@ -3728,6 +3741,64 @@ function squad(ids){ const list = ids || state.mySquadIds; return list.map(e=>{ 
 function starters(ids){ return squad(ids).filter(p=>p.slot==='start'); }
 function benched(ids){ return squad(ids).filter(p=>p.slot==='bench'); }
 function captain(){ return findPlayer(state.captainId); }
+
+// ===== تبديل تلقائي (قاعدة الفانتازي الرسمية) =====
+// لو لاعب أساسي معاه صفر دقيقة، بينزل بديله من الدكة تلقائي وتتحسب نقط البديل بدل منه.
+// فيه حالتين لتحديد "معاهوش دقيقة":
+//  1) متأكد إنه برا القايمه أصلاً (مصاب بنسبة مشاركة صفر، أو موقوف) — التبديل بيحصل
+//     على طول من غير ما نستنى نهاية المباراة.
+//  2) غير كده (لاعب متاح للّعب بس لسه معاهوش دقيقة) — لازم نستنى مباراة فريقه تخلص
+//     الأول، عشان يمكن ينزل بديل تأثيري لاحق في الماتش.
+function clubGwDone(club){
+  const fx = state.fixturesList || [];
+  if(!fx.length) return false; // بيانات مباريات الجولة لسه ما وصلتش — منستعجلش بتبديل غلط
+  const clubFx = fx.filter(f=>f.team_h===club || f.team_a===club);
+  return clubFx.length ? clubFx.every(f=>f.finished) : true; // بلانك جولة لنادي معين = معروف مسبقًا إنه مش هيلعب
+}
+// متأكدين إنه مش هيشارك الجولة دي أصلاً (مش مجرد احتمال) — إصابة مؤكدة (نسبة مشاركة صفر بالمية)،
+// إيقاف رسمي/طرد، أو مش موجود مع الفريق خالص
+function playerConfirmedOut(p){
+  if(isSuspendedByRed(p) || p.status==='s') return true;
+  if(p.status==='i' && (p.chanceNext||0) === 0) return true;
+  if(p.status==='u') return true;
+  return false;
+}
+function playerDidNotPlay(p){
+  if(!p || (p.gwMinutes||0) > 0) return false;
+  if(!isGwLocked()) return false; // الديدلاين لسه ما جاش — من السابق لأوانه نحكم على حد
+  if(playerConfirmedOut(p)) return true; // متأكدين إنه برا القايمه — منستناش نهاية المباراة
+  return clubGwDone(p.club); // غير كده لازم مباراة فريقه تخلص الأول
+}
+// بيرجّع { startSet: Set<id> (الأساسيين الفعليين بعد التبديل), subs: [{out,in}] }
+function computeAutoSubs(ids){
+  const list = ids || state.mySquadIds;
+  const startList = starters(list);
+  const startSet = new Set(startList.map(p=>p.id));
+  const benchArr = benched(list); // بترتيب أولوية الاحتياطي اللي حطّه المستخدم (1، 2، 3، ثم حارس الاحتياطي)
+  const subs = [];
+  // 1) الحارس أولاً — بديله الوحيد هو الحارس الاحتياطي
+  const startGk = startList.find(p=>p.pos==='GK');
+  if(startGk && playerDidNotPlay(startGk)){
+    const benchGk = benchArr.find(p=>p.pos==='GK' && (p.gwMinutes||0) > 0);
+    if(benchGk){ startSet.delete(startGk.id); startSet.add(benchGk.id); subs.push({out:startGk, in:benchGk}); }
+  }
+  // 2) لاعبو الخط: بترتيب أولوية الدكة بالظبط (أول بديل، ثم التاني، ثم التالت) —
+  //    كل بديل لعب فعليًا بيدخل بدل أول أساسي ملعبش طالما التبديل بيفضّل التشكيلة
+  //    قانونية (مش شرط يكون نفس المركز)
+  benchArr.filter(p=>p.pos!=='GK' && (p.gwMinutes||0) > 0).forEach(inP=>{
+    if(startSet.has(inP.id)) return; // دخل بالفعل (مثلاً بديل الحارس)
+    const currentStarters = startList.filter(p=>startSet.has(p.id));
+    const outP = currentStarters.find(p=>playerDidNotPlay(p) && formationValidAfterSwap(p.pos, inP.pos, list));
+    if(outP){ startSet.delete(outP.id); startSet.add(inP.id); subs.push({out:outP, in:inP}); }
+  });
+  return { startSet: startSet, subs: subs };
+}
+// نفس الـ ids بس بعد تطبيق التبديل التلقائي (slot الأساسي/الاحتياطي بيتغيّر حسب مين لعب فعليًا)
+function autoSubEffectiveIds(ids){
+  const list = ids || state.mySquadIds;
+  const startSet = computeAutoSubs(list).startSet;
+  return list.map(e=>({ id: e.id, slot: startSet.has(e.id) ? 'start' : 'bench' }));
+}
 function pool(ids){ const list = ids || state.mySquadIds; const owned=new Set(list.map(e=>e.id)); return state.players.filter(p=>!owned.has(p.id)); }
 
 // ===== قفل الجولة: لو الديدلاين فات بقى فيه مباريات شغالة/هتشتغل، والتشكيلة الرسمية اتقفلت =====
@@ -5321,11 +5392,13 @@ function chipBadgeHtml(){
 function roundPoints(){
   const tripleCap  = state.activeChip === '3xc';    // الكابتن ×3 بدل ×2
   const benchBoost = state.activeChip === 'bboost';  // نقط الاحتياطي بتتحسب كمان
-  // بنش بوست: كل الـ15 لاعب بيحتسبوا؛ غير كده الأساسيين بس
-  const scoring = benchBoost ? squad() : starters();
+  // بنش بوست: كل الـ15 لاعب بيحتسبوا فعلاً فمفيش داعي لتبديل تلقائي؛ غير كده
+  // بنطبّق التبديل التلقائي الأول (لاعب أساسي ملعبش خالص → بديله من الدكة يتحسب بدل منه)
+  const ids = benchBoost ? state.mySquadIds : autoSubEffectiveIds(state.mySquadIds);
+  const scoring = benchBoost ? squad(ids) : starters(ids);
   const base = scoring.reduce((s,p)=>s+currentGwPoints(p),0);
   const c = captain();
-  const isCapStarting = c && state.mySquadIds.find(e=>e.id===c.id && e.slot==='start');
+  const isCapStarting = c && ids.find(e=>e.id===c.id && e.slot==='start');
   // الكابتن أصلاً محتسب مرة في base؛ بنضيفله مرة (×2 عادي) أو مرتين (×3 تريبل كابتن)
   const extra = isCapStarting ? currentGwPoints(c) * (tripleCap ? 2 : 1) : 0;
   return base + extra;
@@ -6487,7 +6560,8 @@ function renderJersey(p, opts){
     rankDeltaHtml: rankDeltaHtml,
     showPts: showPts,
     pptsClass: pptsClass,
-    bottomText: displayBottom
+    bottomText: displayBottom,
+    autoSubMark: opts.autoSubMark || null
   });
 }
 function renderPlaceholder(pos, slot){
@@ -6504,18 +6578,33 @@ function renderPitchCard(interactive){
   const capId = interactive ? activeCaptainId() : state.captainId;
   const planning = interactive && isGwLocked(); // بنعرض مسودة الجولة الجاية بدل التشكيلة المقفولة
 
-  const gkAll  = starters(ids).filter(p=>p.pos==='GK');
-  const defAll = starters(ids).filter(p=>p.pos==='DEF');
-  const midAll = starters(ids).filter(p=>p.pos==='MID');
-  const fwdAll = starters(ids).filter(p=>p.pos==='FWD');
-  const benchAll = benched(ids);
+  // بنطبّق التبديل التلقائي بس وإحنا بنعرض تشكيلتي الحقيقية للجولة الحالية (مش مسودة،
+  // مش جولة قديمة بنتصفّحها، ومش تشكيلة مدير تاني) — عشان بيانات الدقايق/المباريات
+  // اللي بنعتمد عليها (state.fixturesList / p.gwMinutes) بتخص الجولة الحالية بس.
+  const applyAutoSubs = !interactive && !planning && !isHistoricalView() && !state.viewMemberId;
+  const autoSubResult = applyAutoSubs ? computeAutoSubs(ids) : null;
+  const effIds = autoSubResult ? autoSubEffectiveIds(ids) : ids;
+  const subOutIds = new Set((autoSubResult ? autoSubResult.subs : []).map(s=>s.out.id));
+  const subInIds  = new Set((autoSubResult ? autoSubResult.subs : []).map(s=>s.in.id));
+
+  const gkAll  = starters(effIds).filter(p=>p.pos==='GK');
+  const defAll = starters(effIds).filter(p=>p.pos==='DEF');
+  const midAll = starters(effIds).filter(p=>p.pos==='MID');
+  const fwdAll = starters(effIds).filter(p=>p.pos==='FWD');
+  const benchAll = benched(effIds);
 
   const opts = { mode: interactive ? state.teamMode : 'view', captainId: capId, planningMode: planning };
+  // بيرجّع opts اللاعب مع علامة التبديل التلقائي (لو بديل نازل يبقى "in"، لو أساسي طلع يبقى "out")
+  function withAutoSubMark(base, p){
+    if(subInIds.has(p.id)) return Object.assign({}, base, { autoSubMark:'in' });
+    if(subOutIds.has(p.id)) return Object.assign({}, base, { autoSubMark:'out' });
+    return base;
+  }
 
   // دالة مساعدة: تملأ صف بلاعبين حقيقيين + placeholders لو الصف ناقص
   function rowHtml(players, needed, pos){
     let html = '';
-    players.forEach(p => { html += renderJersey(p, opts); });
+    players.forEach(p => { html += renderJersey(p, withAutoSubMark(opts, p)); });
     for(let i = players.length; i < needed; i++){
       html += renderPlaceholder(pos, 'start');
     }
@@ -6571,7 +6660,7 @@ function renderPitchCard(interactive){
   const benchPositions = ['GK','DEF','MID','FWD'];
   let benchHtml = '';
   benchAll.forEach(p => {
-    const o = Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id, isBench: true });
+    const o = withAutoSubMark(Object.assign({}, opts, { selected: interactive && state.selectedBenchId===p.id, isBench: true }), p);
     benchHtml += renderJersey(p, o);
   });
   for(let i = benchAll.length; i < 4; i++){
