@@ -1715,9 +1715,6 @@
   .jersey.ptoken:has(.frost) .live-dot{ top:auto; right:auto; bottom:-4px; left:-4px; }
 
   /* رقم حركة اللاعب في ترتيبك (زي LiveFPL) — أخضر لو طلّعك، أحمر لو نزّلك */
-  .player .rankdelta{ margin-top:3px; font-size:8.5px; font-weight:800; direction:ltr; letter-spacing:0.2px; }
-  .player .rankdelta.up{ color:#2fe38a; }
-  .player .rankdelta.down{ color:#ff6a6a; }
 
   /* 🔻 علامة "بيسحبك لتحت" — عكس النار (EO عالية وانت مش مكبتنه) */
   .jersey.ptoken .frost{
@@ -2556,7 +2553,6 @@ function renderPitchToken(p, o){
     '</div>' +
     '<div class="pname">' + escapeHtml(p.name) + '</div>' +
     (o.showPts ? '<div class="' + o.pptsClass + '">' + o.bottomText + '</div>' : '') +
-    (o.rankDeltaHtml || '') +
   '</div>';
 }
 
@@ -4381,31 +4377,6 @@ async function loadRecentForm(){
     state.formSyncedAt = Date.now();
     return true;
   }catch(e){ return false; }
-}
-
-// كام مركز بتتحرّك مقابل كل نقطة في ترتيب الجولة = كثافة المديرين حوالين نقط جولتك.
-// بنحسبها من توزيع نقط الجولة (dist) حوالين نقط جولتك، ونكبّرها لكل المديرين.
-function ranksPerPoint(){
-  const dist = state.eoDist, N = state.eoDistN, TP = state.eoTotalPlayers;
-  const myGwPts = (typeof roundPoints === 'function') ? roundPoints() : null;
-  if(!dist || !N || !TP || myGwPts==null) return null;
-  let W = 4, count = 0;
-  for(; W<=14; W+=2){                      // نافذة أوسع ومنعّمة = كثافة أثبت وأقرب للحقيقة
-    count = 0;
-    for(let t=Math.round(myGwPts)-W; t<=Math.round(myGwPts)+W; t++){ count += (dist[t]||0); }
-    if(count >= 20) break;
-  }
-  if(count<=0) return null;
-  const perPointInSample = count / (2*W+1);   // مديرين لكل نقطة في العيّنة (متوسط النافذة)
-  return perPointInSample * (TP / N);         // × نسبة التكبير لكل المديرين
-}
-
-// تنسيق رقم المراكز: 382000 → "382k" ، 1400000 → "1.4M"
-function fmtRanks(n){
-  n = Math.abs(Math.round(n));
-  if(n >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
-  if(n >= 1e3) return Math.round(n/1e3) + 'k';
-  return String(n);
 }
 
 // بترجع أودز المباراة لنادي معيّن *بشرط إنها نفس المباراة الجاية* (تطابق الخصم)، وإلا null
@@ -6502,7 +6473,6 @@ function renderJersey(p, opts){
   let liveDotHtml = '';
   let isHot = false;
   let isCold = false;
-  let rankDeltaHtml = '';
 
   if(opts.planningMode){
     // ده عرض مسودة تشكيلة الجولة الجاية — منعرضش نقط ولا حالة لايف خالص، بس مباراة كل لاعب الجاية
@@ -6532,17 +6502,6 @@ function renderJersey(p, opts){
         if(rankImpact >= HOT_RANK_IMPACT) isHot = true;
         else if(rankImpact <= -COLD_RANK_IMPACT) isCold = true;
       }
-      // حركة اللاعب في ترتيبك الفعلي = (نقط مقابل المتوسط) × قيمة النقطة عند ترتيبك
-      if(haveEO){
-        const rpp = ranksPerPoint();
-        if(rpp){
-          const moved = rankImpact * rpp;         // موجب = طلّعك (climbed) ، سالب = نزّلك
-          if(Math.abs(moved) >= 1000){
-            rankDeltaHtml = '<div class="rankdelta ' + (moved>0?'up':'down') + '">' +
-              (moved>0?'▲':'▼') + ' ' + fmtRanks(moved) + '</div>';
-          }
-        }
-      }
     } else {
       pptsClass += ' upcoming';
       displayBottom = status.fixtureText; // مثال: BOU (H)
@@ -6557,7 +6516,6 @@ function renderJersey(p, opts){
     isLiveNow: !opts.planningMode && !!p.isPlayingLive,
     isHot: isHot,
     isCold: isCold,
-    rankDeltaHtml: rankDeltaHtml,
     showPts: showPts,
     pptsClass: pptsClass,
     bottomText: displayBottom,
