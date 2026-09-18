@@ -344,7 +344,8 @@
   .li-rank .num{ font-family:'Cairo'; font-weight:800; font-size:14.5px; color:var(--text); }
   .li-rank .chg{ font-size:9.5px; font-weight:700; margin-top:3px; display:flex; align-items:center; justify-content:flex-end; gap:2px; }
   .li-rank .chg svg{ width:9px; height:9px; }
-  .up{ color:var(--primary-soft); } .down{ color:var(--coral); }
+  /* السهم لفوق (تحسّن في الترتيب/السعر) أخضر، والسهم لتحت أحمر — عشان اللون يفرّق بينهم فورًا */
+  .up{ color:var(--accent); } .down{ color:var(--coral); }
 
   .standing-row{ display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-line); padding:11px 14px; border-radius:12px; }
   .standing-row .s-left{ display:flex; align-items:center; gap:10px; }
@@ -1489,7 +1490,9 @@
   .hx-rank-chip{ display:inline-flex; align-items:center; gap:5px; font-family:'Cairo'; font-weight:800; font-size:12.5px;
     color:#fff; background:rgba(233,0,82,0.20); border:1px solid rgba(255,77,139,0.42); padding:5px 11px; border-radius:999px;
     font-variant-numeric:tabular-nums; box-shadow:0 4px 12px -4px rgba(233,0,82,0.5); }
+  /* السهم بياخد لون الحالة: أخضر لو طالع في الترتيب، أحمر لو نازل */
   .hx-rank-chip svg{ width:13px; height:13px; color:var(--accent); }
+  .hx-rank-chip.down svg{ color:var(--coral); }
   .hx-rank-chip .rank-live-badge{ background:var(--accent) !important; color:#04321B !important; font-size:7.5px; margin-inline-start:3px; }
   .hx-rank-label{ font-size:11px; color:var(--muted); font-weight:600; }
   .hx-stats{ display:grid; grid-template-columns:repeat(3,1fr); margin-top:16px;
@@ -2867,6 +2870,10 @@ async function fetchFplEntry(fplId){
       teamName: data.name || ('فريق ' + id),
       currentEvent: data.current_event || null,
       overallRank: data.summary_overall_rank,
+      // ترتيبك العام في آخر جولة — فانتازي مش بترجّعه لوحده، بس دوري "Overall" الرسمي
+      // (id=314) اللي كل المديرين فيه بيرجّع entry_last_rank، وده نفسه الترتيب العام.
+      // منه بنعرف إحنا طالعين ولا نازلين بدل ما نفترض إننا طالعين على طول.
+      overallLastRank: (data.leagues?.classic || []).find(l => l && l.id === 314)?.entry_last_rank ?? null,
       // ترتيب الجولة الحالية الرسمي — فانتازي البريميرليج نفسها بترجّعه null/فاضي لحد ما
       // تخلّص معالجة البونص الرسمية للجولة، يعني مش هيبان لايف أثناء المباريات (حد من فانتازي نفسها مش منّا)
       eventRank: data.summary_event_rank || null,
@@ -3017,6 +3024,7 @@ async function ensureLeagues(force){
     if(entry && !entry.error && entry.leagues){
       state.realLeagues = entry.leagues;
       if(entry.overallRank != null) state.overallRank = entry.overallRank;
+      if(entry.overallLastRank != null) state.overallLastRank = entry.overallLastRank;
     }
   }catch(e){}
   state.leaguesFetching = false;
@@ -3584,7 +3592,7 @@ let state = {
   eoDist:null, eoDistN:0, eoTotalPlayers:0,   // توزيع نقط المديرين + إجماليهم (لتحويل النقط لمراكز فعلية)
   // مسودة تعديلات الجولة الجاية (بتتفعّل بس لما الجولة الحالية تكون شغالة/مقفولة)
   draftSquadIds:null, draftCaptainId:null, draftBank:null, draftFreeTransfers:null, draftForGw:null,
-  realLeagues: [], overallRank: 0, eventRank: null,
+  realLeagues: [], overallRank: 0, overallLastRank: null, eventRank: null,
   eventPoints: null, overallPoints: null, // نقاط آخر جولة + إجمالي الموسم (من الفانتازي)
   leagueStandingsCache:{}, viewMemberId:null, viewMemberSquad:null,
   leaguesFetching:false, leaguesTried:false, // لإعادة جلب الدوريات لو رجعت فاضية أول مرة
@@ -5513,6 +5521,7 @@ async function boot(){
     if(entry && !entry.error){
       if(!raw){ state.managerName = entry.managerName; state.teamName = entry.teamName; await saveManager(); }
       state.overallRank = entry.overallRank;
+      state.overallLastRank = entry.overallLastRank;
       state.eventRank = entry.eventRank;
       state.eventPoints = entry.eventPoints;
       state.overallPoints = entry.overallPoints;
@@ -5752,6 +5761,7 @@ async function submitOnboard(){
   state.managerName = entry.managerName;
   state.teamName = entry.teamName;
   state.overallRank = entry.overallRank;
+  state.overallLastRank = entry.overallLastRank;
   state.eventRank = entry.eventRank;
   state.eventPoints = entry.eventPoints;
   state.overallPoints = entry.overallPoints;
@@ -6309,6 +6319,7 @@ function renderMatchModal() {
 
 function renderHome(){
   const rp = displayRoundPoints();
+  const orDir = overallRankDir(); // طالع / نازل / null (مش معروف)
 
   return '' +
   '<div class="header">' +
@@ -6340,7 +6351,7 @@ function renderHome(){
         '<span class="hx-hero-unit">نقطة</span>' +
       '</div>' +
       '<div class="hx-hero-rank">' +
-        '<span class="hx-rank-chip">' + ICON_UP + '#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</span>' +
+        '<span class="hx-rank-chip' + (orDir ? ' ' + orDir : '') + '">' + (orDir==='up' ? ICON_UP : orDir==='down' ? ICON_DOWN : '') + '#' + (state.overallRank ? state.overallRank.toLocaleString() : '-') + (!state.liveDataError ? '<span class="rank-live-badge">Live</span>' : '') + '</span>' +
         '<span class="hx-rank-label">الترتيب العام</span>' +
       '</div>' +
       '<div class="hx-stats">' +
@@ -6417,6 +6428,15 @@ function renderHome(){
 // فانتازي البريميرليج بترجّعه فاضي لحد ما تخلّص معالجة البونص الرسمية للجولة —
 // يعني مش هيبان أثناء المباريات وده حد رسمي من فانتازي مش تقصير من التطبيق،
 // فبنوضحه بدل ما نوهم بترتيب "لايف" مش موجود أصلاً كمصدر رسمي موثوق.
+// اتجاه الترتيب العام: بنقارن ترتيبك الحالي بترتيبك في آخر جولة. رقم أصغر = ترتيب أحسن
+// = طالع (أخضر)، ورقم أكبر = نازل (أحمر). لو مفيش ترتيب سابق (أول جولة في الموسم مثلاً)
+// بنرجّع null وما بنعرضش سهم أصلاً، أحسن من إننا نوهم بسهم طالع مش حقيقي.
+function overallRankDir(){
+  const cur = state.overallRank, prev = state.overallLastRank;
+  if(!cur || !prev || cur === prev) return null;
+  return cur < prev ? 'up' : 'down';
+}
+
 function renderEventRankLine(){
   if(state.eventRank){
     return '<div class="k" style="margin-top:5px;opacity:.8;">ترتيب الجولة: #' + state.eventRank.toLocaleString() + '</div>';
