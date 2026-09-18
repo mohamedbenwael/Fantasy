@@ -4984,30 +4984,50 @@ function dreamTeamXI(){
 
   const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
   state.players.forEach(p=>{
-    // لو بنحسب توقعات نستبعد المصابين، لكن في اللايف اللي جاب نقطة يدخل حتى لو كان مصاب
-    if(!useLive && availabilityMultiplier(p) <= 0) return;
-
-    const score = useLive ? currentGwPoints(p) : predictedPoints(p);
-    if(score <= 0) return;
-
     if(!byPos[p.pos]) return;
+
+    if(!useLive){
+      // وضع التوقعات: نستبعد المصابين ومين متوقعله صفر
+      if(availabilityMultiplier(p) <= 0) return;
+      const score = predictedPoints(p);
+      if(score <= 0) return;
+      byPos[p.pos].push({ p:p, score:score });
+      return;
+    }
+
+    // وضع اللايف: بندخّل كل لاعب ماتشه بدأ حتى لو نقطه لسه صفر.
+    // من غير كده، أول ماتش في الجولة (ناديين بس) مش بيكفي يملأ 11 لاعب
+    // فالتشكيلة كانت بتختفي خالص لحد ما مباريات كتير تلعب.
+    const score = currentGwPoints(p);
+    let started = false;
+    try{ started = !!getPlayerMatchStatus(p).started; }catch(e){}
+    if(score <= 0 && !started) return;
     byPos[p.pos].push({ p:p, score:score });
   });
 
-  // ترتيب اللاعبين داخل كل مركز (في حالة التعادل في النقط، الأرخص بيكسب)
+  // ترتيب اللاعبين داخل كل مركز
   Object.keys(byPos).forEach(k => {
-    byPos[k].sort((a,b) => b.score - a.score || a.p.price - b.p.price);
+    byPos[k].sort(useLive
+      // لايف: الأعلى نقط، وعند التعادل الأكتر دقايق، وبعدين الأغلى (لاعب أساسي معروف)
+      ? ((a,b) => b.score - a.score || (b.p.gwMinutes||0) - (a.p.gwMinutes||0) || b.p.price - a.p.price)
+      // توقعات: الأعلى توقعًا، وعند التعادل الأرخص بيكسب
+      : ((a,b) => b.score - a.score || a.p.price - b.p.price));
   });
 
   if(byPos.GK.length<1) return null;
 
-  // بياخد أعلى `count` لاعبين من مركز مرتّب، مع احترام حد ٣ لاعبين لكل نادي (زي الفانتازي الحقيقي).
+  // حد الـ3 لاعيبة لكل نادي منطقي في التوقعات (تشكيلة تقدر تلعبها فعلاً)،
+  // لكن في اللايف دي «أعلى اللاعيبة نقطًا في الجولة» فمفيش سبب نحذف لاعب متفجّر
+  // عشان ناديه مكرّر — والقيد ده كان بيمنع بناء التشكيلة أصلاً بدري في الجولة.
+  const clubCap = useLive ? 99 : MAX_PER_CLUB;
+
+  // بياخد أعلى `count` لاعبين من مركز مرتّب مع احترام حد النادي.
   // بيحدّث عدّاد الأندية المشترك عشان القيد يسري على التشكيلة كلها.
   function pickTop(arr, count, clubCount){
     const out = [];
     for(let i=0;i<arr.length && out.length<count;i++){
       const c = arr[i].p.club;
-      if((clubCount[c]||0) >= MAX_PER_CLUB) continue;   // النادي وصل ٣ لاعيبة → نتخطّاه
+      if((clubCount[c]||0) >= clubCap) continue;   // النادي وصل الحد → نتخطّاه
       clubCount[c] = (clubCount[c]||0) + 1;
       out.push(arr[i]);
     }
@@ -5096,7 +5116,12 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
 
 function renderDreamTeamCard(){
   const dt = dreamTeamXI();
-  if(!dt) return '';
+  if(!dt){
+    // مابنختفيش في صمت — بنوضّح السبب عشان المستخدم (وإحنا) نعرف الكارت فين
+    return '<div class="section-title" id="weekXiCard" style="scroll-margin-top:70px;">' +
+        '<h2>تشكيلة الأسبوع</h2></div>' +
+      '<div class="hint" style="margin:6px 20px 16px;">لسه مفيش بيانات كفاية لبناء التشكيلة — هتظهر أول ما مباريات الجولة تبدأ.</div>';
+  }
   const gk  = dt.xi.filter(p=>p.pos==='GK');
   const def = dt.xi.filter(p=>p.pos==='DEF');
   const mid = dt.xi.filter(p=>p.pos==='MID');
