@@ -2285,6 +2285,11 @@
   .chip-card .cc-detail{ font-family:'Tajawal'; font-size:11.5px; color:var(--muted); line-height:1.7; margin-top:9px; }
   .chip-card .cc-detail b{ color:var(--text); font-weight:800; }
 
+  /* ---------- بادچ «لايف» بتاع كارت تشكيلة الأسبوع ---------- */
+  .wxi-live{ display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:800; color:#04321B;
+    background:var(--accent); padding:2px 8px; border-radius:999px; margin-inline-start:7px; vertical-align:middle; }
+  .wxi-live .d{ width:5px; height:5px; border-radius:50%; background:#04321B; animation:pulse-live-dot 1.6s infinite; }
+
   /* ---------- قايمة المتابعة (Watchlist) + نجوم الحفظ ---------- */
   .qt-badge{ font-family:'Cairo'; font-weight:800; font-size:8px; color:#04321B; background:var(--accent);
     padding:0 5px; border-radius:999px; vertical-align:middle; }
@@ -4964,11 +4969,18 @@ function topTransfersOut(limit){
 
 // ===== الدريم تيم: أفضل 11 لاعب ممكنين للجولة الجاية من كل قاعدة اللاعبين =====
 // (من غير أي تقيد بالميزانية — الهدف إنها تكون أداة استرشادية قبل قفل الجولة، مش تشكيلة رسمية)
+// هل تشكيلة الأسبوع دلوقتي في وضع اللايف؟ (الجولة بدأت + فيه لاعيبة جابت نقط فعلية)
+function weekXiIsLive(){
+  try{
+    if(!state.gwInfo) return false;
+    const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
+    return isStarted && state.players.some(p => currentGwPoints(p) > 0);
+  }catch(e){ return false; }
+}
+
 function dreamTeamXI(){
   // التحقق: هل الجولة بدأت وفيه أي لاعب جاب نقط فعلية؟
-  const isStarted = new Date(state.gwInfo.deadline).getTime() < Date.now();
-  const hasLivePoints = state.players.some(p => currentGwPoints(p) > 0);
-  const useLive = isStarted && hasLivePoints;
+  const useLive = weekXiIsLive();
 
   const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
   state.players.forEach(p=>{
@@ -5105,8 +5117,13 @@ function renderDreamTeamCard(){
     ? 'أفضل تشكيلة حققت نقاط فعلية حتى الآن في هذه الجولة (بدون تقيد بالميزانية).'
     : 'أفضل تشكيلة متوقعة من كل اللاعبين (بدون تقيد بالميزانية)، مبنية على نموذج التوقعات (فورم + xG/xA + صعوبة المباراة).';
 
+  // بادچ لايف صغير جنب العنوان عشان الكارت يبان واضح إنه شغّال دلوقتي
+  const liveBadge = dt.useLive
+    ? '<span class="wxi-live"><span class="d"></span>لايف</span>'
+    : '';
+
   return '' +
-  '<div class="section-title"><h2>' + titleText + '</h2>' +
+  '<div class="section-title" id="weekXiCard" style="scroll-margin-top:70px;"><h2>' + titleText + liveBadge + '</h2>' +
     '<span class="hint" style="font-size:11px;white-space:nowrap;">' + dt.formation + ' • ' + scoreText + '</span>' +
   '</div>' +
   '<div class="pitch-card"><div class="pitch">' +
@@ -6346,6 +6363,14 @@ function renderHome(){
     '<div class="rc-chev">' + ICON_CHEV + '</div>' +
   '</button>' +
 
+  /* ===== زرار سريع لتشكيلة الأسبوع (أعلى اللاعيبة نقاطًا في الجولة) ===== */
+  '<button class="rt-cta" data-scrollto="weekXiCard" style="margin-top:0;">' +
+    '<div class="rc-ic">' + (weekXiIsLive() ? '⚡' : '★') + '</div>' +
+    '<div><div class="rc-t">تشكيلة الأسبوع' + (weekXiIsLive() ? '<span class="wxi-live"><span class="d"></span>لايف</span>' : '') + '</div>' +
+      '<div class="rc-s">أعلى ١١ لاعب جابوا نقط في الجولة دي</div></div>' +
+    '<div class="rc-chev">' + ICON_CHEV + '</div>' +
+  '</button>' +
+
   /* ===== شريط التنقّل بين الجولات ===== */
   renderGwNav() +
   '</div>' +   /* إغلاق home-side */
@@ -7491,6 +7516,9 @@ function renderPredictions(){
 
   (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') +
 
+  /* تشكيلة الأسبوع — أعلى ١١ لاعب نقاطًا (لايف أثناء الجولة، وتوقعات قبلها) */
+  (typeof renderDreamTeamCard === 'function' ? renderDreamTeamCard() : '') +
+
   '<div class="pred-sec"><h2>' + (isLive ? 'نقاط لاعبيك' : 'توقع نقاط لاعبيك') + '</h2></div>' +
   limitedListHtml(squadRowsArr, 'predSquadMore', '', 'margin:0 20px;') +
 
@@ -8568,6 +8596,14 @@ function bindBody(){
   // go-to buttons
   el.querySelectorAll('[data-goto]').forEach(b=>{
     b.addEventListener('click', ()=>{ const dest = b.getAttribute('data-goto'); if(dest==='players'||dest==='fdr'||dest==='compare'||dest==='rateteam'||dest==='chips'||dest==='watchlist'){ state.toolsBack = state.tab; } state.tab = dest; state.notifOpen=false; render(); });
+  });
+
+  // أزرار بتنزّل لسكشن معيّن في نفس الصفحة (زي تشكيلة الأسبوع)
+  el.querySelectorAll('[data-scrollto]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const target = document.getElementById(b.getAttribute('data-scrollto'));
+      if(target) target.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
   });
 
   // placeholders الفارغة على الملعب — تنقل المستخدم لسوق الانتقالات لاختيار لاعب في نفس المركز
