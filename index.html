@@ -4986,9 +4986,9 @@ function weekXiIsLive(){
   }catch(e){ return false; }
 }
 
-function dreamTeamXI(){
-  // التحقق: هل الجولة بدأت وفيه أي لاعب جاب نقط فعلية؟
-  const useLive = weekXiIsLive();
+function dreamTeamXI(forcePredict){
+  // التحقق: هل الجولة بدأت وفيه أي لاعب جاب نقط فعلية؟ (forcePredict = دايمًا وضع التوقعات — بتستخدمه تشكيلة المزاريطة)
+  const useLive = forcePredict ? false : weekXiIsLive();
 
   const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
   state.players.forEach(p=>{
@@ -5122,8 +5122,13 @@ function renderDreamTeamJersey(p, scoreById, capId, useLive){
   });
 }
 
-function renderDreamTeamCard(){
+function renderDreamTeamCard(inPredictionsTab){
   const dt = dreamTeamXI();
+  // في تبويب التوقعات: قبل الجولة تشكيلة المزاريطة وتشكيلة الأسبوع بقوا نفس الـ11 بالظبط،
+  // فبنعرض واحدة بس (المزاريطة). أول ما الجولة تبدأ المزاريطة بتختفي وتظهر تشكيلة الأسبوع
+  // لايف (أعلى ١١ نقاطًا فعليًا). الرئيسية مش بتتأثر (مفيهاش المزاريطة أصلًا).
+  if(inPredictionsTab && !isHistoricalView() && (!dt || !dt.useLive) &&
+     mazaretaLiveGw() == null && mazaretaTeamView()) return '';
   if(!dt){
     // مابنختفيش في صمت — بنوضّح السبب عشان المستخدم (وإحنا) نعرف الكارت فين
     return '<div class="section-title" id="weekXiCard" style="scroll-margin-top:70px;">' +
@@ -5235,29 +5240,10 @@ function aiEvaluationTeam(){
 
 // اختيار أفضل 11 حسب التوقّع (للجولة اللي بنخطّط لها) — بيرجّع ids + كابتن + خطة (من غير نقط)
 function aiPickXI(){
-  const byPos = { GK:[], DEF:[], MID:[], FWD:[] };
-  state.players.forEach(p=>{
-    const predScore = predictedPoints(p);
-    if(predScore <= 0 || availabilityMultiplier(p) <= 0) return;
-    if(!byPos[p.pos]) return;
-    byPos[p.pos].push({ p:p, pred:predScore });
-  });
-  Object.keys(byPos).forEach(k => byPos[k].sort((a,b)=> b.pred - a.pred || a.p.price - b.p.price));
-  if(byPos.GK.length < 1) return null;
-  let best = null;
-  for(let def=FORMATION_RULES.DEF.min; def<=FORMATION_RULES.DEF.max; def++){
-    for(let mid=FORMATION_RULES.MID.min; mid<=FORMATION_RULES.MID.max; mid++){
-      const fwd = 10 - def - mid;
-      if(fwd < FORMATION_RULES.FWD.min || fwd > FORMATION_RULES.FWD.max) continue;
-      if(byPos.DEF.length<def || byPos.MID.length<mid || byPos.FWD.length<fwd) continue;
-      const picks = [].concat(byPos.GK.slice(0,1), byPos.DEF.slice(0,def), byPos.MID.slice(0,mid), byPos.FWD.slice(0,fwd));
-      const totalPred = picks.reduce((s,x)=>s+x.pred, 0);
-      if(!best || totalPred > best.totalPred) best = { totalPred, picks, formation: def+'-'+mid+'-'+fwd };
-    }
-  }
-  if(!best) return null;
-  const capEntry = best.picks.slice().sort((a,b)=>b.pred-a.pred)[0];
-  return { picks: best.picks.map(x=>x.p.id), captainId: capEntry ? capEntry.p.id : null, formation: best.formation };
+  // موحّدة مع «تشكيلة الأسبوع»: نفس المحرّك بالظبط (نفس نموذج التوقعات + حد 3 لاعبين لكل نادي + نفس الخطة)
+  const dt = dreamTeamXI(true);
+  if(!dt || !dt.xi || dt.xi.length < 11) return null;
+  return { picks: dt.xi.map(p=>p.id), captainId: dt.captainId, formation: dt.formation };
 }
 
 // قراءة/كتابة التشكيلة المشتركة من Supabase (عبر /api/kv) — عشان تبقى واحدة لكل المستخدمين
@@ -7562,7 +7548,7 @@ function renderPredictions(){
   (typeof renderAiEvaluationCard === 'function' ? renderAiEvaluationCard() : '') +
 
   /* تشكيلة الأسبوع — أعلى ١١ لاعب نقاطًا (لايف أثناء الجولة، وتوقعات قبلها) */
-  (typeof renderDreamTeamCard === 'function' ? renderDreamTeamCard() : '') +
+  (typeof renderDreamTeamCard === 'function' ? renderDreamTeamCard(true) : '') +
 
   '<div class="pred-sec"><h2>' + (isLive ? 'نقاط لاعبيك' : 'توقع نقاط لاعبيك') + '</h2></div>' +
   limitedListHtml(squadRowsArr, 'predSquadMore', '', 'margin:0 20px;') +
