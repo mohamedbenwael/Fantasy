@@ -4505,18 +4505,26 @@ function _blendRecent(seasonVal, recentVal, n){
   const w = Math.min(0.6, n/8);            // نافذة 5 جولات → ~0.6 للحديث
   return seasonVal*(1-w) + (recentVal||0)*w;
 }
-function effXG90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xG90||0, f.xg90, f.n) : (p.xG90||0); }
-function effXA90(p){ const f=_recentForm(p); return f ? _blendRecent(p.xA90||0, f.xa90, f.n) : (p.xA90||0); }
+// 🔧 انكماش نحو متوسط المركز: أرقام per-90 من دقايق قليلة (زي فودين 361 دقيقة) بتبقى مبالَغ فيها،
+// فبنقرّبها لمتوسط المركز حسب عدد الدقايق الفعلي. K=300 دقيقة (~3.3 ماتش) = نص الوزن.
+const XG_PRIOR = {GK:0.00, DEF:0.05, MID:0.12, FWD:0.35};
+const XA_PRIOR = {GK:0.01, DEF:0.07, MID:0.10, FWD:0.12};
+function _shrink(val, mins, prior){ const K=300, m=Math.max(0,mins||0); return (val*m + prior*K)/(m+K); }
+function effXG90(p){ const f=_recentForm(p); const v = f ? _blendRecent(p.xG90||0, f.xg90, f.n) : (p.xG90||0); return _shrink(v, p.minutes, XG_PRIOR[p.pos]||0.1); }
+function effXA90(p){ const f=_recentForm(p); const v = f ? _blendRecent(p.xA90||0, f.xa90, f.n) : (p.xA90||0); return _shrink(v, p.minutes, XA_PRIOR[p.pos]||0.08); }
 // عامل الدقايق: الدقايق الحديثة أدق مؤشر لدقايق الجولة الجاية من نسبة التأسيس الموسمية.
 // مهم: startsFactor محسوب دايمًا (نسبة مباريات اللاعب للجولات). لو = 0 يبقى اللاعب مش بيلعب
 // أساسي — منستخدمش fallback الـ 0.6 (اللي كان بيدّي لاعب لعب 11 دقيقة عامل 0.6 كأنه أساسي!).
 // الـ fallback بس لو startsFactor مش متوفر خالص (null).
 function effStartsFactor(p){
-  let base = (p.startsFactor!=null) ? p.startsFactor : ((p.minutes||0)>0 ? 0.6 : 0);
-  const f=_recentForm(p);
-  if(!f || f.n<2) return base;
-  const recentStartRatio = Math.max(0, Math.min(1, f.starts/Math.max(1,f.n)));
-  return base*0.4 + recentStartRatio*0.6;
+  // 🔧 الدقايق المتوقعة (0..1) من الدقايق الفعلية مش من عدد مرات التأسيس:
+  // اللاعب اللي بيتغيّر في الدقيقة 60 بياخد ~0.65 مش 1. بنمزج الموسم (40%) مع آخر الجولات (60%).
+  const gwDone = Math.max(1, (((state.gwInfo && state.gwInfo.current) || 2) - 1));
+  const season = Math.max(0, Math.min(1, (p.minutes||0) / (gwDone*90)));
+  const f = _recentForm(p);
+  if(!f || f.n < 2) return season;
+  const recent = Math.max(0, Math.min(1, (f.mins||0) / (f.n*90)));
+  return season*0.4 + recent*0.6;
 }
 // ثقة العينة حسب إجمالي الدقايق: أرقام "لكل 90" من عيّنة صغيرة (زي 11 دقيقة) وهمية — بنقلّل
 // وزنها. ~240 دقيقة (≈ 2.7 ماتش كامل) = ثقة كاملة؛ 11 دقيقة ≈ 0.05 (يعني نتجاهلها تقريبًا).
@@ -4658,7 +4666,7 @@ function blendedFixturePoints(p, fx, isImmediate){
   if(p.pos === 'MID' || p.pos === 'FWD'){
     const xgi90 = (p.xG90||0) + (p.xA90||0);
     // × ثقة العينة: بونص الأرقام التحتية مايتصدّقش من لاعب لعب دقايق قليلة (per-90 وهمية)
-    base += Math.max(-0.6, Math.min(1.2, (xgi90 - 0.30) * 1.2)) * _minsConf(p);
+    base += Math.max(-0.6, Math.min(1.2, (xgi90 - 0.30) * 1.2)) * _minsConf(p) * effStartsFactor(p);   // 🔧 × الدقايق المتوقعة: بونص per-90 مايتدّيش كامل للي بيلعب 55 دقيقة
   }
 
   // ⚖️ صعوبة الكلين شيت تحكم توقّع الحارس/المدافع — و"خطر الخصم" هو المُسيطر، مش سجل الفريق السابق.
@@ -4999,6 +5007,7 @@ function dreamTeamXI(forcePredict){
       if(availabilityMultiplier(p) <= 0) return;
       const score = predictedPoints(p);
       if(score <= 0) return;
+      if(effStartsFactor(p) < 0.6) return;   // 🔧 خطر دوران: لاعب دقايقه المتوقعة < ~55 دقيقة مايدخلش تشكيلة الأسبوع
       byPos[p.pos].push({ p:p, score:score });
       return;
     }
