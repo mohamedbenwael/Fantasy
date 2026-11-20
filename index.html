@@ -4651,9 +4651,12 @@ function blendedFixturePoints(p, fx, isImmediate){
     if(isEarlySeason){
       base = ((cls*0.55) + (stat*0.45)) * (0.7 + 0.3*fxAtk);
     } else if(p.formWeighted>0){
+      // 🔧 معايرة: الجولات البعيدة مفيهاش ep_next فكانت بتعتمد ~82% على الإحصائي لوحده → توقع منفوخ
+      // (برونو: 4.2 للماتش الجاي بس 6.1 للجولات اللي بعده). دلوقتي بنثبّتها بمتوسط نقط اللاعب الفعلي في الموسم.
+      const ppg = p.pointsPerGame || 0;
       base = isDef
-        ? (stat*0.85) + (p.formWeighted*0.15)                 // دفاع: الأفق يعتمد على صعوبة كل ماتش مش الفورم
-        : (stat*0.82) + (p.formWeighted*0.18*fxAtk);          // هجوم: الأرقام التحتية (xGI) هي المُسيطرة، الفورم إشارة صغيرة
+        ? (ppg>0 ? (stat*0.70) + (ppg*0.15) + (p.formWeighted*0.15) : (stat*0.85) + (p.formWeighted*0.15))
+        : (ppg>0 ? (stat*0.55) + (ppg*0.25*fxAtk) + (p.formWeighted*0.20*fxAtk) : (stat*0.82) + (p.formWeighted*0.18*fxAtk));
     } else {
       base = stat>0 ? stat : (cls*0.5*fxAtk);
     }
