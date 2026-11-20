@@ -4683,7 +4683,9 @@ function blendedFixturePoints(p, fx, isImmediate){
     if(od && od.lamConcede!=null && isFinite(od.lamConcede)) danger = od.lamConcede;   // السوق أدق مصدر
     else danger = (fx && fx.oppKey && teamAtkScore(fx.oppKey)!=null) ? teamAtkScore(fx.oppKey) : LEAGUE_AVG_GOALS;
     const fixMult = Math.max(0.5, Math.min(1.35, LEAGUE_AVG_GOALS / Math.max(0.45, danger)));
-    base *= fixMult;
+    // 🔧 نقط الظهور (حتى 2) ثابتة ومش بتتأثر بالخصم — فمنضربهاش في fixMult (كان بيضخّم المدافعين)
+    const appFloor = Math.min(2, 2*effStartsFactor(p));
+    base = appFloor + Math.max(0, base - appFloor) * fixMult;
   } else if(p.pos === 'MID' || p.pos === 'FWD'){
     // 🎯 صعوبة التسجيل للمهاجمين/الوسط: بتضغط توقّعهم كله (فورم + xGI + ep) حسب قوة دفاع الخصم
     // في المباراة دي بالذات. attDiff من 1 (سهل التسجيل) لـ 5 (صعب جدًا) — بتاخد في حسابها دفاع
@@ -5083,7 +5085,7 @@ function dreamTeamXI(forcePredict){
   }
   if(!best) return null;
 
-  const capEntry = best.picks.slice().sort((a,b)=>b.score-a.score)[0];
+  const capEntry = best.picks.slice().sort((a,b)=>captainScore(b.p)-captainScore(a.p))[0];
   const scoreById = {};
   best.picks.forEach(x=>{ scoreById[x.p.id] = x.score; });
 
@@ -7340,10 +7342,13 @@ function limitedListHtml(items, toggleKey, wrapClass, wrapStyle){
 }
 
 // ===== ترشيح الكابتن: أعلى لاعب توقع نقاط داخل تشكيلة المستخدم كلها =====
+// 🔧 نقاط الكابتن: المدافع/الحارس توقّعه مبني على الكلين شيت (متوسط ثابت وسقف منخفض)، أما الكابتن
+// فالمطلوب فيه "سقف" عالي (هاتريك/هدف+أسيست). فبنخصم ١٥٪ من توقّع GK/DEF عند اختيار الكابتن بس.
+function captainScore(p){ const v = predictedPoints(p); return (p.pos==='GK' || p.pos==='DEF') ? v*0.85 : v; }
 function suggestedCaptain(){
   const sq = squad();
   if(!sq.length) return null;
-  return sq.slice().sort((a,b)=>predictedPoints(b)-predictedPoints(a))[0];
+  return sq.slice().sort((a,b)=>captainScore(b)-captainScore(a))[0];
 }
 
 // ===== ترشيح الأساسي/الاحتياطي: أفضل 11 لاعب ممكن بناءً على توقع النقاط مع مراعاة قواعد التشكيل =====
@@ -7774,7 +7779,7 @@ function topCaptainPicks(limit){
     .filter(p=> availabilityMultiplier(p) > 0)
     .map(p=>({ p, pred: predictedPoints(p) }))
     .filter(x=> x.pred > 0)
-    .sort((a,b)=> b.pred - a.pred)
+    .sort((a,b)=> captainScore(b.p) - captainScore(a.p))
     .slice(0, limit||8);
 }
 
