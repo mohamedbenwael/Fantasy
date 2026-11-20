@@ -4685,7 +4685,10 @@ function blendedFixturePoints(p, fx, isImmediate){
     const fixMult = Math.max(0.5, Math.min(1.35, LEAGUE_AVG_GOALS / Math.max(0.45, danger)));
     // 🔧 نقط الظهور (حتى 2) ثابتة ومش بتتأثر بالخصم — فمنضربهاش في fixMult (كان بيضخّم المدافعين)
     const appFloor = Math.min(2, 2*effStartsFactor(p));
-    base = appFloor + Math.max(0, base - appFloor) * fixMult;
+    // 🔧 عدّ مزدوج: الإحصائي (stat) وتوقع FPL الرسمي (ep) فيهم صعوبة الماتش أصلاً (كلين شيت بواسون للماتش ده).
+    // فبنخفّف الـ fixMult للنص بدل ما نضربه كامل فوقهم → المدافعين مايبقوش متضخمين قدام الوسط والهجوم.
+    const fixEff = 1 + (fixMult - 1) * 0.5;
+    base = appFloor + Math.max(0, base - appFloor) * fixEff;
   } else if(p.pos === 'MID' || p.pos === 'FWD'){
     // 🎯 صعوبة التسجيل للمهاجمين/الوسط: بتضغط توقّعهم كله (فورم + xGI + ep) حسب قوة دفاع الخصم
     // في المباراة دي بالذات. attDiff من 1 (سهل التسجيل) لـ 5 (صعب جدًا) — بتاخد في حسابها دفاع
