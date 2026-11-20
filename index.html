@@ -4854,7 +4854,10 @@ function bestTransferSuggestions(horizon){
 
     // فلترة "الأولويات": إصابة/إيقاف/مشكوك دايمًا يظهروا؛ ترقية أساسي محتاجة مكسب معقول؛
     // ترقية احتياطي محتاجة مكسب كبير عشان تستاهل أصلًا.
-    const worth = flagged || doubtful || (isStarter ? bestGain >= 2.5 : bestGain >= 6);
+    // 🔧 رفعنا الحد: مكسب 2.5 نقطة على 5 جولات (نص نقطة/جولة) ده ضوضاء مش سبب لبيع لاعب شغال كويس.
+    // لو اللاعب نفسه متوسطه الفعلي ≥ 5 نقط بنطلب مكسب أكبر (≥ 7) قبل ما نقترح بيعه.
+    const strongSeller = (sellP.pointsPerGame||0) >= 5;
+    const worth = flagged || doubtful || (isStarter ? bestGain >= (strongSeller ? 7 : 5) : bestGain >= 6);
     if(!worth) return;
 
     suggestions.push({ sellP, buyP: bestBuy, diff: Math.round(bestGain*10)/10, horizon: N, priority, reason, urgent });
